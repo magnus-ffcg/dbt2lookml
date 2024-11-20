@@ -38,7 +38,17 @@ dbt2looker --tag prod
 **Generate Looker view files for all exposed models **
 [dbt docs - exposures](https://docs.getdbt.com/docs/build/exposures)
 ```shell
-dbt2looker --exposed_only
+dbt2looker --exposures-only
+```
+
+**Generate Looker view files for all exposed models and specific tags**
+```shell
+dbt2looker --exposures-only --exposures-tag looker
+```
+
+**Generate Looker view files but skip the explore and its joins**
+```shell
+dbt2looker --skip-explore-joins
 ```
 
 ## Install

@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Union, Dict, List, Optional
 import logging
 from pydantic import field_validator, model_validator
+from typing import Self
 
 try:
     from typing import Literal
@@ -23,17 +24,9 @@ def yes_no_validator(value: Union[bool, str]):
         logging.warning(f'Value must be "yes", "no", or a boolean. Got {value}')
         return None
 
-# dbt2looker utility types
-class UnsupportedDbtAdapterError(ValueError):
-    code = 'unsupported_dbt_adapter'
-    msg_template = '{wrong_value} is not a supported dbt adapter'
-
-class SupportedDbtAdapters(str, Enum):
-    ''' Supported dbt adapters, only bigquery for now. '''
-    bigquery = 'bigquery'
-
 class DbtNode(BaseModel):
     ''' A dbt node. extensible to models, seeds, etc.'''
+    name: str
     unique_id: str
     resource_type: str
 
@@ -41,7 +34,7 @@ class DbtExposureRef(BaseModel):
     ''' A reference in a dbt exposure '''
     name: str
     package: Optional[str] = None
-    version: Optional[str] = None
+    version: Optional[Union[str, int]] = None
 
 class DbtExposure(DbtNode):
     ''' A dbt exposure '''
@@ -49,6 +42,7 @@ class DbtExposure(DbtNode):
     description: Optional[str] = None
     url: Optional[str] = None
     refs: List[DbtExposureRef]
+    tags: Optional[List[str]] = [] # Adds exposure tags
 
 class DbtCatalogNodeMetadata(BaseModel):
     ''' Metadata about a dbt catalog node '''
@@ -68,6 +62,7 @@ class DbtCatalogNodeColumn(BaseModel):
     name: str
     # child_name: Optional[str]
     # parent: Optional[str]  # Added field to store the parent node
+    parent: Optional[Self] = None
     
     @model_validator(mode="before")
     @classmethod
@@ -171,6 +166,7 @@ class DbtModelColumn(BaseModel):
     inner_types: Optional[list[str]] = None
     meta: Optional[DbtModelColumnMeta] = DbtModelColumnMeta()
     nested: Optional[bool] = False
+    is_primary_key: Optional[bool] = False
 
     # Root validator
     @model_validator(mode="before")
@@ -186,6 +182,18 @@ class DbtModelColumn(BaseModel):
         values['lookml_name'] = name.split('.')[-1].lower()
         values['description'] = values.get('description', "This field is missing a description.")
         # If the field is an array, it's a nested field
+        return values
+    
+    @model_validator(mode="before")
+    @classmethod
+    def set_primary_key(cls, values):
+        constraints = values.get('constraints', [])
+
+        # if there is a primary key in constraints
+        if {'type': 'primary_key'} in constraints:
+            logging.debug('Found primary key on %s model', values['name'])
+            values['is_primary_key'] = True
+       
         return values
 
 class DbtModelMetaLooker(DbtMetaLooker):
@@ -231,6 +239,15 @@ class DbtModel(DbtNode):
                 new_columns[name.lower()] = column.copy(update={'name': column.name.lower()})
         return new_columns
 
+# dbt2looker utility types - only used in manifest
+class UnsupportedDbtAdapterError(ValueError):
+    code = 'unsupported_dbt_adapter'
+    msg_template = '{wrong_value} is not a supported dbt adapter, only bigquery is supported.'
+
+class SupportedDbtAdapters(str, Enum):
+    ''' BigQuery is the only supported adapter. '''
+    bigquery = 'bigquery'
+
 class DbtManifestMetadata(BaseModel):
     adapter_type: str
 
@@ -247,3 +264,5 @@ class DbtManifest(BaseModel):
     nodes: Dict[str, Union[DbtModel, DbtNode]]
     metadata: DbtManifestMetadata
     exposures : Dict[str, DbtExposure]
+    
+

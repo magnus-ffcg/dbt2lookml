@@ -1,26 +1,31 @@
-[project]
+[tool.poetry]
 name = "dbt2looker-bigquery"
 version = "0.13.1"
 description = "Generate lookml view files from dbt models for Bigquery"
-requires_python = ">=3.10"
+authors = []
 readme = "README.md"
 homepage = "https://github.com/rognerud/dbt2looker-bigquery"
 repository = "https://github.com/rognerud/dbt2looker-bigquery"
 
-dependencies = [
-    "lkml>=1.1",
-    "pydantic>=2.0",
-    "PyYAML>=5.0",
-    "typing-extensions>=4.0",
-    "importlib-metadata>=4",
-    "rich>=13.9.4",
-]
+[tool.poetry.dependencies]
+lkml = ">=1.1"
+pydantic = ">=2.9"
+PyYAML = ">=5.0"
+python = ">=3.12.0,<4.0"
+typing-extensions = ">=4.0"
+importlib-metadata = ">=4"
+rich = ">=13.9.4"
+
+[tool.poetry.group.dev.dependencies]
+debugpy = "^1.8.8"
+pytest = "^8.3.3"
+
 [tool.uv]
 
 [tool.uv.workspace]
 members = ["dist"]
 
-[project.scripts]
+[tool.poetry.scripts]
 dbt2looker = "dbt2looker_bigquery.cli:run"
 
 [build-system]

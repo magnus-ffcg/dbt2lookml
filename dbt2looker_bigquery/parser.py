@@ -18,7 +18,7 @@ def tags_match(query_tag: str, model: models.DbtModel) -> bool:
     except ValueError:
         return query_tag == model.tags
 
-def parse_models(raw_manifest: dict, tag=None, exposures_only=False, select_model:Optional[str] = None) -> List[models.DbtModel]:
+def parse_models(raw_manifest: dict, tag=None, exposures_only=False, exposures_tag=None, select_model:Optional[str] = None) -> List[models.DbtModel]:
     '''Parse dbt models from manifest and filter by tag if provided'''
 
     manifest = models.DbtManifest(**raw_manifest)
@@ -39,6 +39,10 @@ def parse_models(raw_manifest: dict, tag=None, exposures_only=False, select_mode
             for node in manifest.exposures.values()
             if node.resource_type == 'exposure' and hasattr(node, 'name')
         ]
+        
+        if exposures_tag is not None: # Allow for filtering exposure
+            all_exposures = [exposure for exposure in all_exposures if tags_match(exposures_tag, exposure)]
+        
         exposed_model_names: List[str] = get_exposed_models(all_exposures)
 
     for model in all_models:
@@ -69,18 +73,19 @@ def check_models_for_missing_column_types(dbt_typed_models: List[models.DbtModel
 def check_model_materialization(dbt_models: List[models.DbtModel], catalog_nodes : dict, adapter_type: str):
     logging.debug('Found manifest entries for %d models', len(dbt_models))
     for model in dbt_models:
-        logging.debug(
-            'Model %s has %d columns with %d measures',
-            model.name,
-            len(model.columns),
-            sum([len(col.meta.looker_measures) for col in model.columns.values()])
-        )
-        
-        if model.unique_id not in catalog_nodes:
+        if hasattr(model, 'columns') and len(model.columns) > 0: # Do not add views without dimensions
             logging.debug(
-                f'Model {model.unique_id} not found in catalog. No looker view will be generated. '
-                f'Check if model has materialized in {adapter_type} at {model.relation_name}'
+                'Model %s has %d columns with %d measures',
+                model.name,
+                len(model.columns),
+                sum([len(col.meta.looker_measures) for col in model.columns.values()])
             )
+            
+            if model.unique_id not in catalog_nodes:
+                logging.debug(
+                    f'Model {model.unique_id} not found in catalog. No looker view will be generated. '
+                    f'Check if model has materialized in {adapter_type} at {model.relation_name}'
+                )
 
 def get_column_type_from_catalog(catalog_nodes: Dict[str, models.DbtCatalogNode], model_id: str, column_name: str):
     node = catalog_nodes.get(model_id)
@@ -90,12 +95,12 @@ def get_column_type_from_catalog(catalog_nodes: Dict[str, models.DbtCatalogNode]
 def get_column_inner_type_from_catalog(catalog_nodes: Dict[str, models.DbtCatalogNode], model_id: str, column_name: str):
     node = catalog_nodes.get(model_id)
     column = None if node is None else node.columns.get(column_name.lower())
-    return None if column is None else column.inner_types
+    return [] if column is None else column.inner_types
 
 def get_column_parent_from_catalog(catalog_nodes: Dict[str, models.DbtCatalogNode], model_id: str, column_name: str):
     node = catalog_nodes.get(model_id)
     column = None if node is None else node.columns.get(column_name)
-    return None if column is None else column.parent
+    return None if column is None or column.parent is None else column.parent
 
 def get_column_children_from_catalog(catalog_nodes: Dict[str, models.DbtCatalogNode], model_id: str, column_name: str):
     node = catalog_nodes.get(model_id)
@@ -111,10 +116,10 @@ def get_exposed_models(exposures: List[models.DbtExposure]) -> list:
     unique_exposed_models = list(set(exposed_models))
     return unique_exposed_models
 
-def parse_typed_models(raw_manifest: dict, raw_catalog: dict, tag: Optional[str] = None, exposures_only: bool = False, select_model: Optional[str] = None):
+def parse_typed_models(raw_manifest: dict, raw_catalog: dict, tag: Optional[str] = None, exposures_only: bool = False, exposures_tag: Optional[str] = None, select_model: Optional[str] = None):
     catalog_nodes = parse_catalog_nodes(raw_catalog)
     
-    dbt_models = parse_models(raw_manifest, tag=tag, exposures_only=exposures_only, select_model=select_model)
+    dbt_models = parse_models(raw_manifest, tag=tag, exposures_only=exposures_only, exposures_tag=exposures_tag, select_model=select_model)
     adapter_type = parse_adapter_type(raw_manifest)
     
     check_model_materialization(dbt_models, raw_catalog, adapter_type)
@@ -139,14 +144,14 @@ def parse_typed_models(raw_manifest: dict, raw_catalog: dict, tag: Optional[str]
                 if column.type[0:5] == 'ARRAY':
                     logging.debug(column.name + " is an array column")
                     new_column = models.DbtModelColumn(
-                        name=column.name,
-                        description="missing column from manifest.json, generated from catalog.json",
-                        data_type=column.data_type,
-                        inner_types=column.inner_types,
-                        meta=models.DbtModelColumnMeta(),
+                        name = column.name,
+                        description = "missing column from manifest.json, generated from catalog.json",
+                        data_type = column.data_type,
+                        inner_types = column.inner_types,
+                        meta = models.DbtModelColumnMeta()
                     )
                     model.columns[column.name] = new_column
-
+                    
     logging.debug('Found catalog entries for %d models', len(dbt_typed_models))
     logging.debug('Catalog entries missing for %d models', len(dbt_models) - len(dbt_typed_models))
 

@@ -81,9 +81,19 @@ def run():
         type=str,
     )
     argparser.add_argument(
-        '--exposures_only',
+        '--exposures-only',
         help='add this flag to only generate lookml files for exposures',
         action='store_true',  # This makes the flag a boolean argument
+    )
+    argparser.add_argument(
+        '--exposures-tag',
+        help='add this flag to only generate lookml files for specific tag in exposures',
+        type=str,  
+    )
+    argparser.add_argument(
+        '--skip-explore-joins',
+        help='add this flag to skip generating an sample "explore" in views for nested structures',
+        action='store_true',  
     )
     argparser.add_argument(
         '--select',
@@ -99,14 +109,21 @@ def run():
     # Load raw manifest file
     raw_manifest = get_manifest(prefix=args.target_dir)
     raw_catalog = get_catalog(prefix=args.target_dir)
+    
     # Get dbt models from manifest
-    typed_dbt_models = parser.parse_typed_models(raw_manifest, raw_catalog, tag=args.tag, exposures_only=args.exposures_only, select_model=args.select)
+    typed_dbt_models = parser.parse_typed_models(raw_manifest, raw_catalog, tag=args.tag, exposures_only=args.exposures_only, exposures_tag=args.exposures_tag, select_model=args.select)
 
     adapter_type = parser.parse_adapter_type(raw_manifest)
+    
+    # Break if not bigquery
+    if adapter_type != 'bigquery':
+        logging.error('The adapter type in manifest doesnt not match bigquery')
+        logging.error('Failure')
+        exit(1)
 
     # Generate lookml views
     lookml_views = [
-        generator.lookml_view_from_dbt_model(model, adapter_type)
+        generator.lookml_view_from_dbt_model(model, args.skip_explore_joins)
         for model in typed_dbt_models
     ]
 
@@ -120,8 +137,9 @@ def run():
             view.db_schema = view.db_schema.replace(args.remove_schema_string, '')
         pathlib.Path(os.path.join(args.output_dir, 'views', view.db_schema)).mkdir(exist_ok=True, parents=True)
         with open(os.path.join(args.output_dir, 'views', view.db_schema, view.filename), 'w') as f:
+            f.truncate()
             f.write(view.contents)
 
     logging.info(f'Generated {len(lookml_views)} lookml views in {os.path.join(args.output_dir, "views")}')
-
     logging.info('Success')
+ 
