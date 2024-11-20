@@ -52,16 +52,24 @@ looker_scalar_types = ['number', 'yesno', 'string']
 
 looker_date_timeframes = [
     'raw', 
-    'date', 
-    'week', 
-    'month', 
-    'quarter', 
+    'date',
+    'day_of_month',
+    'day_of_week',
+    'day_of_week_index',
+    'week',
+    'week_of_year',
+    'month',
+    'month_num',
+    'month_name', 
+    'quarter',
+    'quarter_of_year',
     'year'
 ]
 
 looker_time_timeframes = [
     'raw', 
-    'time', 
+    'time',
+    'time_of_day',
     'date', 
     'week', 
     'month', 
@@ -454,12 +462,12 @@ def group_strings(all_columns:list[models.DbtModelColumn], array_columns:list[mo
 
     return nested_columns
 
-def lookml_view_from_dbt_model(model: models.DbtModel, skip_explorejoin: False):
+def lookml_view_from_dbt_model(model: models.DbtModel, skip_explore_joins: False, use_table_name_as_view=False):
     ''' Create a looker view from a dbt model 
         if the model has nested arrays, create a view for each array
         and an explore that joins them together
     '''
-    def recurse_views(structure, d):
+    def recurse_views(structure, level=0):
         view_list = []
         used_names = []
         
@@ -470,16 +478,22 @@ def lookml_view_from_dbt_model(model: models.DbtModel, skip_explorejoin: False):
                 for child_name, child_dict in child_strucure.items():
                     children_names.append(child_name)
                     if len((child_dict['children'])) > 0:
-                        recursed_view_list, recursed_names = recurse_views(child_strucure, d=d+1)
+                        recursed_view_list, recursed_names = recurse_views(child_strucure, level=level+1)
                         view_list.extend(recursed_view_list)
                         used_names.extend(recursed_names)
-            logging.info(f"adding view for {parent} d {d}")
+            logging.info(f"adding view for {parent} on level {level}")
             logging.debug(f"children names: {children_names}")
             #logging.debug(f"children {lookml_dimensions_from_model(model, include_names=children_names)}")
+            
+            view_name = model.name + "__" + parent.replace('.','__')
+            if use_table_name_as_view:
+                view_name = model.relation_name.split('.')[-1].strip('`') + "__" + parent.replace('.','__')
+                logging.info('skipping appending model name for %s', view_name)
+
             view_list.append(
                 {
-                    'name': model.name + "__" + parent.replace('.','__') ,
-                    'label': view_label + " : " + parent.replace("_", " ").title(),
+                    'name': view_name,
+                    'label': view_label,
                     'dimensions': lookml_dimensions_from_model(model, include_names=children_names),
                     'dimension_groups': lookml_dimension_groups_from_model(model, include_names=children_names).get('dimension_groups'),
                     'sets' : lookml_dimension_groups_from_model(model, include_names=children_names).get('dimension_group_sets'),
@@ -518,11 +532,17 @@ def lookml_view_from_dbt_model(model: models.DbtModel, skip_explorejoin: False):
                     if len((child_dict['children'])) > 0:
                         recursed_join_list = recurse_joins(child_strucure)
                         join_list.extend(recursed_join_list)
+            
+            join_name = rael(model.name+"."+parent)
+            if use_table_name_as_view:
+                table_name = model.relation_name.split('.')[-1].strip('`')
+                join_name = rael(table_name+"."+parent)
+                        
             join_list.append(
                 {
-                    'sql' : f'LEFT JOIN UNNEST(${{{rael(model.name+"."+parent)}}}) AS {model.name}__{parent.replace(".","__")}',
+                    'sql' : f'LEFT JOIN UNNEST(${{{rael(join_name)}}}) AS {model.name}__{parent.replace(".","__")}',
                     'relationship': 'one_to_many',
-                    'name': model.name + "__" + parent.replace('.','__'),
+                    'name': table_name + "__" + parent.replace('.','__'),
                 }
             )
         return join_list
@@ -550,7 +570,7 @@ def lookml_view_from_dbt_model(model: models.DbtModel, skip_explorejoin: False):
     # this is for handling arrays
     used_names = []
     if structure:
-        view_list, used_names = recurse_views(structure, 1)
+        view_list, used_names = recurse_views(structure, 0)
         logging.debug(used_names)
         logging.debug(view_list)
         lookml_list.append(view_list)
@@ -560,9 +580,14 @@ def lookml_view_from_dbt_model(model: models.DbtModel, skip_explorejoin: False):
     if len(model_dimensions) == 0:
         return None
     
+    view_name = model.name
+    if use_table_name_as_view:
+        view_name = model.relation_name.split('.')[-1].strip('`')
+        logging.info('skipping appending model name for %s', view_name)
+    
     lookml_view = [
         {
-            'name': model.name,
+            'name': view_name,
             'label': view_label,
             'sql_table_name': model.relation_name,
             'dimensions': model_dimensions,
@@ -575,16 +600,16 @@ def lookml_view_from_dbt_model(model: models.DbtModel, skip_explorejoin: False):
     lookml_list.append(lookml_view)
 
     if len(array_models) > 0:
-        logging.info(f"{model.name} explore view definition")
+        logging.info(f"{view_name} explore view definition")
 
         hidden = 'yes'
         if hasattr(model.meta.looker, 'hidden'):
             hidden = model.meta.looker.hidden
             
-        if skip_explorejoin is False:
+        if skip_explore_joins is False:
             lookml_explore = [
             {
-                'name': model.name, # to avoid name conflicts
+                'name': view_name, # to avoid name conflicts
                 'label': view_label,
                 'joins': [],
                 'hidden': hidden
@@ -593,17 +618,17 @@ def lookml_view_from_dbt_model(model: models.DbtModel, skip_explorejoin: False):
             lookml_explore[0]['joins'].extend(recurse_joins(structure))
             lookml = {
                 'explore': lookml_explore,
-                'view': lookml_list,
+                'view': list(reversed(lookml_list)),
             }
         else:
             logging.info(f"Skipping explore joins")
             lookml = {
-                'view': lookml_list,
+                'view': list(reversed(lookml_list)),
             }          
     else:
         logging.info(f"{model.name} single view definition")
         lookml = {
-            'view': lookml_list,
+            'view': list(reversed(lookml_list)),
         }
 
     try: 

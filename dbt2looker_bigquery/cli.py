@@ -96,6 +96,11 @@ def run():
         action='store_true',  
     )
     argparser.add_argument(
+        '--use-table-name',
+        help='add this flag to use table names on views and explore',
+        action='store_true',  
+    )
+    argparser.add_argument(
         '--select',
         help='select a specific model to generate lookml for',
         type=str
@@ -123,7 +128,7 @@ def run():
 
     # Generate lookml views
     lookml_views = [
-        generator.lookml_view_from_dbt_model(model, args.skip_explore_joins)
+        generator.lookml_view_from_dbt_model(model, args.skip_explore_joins, args.use_table_name)
         for model in typed_dbt_models
     ]
 
