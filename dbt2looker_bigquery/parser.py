@@ -2,13 +2,13 @@ import logging
 from typing import Dict, Optional, List
 from . import models as models
 
-def parse_catalog_nodes(raw_catalog: dict):
+def parse_catalog(raw_catalog: dict):
     catalog = models.DbtCatalog(**raw_catalog)
-    return catalog.nodes
+    return catalog
 
-def parse_adapter_type(raw_manifest: dict):
+def parse_manifest(raw_manifest: dict):
     manifest = models.DbtManifest(**raw_manifest)
-    return manifest.metadata.adapter_type
+    return manifest
 
 def tags_match(query_tag: str, model: models.DbtModel) -> bool:
     try:
@@ -18,10 +18,8 @@ def tags_match(query_tag: str, model: models.DbtModel) -> bool:
     except ValueError:
         return query_tag == model.tags
 
-def parse_models(raw_manifest: dict, tag=None, exposures_only=False, exposures_tag=None, select_model:Optional[str] = None) -> List[models.DbtModel]:
+def parse_models(manifest: models.DbtManifest, tag=None, exposures_only=False, exposures_tag=None, select_model:Optional[str] = None) -> List[models.DbtModel]:
     '''Parse dbt models from manifest and filter by tag if provided'''
-
-    manifest = models.DbtManifest(**raw_manifest)
 
     for node in manifest.nodes.values():
         if node.resource_type == 'model':
@@ -116,30 +114,28 @@ def get_exposed_models(exposures: List[models.DbtExposure]) -> list:
     unique_exposed_models = list(set(exposed_models))
     return unique_exposed_models
 
-def parse_typed_models(raw_manifest: dict, raw_catalog: dict, tag: Optional[str] = None, exposures_only: bool = False, exposures_tag: Optional[str] = None, select_model: Optional[str] = None):
-    catalog_nodes = parse_catalog_nodes(raw_catalog)
+def parse_typed_models(manifest: models.DbtManifest, catalog: models.DbtCatalog, tag: Optional[str] = None, exposures_only: bool = False, exposures_tag: Optional[str] = None, select_model: Optional[str] = None):
+    dbt_models = parse_models(manifest, tag=tag, exposures_only=exposures_only, exposures_tag=exposures_tag, select_model=select_model)
+    adapter_type = manifest.metadata.adapter_type
     
-    dbt_models = parse_models(raw_manifest, tag=tag, exposures_only=exposures_only, exposures_tag=exposures_tag, select_model=select_model)
-    adapter_type = parse_adapter_type(raw_manifest)
-    
-    check_model_materialization(dbt_models, raw_catalog, adapter_type)
+    check_model_materialization(dbt_models, catalog.nodes, adapter_type)
 
     # Update dbt models with data types from catalog
     dbt_typed_models = [  
         model.model_copy(update={'columns': {
             column.name: column.model_copy(update={
-                'data_type': get_column_type_from_catalog(catalog_nodes, model.unique_id, column.name),
-                'inner_types': get_column_inner_type_from_catalog(catalog_nodes, model.unique_id, column.name),
+                'data_type': get_column_type_from_catalog(catalog.nodes, model.unique_id, column.name),
+                'inner_types': get_column_inner_type_from_catalog(catalog.nodes, model.unique_id, column.name),
             })
             for column in model.columns.values()
         }})
         for model in dbt_models
-        if model.unique_id in catalog_nodes
+        if model.unique_id in catalog.nodes
     ]
 
     # add catalog only array columns to dbt models
     for model in dbt_typed_models:
-        for column in catalog_nodes[model.unique_id].columns.values():
+        for column in catalog.nodes[model.unique_id].columns.values():
             if column.name not in model.columns:
                 if column.type[0:5] == 'ARRAY':
                     logging.debug(column.name + " is an array column")

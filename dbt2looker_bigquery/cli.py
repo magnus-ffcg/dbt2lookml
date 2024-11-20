@@ -111,40 +111,22 @@ def run():
         level=getattr(logging, args.log_level), format=FORMAT, datefmt="[%X]", handlers=[RichHandler()]
     )
 
-    # Load raw manifest file
+    # Load manifest and catalog once.
     raw_manifest = get_manifest(prefix=args.target_dir)
+    manifest = parser.parse_manifest(raw_manifest)
     raw_catalog = get_catalog(prefix=args.target_dir)
-    
-    # Get dbt models from manifest
-    typed_dbt_models = parser.parse_typed_models(raw_manifest, raw_catalog, tag=args.tag, exposures_only=args.exposures_only, exposures_tag=args.exposures_tag, select_model=args.select)
+    catalog = parser.parse_catalog(raw_catalog)
 
-    adapter_type = parser.parse_adapter_type(raw_manifest)
-    
-    # Break if not bigquery
-    if adapter_type != 'bigquery':
-        logging.error('The adapter type in manifest doesnt not match bigquery')
-        logging.error('Failure')
-        exit(1)
+    # Get dbt models from manifest
+    typed_dbt_models = parser.parse_typed_models(manifest, catalog, tag=args.tag, exposures_only=args.exposures_only, exposures_tag=args.exposures_tag, select_model=args.select)
 
     # Generate lookml views
     lookml_views = [
-        generator.lookml_view_from_dbt_model(model, args.skip_explore_joins, args.use_table_name)
+        generator.lookml_view_from_dbt_model(model, args.output_dir, args.skip_explore_joins, args.use_table_name)
         for model in typed_dbt_models
     ]
-
-    # remove empty list objects
-    lookml_views = [view for view in lookml_views if view]
-
-    pathlib.Path(os.path.join(args.output_dir, 'views')).mkdir(exist_ok=True, parents=True)
-    for view in lookml_views:
-        # handle schema name
-        if args.remove_schema_string:
-            view.db_schema = view.db_schema.replace(args.remove_schema_string, '')
-        pathlib.Path(os.path.join(args.output_dir, 'views', view.db_schema)).mkdir(exist_ok=True, parents=True)
-        with open(os.path.join(args.output_dir, 'views', view.db_schema, view.filename), 'w') as f:
-            f.truncate()
-            f.write(view.contents)
-
-    logging.info(f'Generated {len(lookml_views)} lookml views in {os.path.join(args.output_dir, "views")}')
+    
+    logging.info('Generated %s views', len(lookml_views))
+    
     logging.info('Success')
  

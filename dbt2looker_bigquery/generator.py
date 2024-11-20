@@ -1,7 +1,7 @@
 import lkml
 from . import models
 import logging
-
+import os
 
 log = logging.getLogger("rich")
 class NotImplementedError(Exception):
@@ -462,7 +462,7 @@ def group_strings(all_columns:list[models.DbtModelColumn], array_columns:list[mo
 
     return nested_columns
 
-def lookml_view_from_dbt_model(model: models.DbtModel, skip_explore_joins: False, use_table_name_as_view=False):
+def lookml_view_from_dbt_model(model: models.DbtModel, output_dir: str, skip_explore_joins: False, use_table_name_as_view=False):
     ''' Create a looker view from a dbt model 
         if the model has nested arrays, create a view for each array
         and an explore that joins them together
@@ -641,5 +641,15 @@ def lookml_view_from_dbt_model(model: models.DbtModel, skip_explore_joins: False
     if model_failed:
         return None
     else:
-        filename = f'{model.name}.view.lkml'
-        return models.LookViewFile(filename=filename, contents=contents, schema=model.db_schema)
+        path = os.path.join(output_dir, model.path.split(model.name)[0])
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+            
+        path = f'{path}/{view_name}.view.lkml'
+        
+        with open(path, 'w') as f:
+            f.truncate()
+            f.write(contents)
+        
+        logging.debug(f'Generated {path}')
+        return path

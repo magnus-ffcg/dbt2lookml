@@ -219,6 +219,7 @@ class DbtModel(DbtNode):
     columns: Dict[str, DbtModelColumn]
     tags: List[str]
     meta: DbtModelMeta
+    path: str
 
     @field_validator('columns')
     @classmethod
