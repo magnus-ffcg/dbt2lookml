@@ -534,15 +534,16 @@ def lookml_view_from_dbt_model(model: models.DbtModel, output_dir: str, skip_exp
                         join_list.extend(recursed_join_list)
             
             join_name = rael(model.name+"."+parent)
+            name = model.name
             if use_table_name_as_view:
-                table_name = model.relation_name.split('.')[-1].strip('`')
-                join_name = rael(table_name+"."+parent)
+                name = model.relation_name.split('.')[-1].strip('`')
+                join_name = rael(name+"."+parent)
                         
             join_list.append(
                 {
                     'sql' : f'LEFT JOIN UNNEST(${{{rael(join_name)}}}) AS {model.name}__{parent.replace(".","__")}',
                     'relationship': 'one_to_many',
-                    'name': table_name + "__" + parent.replace('.','__'),
+                    'name': name + "__" + parent.replace('.','__'),
                 }
             )
         return join_list
