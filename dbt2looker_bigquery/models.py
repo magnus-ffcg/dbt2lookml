@@ -3,6 +3,7 @@ from typing import Union, Dict, List, Optional
 import logging
 from pydantic import field_validator, model_validator
 from typing import Self
+from . import schema_parser
 
 try:
     from typing import Literal
@@ -10,7 +11,7 @@ except ImportError:
     from typing_extensions import Literal
 from pydantic import BaseModel, Field, validator
 import re
-from . import looker_enums
+from . import looker
 
 def yes_no_validator(value: Union[bool, str]):
     ''' Convert booleans or strings to lookml yes/no syntax'''
@@ -69,8 +70,8 @@ class DbtCatalogNodeColumn(BaseModel):
     def validate_inner_type(cls, values):
         type = values.get('type')
         # Check if there is a non-None 'parent' and validate it.
-        pattern = re.compile(r'<(.*?)>')
-        matches = pattern.findall(type)
+        #pattern = re.compile(r'<(.*?)>')
+        #matches = pattern.findall(type)
 
         def truncate_before_character(string, character):
             # Find the position of the character in the string.
@@ -85,9 +86,13 @@ class DbtCatalogNodeColumn(BaseModel):
 
 
         values['data_type'] = truncate_before_character(type, '<')
-        values['inner_types'] = [item.strip() for match in matches for item in match.split(',')]
-        if len(matches) > 0:
-            logging.debug(f"Found inner types {values['inner_types']} in type {type}")
+        
+        #values['inner_types'] = [item.strip() for match in matches for item in match.split(',')]
+        parser = schema_parser.SchemaParser()
+        values['inner_types'] = parser.parse(type)
+        
+        if len(values['inner_types']) > 0:
+            logging.info(f"Found inner types {values['inner_types']} in type {type}")
         return values
 
 class DbtCatalogNodeRelationship(BaseModel):
@@ -124,12 +129,12 @@ class DbtMetaLooker(BaseModel):
     hidden: Optional[bool] = Field(default=None)
     label: Optional[str] = Field(default=None)
     group_label: Optional[str] = Field(default=None)
-    value_format_name: Optional[looker_enums.LookerValueFormatName] = Field(default=None) #TODO - make validator not discard as much if a invalid value is given
-    timeframes: Optional[List[looker_enums.LookerTimeFrame]] = Field(default=None) #TODO - make validator not discard as much if a invalid value is given
+    value_format_name: Optional[looker.LookerValueFormatName] = Field(default=None) #TODO - make validator not discard as much if a invalid value is given
+    timeframes: Optional[List[looker.LookerTimeFrame]] = Field(default=None) #TODO - make validator not discard as much if a invalid value is given
 
 class DbtMetaMeasure(DbtMetaLooker):
     ''' A measure defined in a dbt model'''
-    type: looker_enums.LookerMeasureType = Field(default=None)
+    type: looker.LookerMeasureType = Field(default=None)
     description: Optional[str] = Field(default=None, alias='description')
     sql: Optional[str] = Field(default=None)
     approximate: Optional[Union[bool, str]] = Field(default=None)

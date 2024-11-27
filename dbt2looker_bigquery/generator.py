@@ -1,81 +1,13 @@
 import lkml
-from . import models
+from . import models, looker
 import logging
 import os
+
 
 log = logging.getLogger("rich")
 class NotImplementedError(Exception):
     pass
 
-LOOKER_BIGQUERY_DTYPE_MAP = {
-    'INT64':     'number',
-    'INTEGER':   'number',
-    'FLOAT':     'number',
-    'FLOAT64':   'number',
-    'NUMERIC':   'number',
-    'BIGNUMERIC': 'number',
-    'BOOLEAN':   'yesno',
-    'STRING':    'string',
-    'TIMESTAMP': 'timestamp',
-    'DATETIME':  'datetime',
-    'DATE':      'date',
-    'TIME':      'string',    # Can time-only be handled better in looker?
-    'BOOL':      'yesno',
-    'GEOGRAPHY': 'string',
-    'BYTES':     'string',
-    'ARRAY':     'string',
-    'STRUCT':    'string'
-}
-
-LOOKER_BIGQUERY_MEASURE_TYPES = [
-    'count',
-    'count_distinct',
-    'sum',
-    'average',
-    'min',
-    'max',
-    'median',
-    'percentile',
-    'percentile_approx',
-    'stddev',
-    'stddev_pop',
-    'stddev_samp',
-    'variance',
-    'var_pop',
-    'var_samp',
-    'sum_distinct',
-]
-
-looker_date_time_types = ['datetime', 'timestamp']
-looker_date_types = ['date']
-looker_scalar_types = ['number', 'yesno', 'string']
-
-looker_date_timeframes = [
-    'raw', 
-    'date',
-    'day_of_month',
-    'day_of_week',
-    'day_of_week_index',
-    'week',
-    'week_of_year',
-    'month',
-    'month_num',
-    'month_name', 
-    'quarter',
-    'quarter_of_year',
-    'year'
-]
-
-looker_time_timeframes = [
-    'raw', 
-    'time',
-    'time_of_day',
-    'date', 
-    'week', 
-    'month', 
-    'quarter', 
-    'year'
-]
 
 def validate_sql(sql: str):
     ''' Validate that a string is a valid Looker SQL expression '''
@@ -103,7 +35,7 @@ def map_bigquery_to_looker(column_type: str):
         column_type = column_type.split('<')[0]  # STRUCT< or ARRAY<
         column_type = column_type.split('(')[0]  # Numeric(1,31)
 
-    looker_type = LOOKER_BIGQUERY_DTYPE_MAP.get(column_type)
+    looker_type = looker.LOOKER_BIGQUERY_DTYPE_MAP.get(column_type)
     if column_type is not None and looker_type is None:
         logging.warning(f'Column type {column_type} not supported for conversion from bigquery to looker. No dimension will be created.')
 
@@ -115,11 +47,11 @@ def lookml_dimension_group(column: models.DbtModelColumn, type: str, table_forma
     else:
         if type == 'time':
             convert_tz = 'yes'
-            timeframes = looker_time_timeframes
+            timeframes = looker.LOOKER_TIME_TIMEFRAMES
             column_name_adjusted = column.name.replace("_date","")
         elif type == 'date':
             convert_tz = 'no'
-            timeframes = looker_date_timeframes
+            timeframes = looker.LOOKER_DATE_TIMEFRAMES
             column_name_adjusted = column.name.replace("_date","")
         else:
             raise NotImplementedError()
@@ -204,9 +136,9 @@ def lookml_dimension_groups_from_model(model: models.DbtModel, include_names=Non
             if column.name in exclude_names:
                 continue
 
-        if map_bigquery_to_looker(column.data_type) in looker_date_time_types: 
+        if map_bigquery_to_looker(column.data_type) in looker.LOOKER_DATE_TIME_TYPES: 
             dimension_group, dimension_set, _ = lookml_dimension_group(column, 'time', table_format_sql, model)            
-        elif map_bigquery_to_looker(column.data_type) in looker_date_types:
+        elif map_bigquery_to_looker(column.data_type) in looker.LOOKER_DATE_TYPES:
             dimension_group, dimension_set, _ = lookml_dimension_group(column, 'date', table_format_sql, model)            
         else:
             continue
@@ -237,7 +169,7 @@ def lookml_dimensions_from_model(model: models.DbtModel, include_names=None, exc
                     logging.debug(f"excluding {column.name}")
                     continue
 
-        if map_bigquery_to_looker(column.data_type) in looker_scalar_types:
+        if map_bigquery_to_looker(column.data_type) in looker.LOOKER_SCALAR_TYPES:
 
             dimension = {
                 'name': column.lookml_long_name if table_format_sql else column.lookml_name,
@@ -308,7 +240,7 @@ def lookml_measures_from_model(model: models.DbtModel, include_names=None, exclu
             if column.name in exclude_names:
                 continue
 
-        if map_bigquery_to_looker(column.data_type) in looker_scalar_types:
+        if map_bigquery_to_looker(column.data_type) in looker.LOOKER_SCALAR_TYPES:
 
             if hasattr(column.meta, 'looker_measures'):
                 # For each measure found in the combined dictionary, create a lookml_measure.
@@ -321,7 +253,7 @@ def lookml_measures_from_model(model: models.DbtModel, include_names=None, exclu
 
 def lookml_measure(column: models.DbtModelColumn, measure: models.DbtMetaMeasure, table_format_sql, model):
     
-    if measure.type.value not in LOOKER_BIGQUERY_MEASURE_TYPES:
+    if measure.type.value not in looker.LOOKER_BIGQUERY_MEASURE_TYPES:
         logging.warning(f"Measure type {measure.type.value} not supported for conversion to looker. No measure will be created.")
         return None
     
@@ -434,20 +366,20 @@ def group_strings(all_columns:list[models.DbtModelColumn], array_columns:list[mo
         logging.debug(f"level {level}, {parent.name}")
         for column in all_columns:
             # singleton array handling
-            if column.name == parent.name:
-                logging.debug('has identical name %s %s', column.name, parent.name)
-                if len(column.inner_types) == 1:
-                    structure['children'].append({column.name : {'column' : column, 'children' : []}})
+            #if column.name == parent.name:
+            #    logging.debug('has identical name %s %s', column.name, parent.name)
+            #    if len(column.inner_types) == 1:
+            #        structure['children'].append({column.name : {'column' : column, 'children' : []}})
 
             # descendant handling
-            if remove_parts(column.name) == parent.name:
-                logging.debug(f"column {column.name} ({remove_parts(column.name)}) is a direct descendant of {parent.name}")
-                structure['children'].append({column.name : recurse(
-                            parent = column,
-                            all_columns = [d for d in all_columns if remove_parts(d.name) == column.name],
-                            level=level+1)})   
+            #if remove_parts(column.name) == parent.name:
+            #    logging.debug(f"column {column.name} ({remove_parts(column.name)}) is a direct descendant of {parent.name}")
+            #    structure['children'].append({column.name : recurse(
+            #                parent = column,
+            #                all_columns = [d for d in all_columns if remove_parts(d.name) == column.name],
+            #                level=level+1)})   
             # inner_types handling
-            elif column.name in parent.inner_types:
+            if remove_parts(column.name) == parent.name and column.name in parent.inner_types:
                 logging.debug(f"column {column.name} is a nested child of {parent.name}")
                 structure['children'].append({column.name : recurse(
                             parent = column,
