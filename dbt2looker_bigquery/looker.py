@@ -9,7 +9,7 @@ class LookerMeasureType(str, Enum):
     average_distinct = "average_distinct"
     count = "count"
     count_distinct = "count_distinct"
-    list = "list"
+    list = "list"   
     max = "max"
     median = "median"
     median_distinct = "median_distinct"

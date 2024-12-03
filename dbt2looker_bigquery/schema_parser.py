@@ -1,187 +1,109 @@
-from typing import List, Optional
-import re
 from dataclasses import dataclass
-from . import looker
+from typing import List, Union
+from contextlib import contextmanager
+import re
 
 @dataclass
 class SchemaField:
-    """Represents a field in the BigQuery schema"""
+    """Represents a field in the BigQuery schema with its name, type, and path."""
     name: str
-    type: str
-    prefix: str = ""
-
-    @property
-    def full_name(self) -> str:
-        """Returns the fully qualified field name with prefix"""
-        return f"{self.prefix}.{self.name}" if self.prefix else self.name
+    type_str: str
+    path: List[str]
+    inner_types: List[str] = None
 
     def __str__(self) -> str:
-        """Returns the string representation of the field"""
-        return f"{self.full_name} {self.type}"
+        """Returns the complete field representation as it would appear in a schema."""
+        path_str = '.'.join(self.path + ([self.name] if self.name else []))
+        return f"{path_str} {self.type_str}".strip()
 
 class SchemaParser:
-    """Parser for BigQuery schema strings"""
-    
-    # BigQuery types
-    TYPES = [ k for k in looker.LOOKER_BIGQUERY_DTYPE_MAP.keys() if k not in ('STRUCT', 'ARRAY') ]
-    
-    def normalize_type(self, type_def: str) -> str:
-        """
-        Normalize type names to BigQuery format.
+    """Parser for BigQuery schema strings that handles nested structures and complex types."""
+
+    def __init__(self):
+        self._fields: List[SchemaField] = []
+        self._current_path: List[str] = []
+
+    def _parse_content(self, text: str, split_fields: bool = False) -> Union[str, List[str]]:
+        """Extracts content within angle brackets, optionally splitting on top-level commas."""
+        result = []
+        current = []
+        level = 0
         
-        Args:
-            type_def: The type definition to normalize
+        for char in text + (',' if split_fields else ''):
+            if char == '<':
+                level += 1
+            elif char == '>':
+                level -= 1
+                if level < 0:
+                    break
+            elif split_fields and char == ',' and level == 0:
+                if current:
+                    result.append(''.join(current).strip())
+                current = []
+                continue
+            current.append(char)
+        
+        content = ''.join(current).strip()
+        return [f for f in result + [content] if f] if split_fields else content
+
+    def _normalize_type(self, type_str: str) -> str:
+        """Normalizes type strings by removing precision/scale for numeric types."""
+        if 'NUMERIC' in type_str:
+            return re.sub(r'NUMERIC\(\d+,\s*\d+\)', 'NUMERIC', type_str)
+        return type_str
+
+    def _process_type(self, type_str: str) -> tuple[str, str, bool]:
+        """Processes a type string to determine its structure.
+        Returns: (inner_content, type_prefix, has_struct)"""
+        type_str = self._normalize_type(type_str)
+        if type_str.startswith('ARRAY<'):
+            inner = self._parse_content(type_str[6:])
+            if inner.startswith('STRUCT<'):
+                return self._parse_content(inner[7:]), 'ARRAY', True # ARRAY<STRUCT<...>...>
+            else:     
+                return inner, inner, False
+        elif type_str.startswith('STRUCT<'):
+            return self._parse_content(type_str[7:]), 'STRUCT', True
+        return type_str, type_str, False
+
+    @contextmanager
+    def _path_context(self, name: str):
+        """Context manager for tracking field paths."""
+        if name:
+            self._current_path.append(name)
+        try:
+            yield
+        finally:
+            if name:
+                self._current_path.pop()
+
+    def _add_field(self, name: str, type_str: str, inner_types: List[str] = None):
+        """Adds a field to the result list."""
+        type_str = self._normalize_type(type_str)
+        self._fields.append(SchemaField(name=name, type_str=type_str, path=self._current_path.copy(), inner_types=inner_types))
+
+    def _process_fields(self, content: str):
+        """Processes multiple field definitions."""
+        for field in self._parse_content(content, split_fields=True):
+            name, type_str = field.split(' ', 1)
+            inner, type_prefix, has_struct = self._process_type(type_str.strip())
             
-        Returns:
-            Normalized type string
-        """
-        # Handle numeric types (DECIMAL/NUMERIC)
-        if "(" in type_def:
-            base_type = type_def.split("(")[0].strip().upper()
-            if base_type in SchemaParser.TYPES:
-                return base_type
-        
-        type_def = type_def.upper()
-        
-        # Handle array types
-        if type_def.startswith("ARRAY<"):
-            inner_type = type_def[6:-1]  # Remove ARRAY< and >
-            if inner_type.startswith("ARRAY<"):
-                return f"ARRAY<{SchemaParser.normalize_type(inner_type)}>"
-            elif inner_type.startswith("STRUCT<"):
-                return "ARRAY<STRUCT>"
+            if has_struct:
+                self._add_field(name, type_prefix)
+                with self._path_context(name):
+                    self._process_fields(inner)
             else:
-                return f"ARRAY<{SchemaParser.normalize_type(inner_type)}>"
-        
-        return type_def
+                self._add_field(name, type_str)
 
-    def parse_field(self,field_str: str, prefix: str = "") -> Optional[SchemaField]:
-        """
-        Parse a single field string into a SchemaField object.
+    def parse(self, schema_str: str) -> List[str]:
+        """Parses a BigQuery schema string into a list of field definitions."""
+        self._fields = []
+        self._current_path = []
         
-        Args:
-            field_str: The field string to parse
-            prefix: Optional prefix for nested fields
-            
-        Returns:
-            SchemaField object or None if parsing fails
-        """
-        field_str = field_str.strip()
-        if " " not in field_str:
-            return None
-            
-        # Extract field name
-        name_match = re.match(r"(\w+)\s+", field_str)
-        if not name_match:
-            return None
-            
-        name = name_match.group(1)
-        type_def = field_str[len(name):].strip()
+        inner, type_prefix, has_struct = self._process_type(schema_str)
+        if has_struct:
+            self._process_fields(inner)
+        else:
+            self._fields.append(SchemaField(name="", type_str=type_prefix, path=[]))
         
-        return SchemaField(name=name, type=type_def, prefix=prefix)
-
-    def parse_struct(self, struct_str: str, prefix: str = "", flatten_arrays: bool = True) -> List[str]:
-        """
-        Parse a struct definition into a list of field strings.
-        
-        Args:
-            struct_str: The struct string to parse
-            prefix: Optional prefix for nested fields
-            flatten_arrays: Whether to flatten nested array types
-            
-        Returns:
-            List of field strings
-        """
-        try:
-            # Remove struct<...> wrapper if present
-            struct_str = struct_str.strip()
-            if not struct_str:
-                return []
-                
-            if struct_str.upper().startswith("STRUCT<"):
-                if not struct_str.endswith(">"):
-                    return []
-                struct_str = struct_str[7:-1]
-            
-            result = []
-            level = 0  # Track nesting level
-            current = ""
-            in_brackets = False
-            
-            # Parse character by character
-            for char in struct_str + ",":  # Add comma to handle last field
-                if char == "," and level == 0 and not in_brackets:
-                    if current:
-                        field = SchemaParser.parse_field(current, prefix)
-                        if field:
-                            if "STRUCT<" in field.type.upper():
-                                # Handle struct types
-                                array_depth = 0
-                                type_def = field.type
-                                
-                                # Handle array of struct
-                                while type_def.upper().startswith("ARRAY<"):
-                                    array_depth += 1
-                                    type_def = type_def[6:-1]
-                                
-                                # Add appropriate type based on nesting
-                                if array_depth > 0:
-                                    array_type = "ARRAY<ARRAY<STRUCT>>" if array_depth > 1 else "ARRAY<STRUCT>"
-                                    result.append(f"{field.full_name} {array_type}")
-                                    
-                                    if array_depth > 1 and not flatten_arrays:
-                                        result.append(f"{field.full_name} {SchemaParser.normalize_type(field.type)}")
-                                        current = ""
-                                        continue
-                                else:
-                                    result.append(f"{field.full_name} STRUCT")
-                                
-                                # Parse nested struct
-                                result.extend(SchemaParser.parse_struct(type_def, field.full_name, flatten_arrays))
-                            else:
-                                # Handle basic types
-                                result.append(f"{field.full_name} {SchemaParser.normalize_type(field.type)}")
-                        current = ""
-                else:
-                    # Track nesting level
-                    if char == "(":
-                        in_brackets = True
-                    elif char == ")":
-                        in_brackets = False
-                    elif char == "<":
-                        level += 1
-                    elif char == ">":
-                        level -= 1
-                    current += char
-            
-            return result
-        except Exception:
-            return []
-
-    def parse(self, schema: str) -> List[str]:
-        """
-        Parse a nested schema string into a flat list of column paths and types.
-        
-        Args:
-            schema: The schema string to parse
-            
-        Returns:
-            List of strings in format "field_path type"
-            
-        Example:
-            Input: "ARRAY<STRUCT<a INT64, b ARRAY<STRUCT<c STRING>>>>"
-            Output: ["a INT64", "b ARRAY<STRUCT>", "b.c STRING"]
-        """
-        try:
-            # Handle top-level array
-            flatten_arrays = True
-            if schema.upper().startswith("ARRAY<"):
-                if not schema.endswith(">"):
-                    return []
-                schema = schema[6:-1]
-                if schema.upper().startswith("ARRAY<"):
-                    flatten_arrays = False
-            
-            return sorted(self.parse_struct(schema, flatten_arrays=flatten_arrays))
-        except Exception:
-            return []
+        return sorted(str(field) for field in self._fields)

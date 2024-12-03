@@ -26,11 +26,11 @@ pytest = "^8.3.3"
 members = ["dist"]
 
 [tool.poetry.scripts]
-dbt2looker = "dbt2looker_bigquery.cli:run"
+dbt2looker = "dbt2looker_bigquery.cli:main"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 [tool.bumpversion]
 current_version = "0.13.2"

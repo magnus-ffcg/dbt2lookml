@@ -3,7 +3,7 @@ from typing import Union, Dict, List, Optional
 import logging
 from pydantic import field_validator, model_validator
 from typing import Self
-from . import schema_parser
+from dbt2looker_bigquery import schema_parser
 
 try:
     from typing import Literal
@@ -53,6 +53,8 @@ class DbtCatalogNodeMetadata(BaseModel):
     comment: Optional[str] = None
     owner: Optional[str] = None
 
+schema_parser = schema_parser.SchemaParser()
+
 class DbtCatalogNodeColumn(BaseModel):
     ''' A column in a dbt catalog node '''
     type: str
@@ -69,9 +71,6 @@ class DbtCatalogNodeColumn(BaseModel):
     @classmethod
     def validate_inner_type(cls, values):
         type = values.get('type')
-        # Check if there is a non-None 'parent' and validate it.
-        #pattern = re.compile(r'<(.*?)>')
-        #matches = pattern.findall(type)
 
         def truncate_before_character(string, character):
             # Find the position of the character in the string.
@@ -84,15 +83,14 @@ class DbtCatalogNodeColumn(BaseModel):
             # If not found, return the original string.
             return string
 
-
-        values['data_type'] = truncate_before_character(type, '<')
+         
+        data_type = truncate_before_character(type, '<')
+        values['data_type'] = truncate_before_character(data_type, '(')
         
-        #values['inner_types'] = [item.strip() for match in matches for item in match.split(',')]
-        parser = schema_parser.SchemaParser()
-        values['inner_types'] = parser.parse(type)
-        
-        if len(values['inner_types']) > 0:
-            logging.info(f"Found inner types {values['inner_types']} in type {type}")
+        inner_types = schema_parser.parse(type)
+        if inner_types and inner_types != type:
+            values['inner_types'] = inner_types
+            
         return values
 
 class DbtCatalogNodeRelationship(BaseModel):
@@ -110,7 +108,7 @@ class DbtCatalogNode(BaseModel):
     @classmethod
     def case_insensitive_column_names(cls, v: Dict[str, DbtCatalogNodeColumn]):
         return {
-            name.lower(): column.copy(update={'name': column.name.lower()})
+            name.lower(): column.model_copy(update={'name': column.name.lower()})
             for name, column in v.items()
         }
 
@@ -168,7 +166,7 @@ class DbtModelColumn(BaseModel):
     lookml_name: str
     description: Optional[str] = None
     data_type: Optional[str] = None
-    inner_types: Optional[list[str]] = None
+    inner_types: Optional[list[str]] = []
     meta: Optional[DbtModelColumnMeta] = DbtModelColumnMeta()
     nested: Optional[bool] = False
     is_primary_key: Optional[bool] = False
@@ -242,7 +240,7 @@ class DbtModel(DbtNode):
                 if not isinstance(column, DbtModelColumn):
                     raise TypeError(f"The value for key {name} is not a DbtModelColumn instance.")
                 # Lowercase the name and update the column name
-                new_columns[name.lower()] = column.copy(update={'name': column.name.lower()})
+                new_columns[name.lower()] = column.model_copy(update={'name': column.name.lower()})
         return new_columns
 
 # dbt2looker utility types - only used in manifest
@@ -270,5 +268,3 @@ class DbtManifest(BaseModel):
     nodes: Dict[str, Union[DbtModel, DbtNode]]
     metadata: DbtManifestMetadata
     exposures : Dict[str, DbtExposure]
-    
-
