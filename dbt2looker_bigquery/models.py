@@ -2,16 +2,17 @@ from enum import Enum
 from typing import Union, Dict, List, Optional
 import logging
 from pydantic import field_validator, model_validator
-from typing import Self
-from dbt2looker_bigquery import schema_parser
+from typing import Literal
+from pydantic import BaseModel, Field, validator
+import re
+from . import looker, schema_parser
+
+schema_parser = schema_parser.SchemaParser()
 
 try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
-from pydantic import BaseModel, Field, validator
-import re
-from . import looker
 
 def yes_no_validator(value: Union[bool, str]):
     ''' Convert booleans or strings to lookml yes/no syntax'''
@@ -53,8 +54,6 @@ class DbtCatalogNodeMetadata(BaseModel):
     comment: Optional[str] = None
     owner: Optional[str] = None
 
-schema_parser = schema_parser.SchemaParser()
-
 class DbtCatalogNodeColumn(BaseModel):
     ''' A column in a dbt catalog node '''
     type: str
@@ -65,7 +64,7 @@ class DbtCatalogNodeColumn(BaseModel):
     name: str
     # child_name: Optional[str]
     # parent: Optional[str]  # Added field to store the parent node
-    parent: Optional[Self] = None
+    parent: Optional['DbtCatalogNodeColumn'] = None
     
     @model_validator(mode="before")
     @classmethod

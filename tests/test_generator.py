@@ -4,6 +4,7 @@ from dbt2looker_bigquery.models import DbtModelColumn, DbtModelColumnMeta, DbtCa
 from dbt2looker_bigquery import looker, models
 import os
 import tempfile
+import json
 
 @pytest.mark.parametrize("sql,expected", [
     ("${TABLE}.column", "${TABLE}.column"),
@@ -209,7 +210,7 @@ def test_get_view_label():
     model = type('TestModel', (), {
         'meta': type('Meta', (), {
             'looker': type('Looker', (), {'label': None})()
-        })()
+        })(),
     })
     assert lookml_generator._get_view_label(model) is None
 
@@ -277,7 +278,6 @@ def test_create_nested_view():
         data_type="ARRAY<STRUCT<name STRING, price FLOAT64>>",
         inner_types=["STRUCT<name STRING, price FLOAT64>"],
         unique_id="test_model.items",
-        description="Test array column",
         meta=DbtModelColumnMeta()
     )
     
@@ -703,3 +703,194 @@ def test_lookml_dimensions_with_metadata():
     assert dim['primary_key'] == 'yes'
     assert dim['value_format_name'] == 'id'
     assert dim['description'] == 'Test description'
+
+@pytest.fixture
+def mock_dbt_model():
+    """Fixture for a test DBT model"""
+    return models.DbtModel(
+        name="test_model",
+        path="models/test_model.sql",
+        relation_name="`project.dataset.table_name`",
+        columns={
+            "user_id": DbtModelColumn(
+                name="user_id",
+                lookml_name="user_id",
+                lookml_long_name="user_id",
+                data_type="INT64",
+                unique_id="test_model.user_id",
+                meta=DbtModelColumnMeta()
+            ),
+            "created_at": DbtModelColumn(
+                name="created_at",
+                lookml_name="created_at",
+                lookml_long_name="created_at",
+                data_type="TIMESTAMP",
+                unique_id="test_model.created_at",
+                meta=DbtModelColumnMeta()
+            )
+        },
+        meta=models.DbtModelMeta(),
+        unique_id="test_model",
+        resource_type="model",
+        schema="test_schema",
+        description="Test model",
+        tags=[]
+    )
+
+def test_generate_with_locale(mock_dbt_model, mocker):
+    """Test generation of locale files with mocked file operations"""
+    lookml_generator = LookmlGenerator()
+    
+    # Create a second test model to verify multiple models are handled
+    second_model = models.DbtModel(
+        name="second_model",
+        path="models/second_model.sql",
+        relation_name="`project.dataset.second_table`",
+        columns={
+            "amount": DbtModelColumn(
+                name="amount",
+                lookml_name="amount",
+                lookml_long_name="amount",
+                data_type="FLOAT64",
+                unique_id="second_model.amount",
+                meta=DbtModelColumnMeta()
+            ),
+            "status": DbtModelColumn(
+                name="status",
+                lookml_name="status",
+                lookml_long_name="status",
+                data_type="STRING",
+                unique_id="second_model.status",
+                meta=DbtModelColumnMeta()
+            )
+        },
+        meta=models.DbtModelMeta(),
+        unique_id="second_model",
+        resource_type="model",
+        schema="test_schema",
+        description="Second test model",
+        tags=[]
+    )
+    
+    # Mock DbtParser
+    mock_parser = mocker.Mock()
+    mock_parser.parse_typed_models.return_value = [mock_dbt_model, second_model]
+    mocker.patch('dbt2looker_bigquery.parser.DbtParser', return_value=mock_parser)
+    
+    # Mock file operations
+    mock_open = mocker.mock_open()
+    mocker.patch('builtins.open', mock_open)
+    mocker.patch('os.makedirs')  # Mock directory creation
+    
+    # Mock json operations
+    mock_json_dump = mocker.patch('json.dump')
+    mock_json_load = mocker.patch('json.load')
+    mock_json_load.side_effect = [{'nodes': {}}, {'nodes': {}}, {'nodes': {}}, {'nodes': {}}]  # For manifest and catalog
+    
+    # Mock lkml.dump
+    mock_lkml_dump = mocker.patch('lkml.dump')
+    mock_lkml_dump.return_value = "mock lookml content"
+    
+    # Mock os.path.join to return predictable paths
+    mocker.patch('os.path.join', lambda *args: '/'.join(args))
+    
+    # Test with model names
+    lookml_generator.generate(
+        target_dir="/mock/dir",
+        tag=None,
+        output_dir="/mock/output",
+        generate_locale=True,
+        use_table_name_as_view=False
+    )
+    
+    # Check that one locale file was attempted to be created
+    locale_calls = [call for call in mock_open.call_args_list if 'en.strings.json' in str(call)]
+    assert len(locale_calls) == 1
+    assert locale_calls[0] == mocker.call('/mock/output/en.strings.json', 'w')
+    
+    # Check that json.dump was called with correct data for locale file using model names
+    locale_dump_calls = [call for call in mock_json_dump.call_args_list if call[0][0].get('models')]
+    assert len(locale_dump_calls) == 1
+    assert locale_dump_calls[0] == mocker.call({
+        "models": {
+            "test_model": {
+                "user_id": "User Id",
+                "created_at": "Created At"
+            },
+            "second_model": {
+                "amount": "Amount",
+                "status": "Status"
+            }
+        }
+    }, mocker.ANY, indent=4)
+
+    # Reset mocks for table name test
+    mock_open.reset_mock()
+    mock_json_dump.reset_mock()
+    
+    # Test with table names
+    lookml_generator.generate(
+        target_dir="/mock/dir",
+        tag=None,
+        output_dir="/mock/output",
+        generate_locale=True,
+        use_table_name_as_view=True
+    )
+    
+    # Check locale file with table names
+    locale_dump_calls = [call for call in mock_json_dump.call_args_list if call[0][0].get('models')]
+    assert len(locale_dump_calls) == 1
+    assert locale_dump_calls[0] == mocker.call({
+        "models": {
+            "table_name": {  # From mock_dbt_model's relation_name
+                "user_id": "User Id",
+                "created_at": "Created At"
+            },
+            "second_table": {  # From second_model's relation_name
+                "amount": "Amount",
+                "status": "Status"
+            }
+        }
+    }, mocker.ANY, indent=4)
+    
+    # Verify that lookml_view_from_dbt_model uses locale references
+    lookml_calls = [call for call in mock_lkml_dump.call_args_list if isinstance(call[0][0], dict)]
+    assert len(lookml_calls) > 0, "No LookML was generated"
+    
+    # Get the LookML dumps for both model name and table name modes
+    model_name_lookml = lookml_calls[0][0][0]  # First generate() call with use_table_name=False
+    table_name_lookml = lookml_calls[-1][0][0]  # Second generate() call with use_table_name=True
+    
+    # Check model name mode
+    assert 'view' in model_name_lookml, "No view found in model name LookML"
+    main_view = model_name_lookml['view'][0]
+    assert 'dimensions' in main_view, "No dimensions found in main view"
+    
+    # Verify each dimension's label is replaced with locale reference
+    for dim in main_view['dimensions']:
+        if 'label' in dim:
+            expected_label = f"models.test_model.{dim['name']}"
+            assert dim['label'] == expected_label, f"Label not replaced with locale reference. Expected {expected_label}, got {dim['label']}"
+            
+            # Verify the original label is not present
+            assert not any(
+                dim['label'] == original_label 
+                for original_label in ["User Id", "Created At", "Amount", "Status"]
+            ), f"Original label still present in dimension {dim['name']}"
+    
+    # Check table name mode
+    assert 'view' in table_name_lookml, "No view found in table name LookML"
+    main_view = table_name_lookml['view'][0]
+    assert 'dimensions' in main_view, "No dimensions found in main view"
+    
+    # Verify each dimension's label is replaced with locale reference
+    for dim in main_view['dimensions']:
+        if 'label' in dim:
+            expected_label = f"models.table_name.{dim['name']}"
+            assert dim['label'] == expected_label, f"Label not replaced with locale reference. Expected {expected_label}, got {dim['label']}"
+            
+            # Verify the original label is not present
+            assert not any(
+                dim['label'] == original_label 
+                for original_label in ["User Id", "Created At", "Amount", "Status"]
+            ), f"Original label still present in dimension {dim['name']}"

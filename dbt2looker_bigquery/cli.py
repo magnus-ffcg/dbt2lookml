@@ -84,6 +84,11 @@ def init_argparser():
         help='select a specific model to generate lookml for',
         type=str
     )
+    parser.add_argument(
+        '--generate-locale',
+        help='Generate locale files for each label on each field in view',
+        action='store_true'
+    )
     return parser
 
 def generate(args):
@@ -99,7 +104,8 @@ def generate(args):
         exposures_tag=args.exposures_tag,
         skip_explore_joins=args.skip_explore_joins,
         select=args.select,
-        use_table_name_as_view=args.use_table_name
+        use_table_name_as_view=args.use_table_name,
+        generate_locale=args.generate_locale
     )
 
     logging.info(f'Generated {len(lookml_views)} views')

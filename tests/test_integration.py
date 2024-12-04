@@ -7,12 +7,12 @@ from dbt2looker_bigquery.cli import generate, init_argparser
 
 class TestIntegration:
 
-    def test_nested_types_integration(self):
+    def test_integration_skip_explore_joins_and_use_table_name(self):
         
         expected_content = '''
-view: f_store_sales_waste_day_v1 {
-  label: "Conlaybi Consumer Sales Secure Versioned  F Store Sales Waste Day"
-  sql_table_name: `ac16-p-conlaybi-prd-4257`.`consumer_sales_secure_versioned`.`f_store_sales_waste_day_v1` ;;
+view: fact_daily_sales_v1 {
+  label: "Example Retail Data  Fact Daily Sales"
+  sql_table_name: `example-project-123`.`retail_data`.`fact_daily_sales_v1` ;;
 
   dimension: d_date_iso_year {
     label: "D ISO Year"
@@ -32,21 +32,21 @@ view: f_store_sales_waste_day_v1 {
     value_format_name: id
   }
 
-  dimension: d_selling_entity_key {
+  dimension: dim_store_key {
     type: number
-    sql: ${TABLE}.d_selling_entity_key ;;
+    sql: ${TABLE}.dim_store_key ;;
     description: ""
   }
 
-  dimension: d_item_key {
+  dimension: dim_product_key {
     type: number
-    sql: ${TABLE}.d_item_key ;;
+    sql: ${TABLE}.dim_product_key ;;
     description: ""
   }
 
-  dimension: d_store_local_item_key {
+  dimension: dim_store_product_key {
     type: number
-    sql: ${TABLE}.d_store_local_item_key ;;
+    sql: ${TABLE}.dim_store_product_key ;;
     description: ""
   }
 
@@ -149,24 +149,24 @@ view: f_store_sales_waste_day_v1 {
   }
 }
 
-view: f_store_sales_waste_day_v1__sales {
-  label: "Conlaybi Consumer Sales Secure Versioned  F Store Sales Waste Day"
+view: fact_daily_sales_v1__sales {
+  label: "Example Retail Data  Fact Daily Sales"
 
-  dimension: d_checkout_method_key {
+  dimension: dim_payment_method_key {
     type: number
-    sql: d_checkout_method_key ;;
+    sql: dim_payment_method_key ;;
     description: ""
   }
 
-  dimension: sale_receipt_line_type_code {
+  dimension: transaction_type_code {
     type: string
-    sql: sale_receipt_line_type_code ;;
+    sql: transaction_type_code ;;
     description: ""
   }
 
-  dimension: so_campaign_type_id {
+  dimension: promotion_type_id {
     type: string
-    sql: so_campaign_type_id ;;
+    sql: promotion_type_id ;;
     description: ""
   }
 
@@ -182,87 +182,631 @@ view: f_store_sales_waste_day_v1__sales {
     description: ""
   }
 
-  dimension: store_sale_amount {
+  dimension: sales_amount {
     type: number
-    sql: store_sale_amount ;;
+    sql: sales_amount ;;
     description: ""
   }
 
-  dimension: margin_amount {
+  dimension: profit_amount {
     type: number
-    sql: margin_amount ;;
+    sql: profit_amount ;;
     description: ""
   }
 
-  dimension: f_sale_receipt_pseudo_keys {
-    sql: f_sale_receipt_pseudo_keys ;;
-    description: "Array of salted keys for f_sale_receipt_key on receipt-line-level. Used to calculate unique number of visits."
+  dimension: fact_transaction_keys {
+    sql: fact_transaction_keys ;;
+    description: "Array of salted keys for fact_transaction_key on receipt-line-level. Used to calculate unique number of visits."
     hidden: yes
     tags: ["array"]
   }
 
-  dimension: f_sale_receipt_pseudo_keys_sketch {
+  dimension: fact_transaction_keys_sketch {
     type: string
-    sql: f_sale_receipt_pseudo_keys_sketch ;;
+    sql: fact_transaction_keys_sketch ;;
     description: "HLL++-sketch to efficiently approximate number of visits."
   }
 }
 
-view: f_store_sales_waste_day_v1__sales__f_sale_receipt_pseudo_keys {
-  label: "Conlaybi Consumer Sales Secure Versioned  F Store Sales Waste Day"
+view: fact_daily_sales_v1__sales__fact_transaction_keys {
+  label: "Example Retail Data  Fact Daily Sales"
 
-  dimension: f_sale_receipt_pseudo_keys {
+  dimension: fact_transaction_keys {
     type: number
-    sql: f_sale_receipt_pseudo_keys ;;
-    description: "Array of salted keys for f_sale_receipt_key on receipt-line-level. Used to calculate unique number of visits."
+    sql: fact_transaction_keys ;;
+    description: "Array of salted keys for fact_transaction_key on receipt-line-level. Used to calculate unique number of visits."
   }
 }
 
-view: f_store_sales_waste_day_v1__waste {
-  label: "Conlaybi Consumer Sales Secure Versioned  F Store Sales Waste Day"
+view: fact_daily_sales_v1__waste {
+  label: "Example Retail Data  Fact Daily Sales"
 
-  dimension: d_store_waste_info_key {
+  dimension: dim_waste_reason_key {
     type: number
-    sql: d_store_waste_info_key ;;
+    sql: dim_waste_reason_key ;;
     description: ""
   }
 
-  dimension: number_of_items_or_weight_in_kg {
+  dimension: quantity_or_weight_kg {
     type: number
-    sql: number_of_items_or_weight_in_kg ;;
+    sql: quantity_or_weight_kg ;;
     description: ""
   }
 
-  dimension: purchase_amount {
+  dimension: cost_amount {
     type: number
-    sql: purchase_amount ;;
+    sql: cost_amount ;;
     description: ""
   }
 
-  dimension: total_amount {
+  dimension: total_value {
     type: number
-    sql: total_amount ;;
+    sql: total_value ;;
     description: ""
   }
-}        
+}
 '''
         
         # Initialize and run CLI
         parser = init_argparser()
         args = parser.parse_args([
-            "--target-dir", 'samples/',
+            "--target-dir", 'tests/fixtures',
             "--output-dir", 'output/tests/',
-            "--select", 'conlaybi_consumer_sales_secure_versioned__f_store_sales_waste_day',
+            "--select", 'example_retail_data__fact_daily_sales',
             "--use-table-name",
             "--skip-explore-joins",
         ])
         generate(args)
 
-        assert os.path.exists('output/tests/conlaybi/consumer_sales_secure_versioned/f_store_sales_waste_day_v1.view.lkml')
+        assert os.path.exists('output/tests/example/retail_data/fact_daily_sales_v1.view.lkml')
         
-        with open('output/tests/conlaybi/consumer_sales_secure_versioned/f_store_sales_waste_day_v1.view.lkml') as f:
+        with open('output/tests/example/retail_data/fact_daily_sales_v1.view.lkml') as f:
             content = f.read()
         
         assert content.strip() == expected_content.strip()
+        
+    def test_integration_skip_explore_joins(self):
+        
+        expected_content = '''
+view: example_retail_data__fact_daily_sales {
+  label: "Example Retail Data  Fact Daily Sales"
+  sql_table_name: `example-project-123`.`retail_data`.`fact_daily_sales_v1` ;;
+
+  dimension: d_date_iso_year {
+    label: "D ISO Year"
+    type: number
+    sql: Extract(isoyear from ${TABLE}.d_date) ;;
+    description: "iso year for d_date"
+    group_label: "D Date"
+    value_format_name: id
+  }
+
+  dimension: d_date_iso_week_of_year {
+    label: "D ISO Week Of Year"
+    type: number
+    sql: Extract(isoweek from ${TABLE}.d_date) ;;
+    description: "iso year for d_date"
+    group_label: "D Date"
+    value_format_name: id
+  }
+
+  dimension: dim_store_key {
+    type: number
+    sql: ${TABLE}.dim_store_key ;;
+    description: ""
+  }
+
+  dimension: dim_product_key {
+    type: number
+    sql: ${TABLE}.dim_product_key ;;
+    description: ""
+  }
+
+  dimension: dim_store_product_key {
+    type: number
+    sql: ${TABLE}.dim_store_product_key ;;
+    description: ""
+  }
+
+  dimension: sales {
+    sql: ${TABLE}.sales ;;
+    description: ""
+    hidden: yes
+    tags: ["array"]
+  }
+
+  dimension: waste {
+    sql: ${TABLE}.waste ;;
+    description: ""
+    hidden: yes
+    tags: ["array"]
+  }
+
+  dimension: md_audit_seq {
+    type: string
+    sql: ${TABLE}.md_audit_seq ;;
+    description: ""
+  }
+
+  dimension_group: d {
+    label: "D"
+    type: date
+    sql: ${TABLE}.d_date ;;
+    description: ""
+    datatype: date
+    timeframes: [
+      raw,
+      date,
+      day_of_month,
+      day_of_week,
+      day_of_week_index,
+      week,
+      week_of_year,
+      month,
+      month_num,
+      month_name,
+      quarter,
+      quarter_of_year,
+      year,
+    ]
+    group_label: "D Date"
+    convert_tz: no
+  }
+
+  dimension_group: md_insert_dttm {
+    label: "Md Insert Dttm"
+    type: time
+    sql: ${TABLE}.md_insert_dttm ;;
+    description: ""
+    datatype: datetime
+    timeframes: [
+      raw,
+      time,
+      time_of_day,
+      date,
+      week,
+      month,
+      quarter,
+      year,
+    ]
+    group_label: "Md Insert Dttm"
+    convert_tz: yes
+  }
+
+  set: s_d {
+    fields: [
+      d_raw,
+      d_date,
+      d_day_of_month,
+      d_day_of_week,
+      d_day_of_week_index,
+      d_week,
+      d_week_of_year,
+      d_month,
+      d_month_num,
+      d_month_name,
+      d_quarter,
+      d_quarter_of_year,
+      d_year,
+      d_date_iso_year,
+      d_date_iso_week_of_year,
+    ]
+  }
+
+  set: s_md_insert_dttm {
+    fields: [
+      md_insert_dttm_raw,
+      md_insert_dttm_time,
+      md_insert_dttm_time_of_day,
+      md_insert_dttm_date,
+      md_insert_dttm_week,
+      md_insert_dttm_month,
+      md_insert_dttm_quarter,
+      md_insert_dttm_year,
+    ]
+  }
+}
+
+view: example_retail_data__fact_daily_sales__sales {
+  label: "Example Retail Data  Fact Daily Sales"
+
+  dimension: dim_payment_method_key {
+    type: number
+    sql: dim_payment_method_key ;;
+    description: ""
+  }
+
+  dimension: transaction_type_code {
+    type: string
+    sql: transaction_type_code ;;
+    description: ""
+  }
+
+  dimension: promotion_type_id {
+    type: string
+    sql: promotion_type_id ;;
+    description: ""
+  }
+
+  dimension: is_commission_item {
+    type: yesno
+    sql: is_commission_item ;;
+    description: ""
+  }
+
+  dimension: number_of_items {
+    type: number
+    sql: number_of_items ;;
+    description: ""
+  }
+
+  dimension: sales_amount {
+    type: number
+    sql: sales_amount ;;
+    description: ""
+  }
+
+  dimension: profit_amount {
+    type: number
+    sql: profit_amount ;;
+    description: ""
+  }
+
+  dimension: fact_transaction_keys {
+    sql: fact_transaction_keys ;;
+    description: "Array of salted keys for fact_transaction_key on receipt-line-level. Used to calculate unique number of visits."
+    hidden: yes
+    tags: ["array"]
+  }
+
+  dimension: fact_transaction_keys_sketch {
+    type: string
+    sql: fact_transaction_keys_sketch ;;
+    description: "HLL++-sketch to efficiently approximate number of visits."
+  }
+}
+
+view: example_retail_data__fact_daily_sales__sales__fact_transaction_keys {
+  label: "Example Retail Data  Fact Daily Sales"
+
+  dimension: fact_transaction_keys {
+    type: number
+    sql: fact_transaction_keys ;;
+    description: "Array of salted keys for fact_transaction_key on receipt-line-level. Used to calculate unique number of visits."
+  }
+}
+
+view: example_retail_data__fact_daily_sales__waste {
+  label: "Example Retail Data  Fact Daily Sales"
+
+  dimension: dim_waste_reason_key {
+    type: number
+    sql: dim_waste_reason_key ;;
+    description: ""
+  }
+
+  dimension: quantity_or_weight_kg {
+    type: number
+    sql: quantity_or_weight_kg ;;
+    description: ""
+  }
+
+  dimension: cost_amount {
+    type: number
+    sql: cost_amount ;;
+    description: ""
+  }
+
+  dimension: total_value {
+    type: number
+    sql: total_value ;;
+    description: ""
+  }
+}
+'''
+        
+        # Initialize and run CLI
+        parser = init_argparser()
+        args = parser.parse_args([
+            "--target-dir", 'tests/fixtures',
+            "--output-dir", 'output/tests/',
+            "--select", 'example_retail_data__fact_daily_sales',
+            "--skip-explore-joins",
+        ])
+        generate(args)
+
+        assert os.path.exists('output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml')
+        
+        with open('output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml') as f:
+            content = f.read()
+        
+        assert content.strip() == expected_content.strip()
+
+
+    def test_integration_skip(self):
+        
+        expected_content = '''
+view: example_retail_data__fact_daily_sales {
+  label: "Example Retail Data  Fact Daily Sales"
+  sql_table_name: `example-project-123`.`retail_data`.`fact_daily_sales_v1` ;;
+
+  dimension: d_date_iso_year {
+    label: "D ISO Year"
+    type: number
+    sql: Extract(isoyear from ${TABLE}.d_date) ;;
+    description: "iso year for d_date"
+    group_label: "D Date"
+    value_format_name: id
+  }
+
+  dimension: d_date_iso_week_of_year {
+    label: "D ISO Week Of Year"
+    type: number
+    sql: Extract(isoweek from ${TABLE}.d_date) ;;
+    description: "iso year for d_date"
+    group_label: "D Date"
+    value_format_name: id
+  }
+
+  dimension: dim_store_key {
+    type: number
+    sql: ${TABLE}.dim_store_key ;;
+    description: ""
+  }
+
+  dimension: dim_product_key {
+    type: number
+    sql: ${TABLE}.dim_product_key ;;
+    description: ""
+  }
+
+  dimension: dim_store_product_key {
+    type: number
+    sql: ${TABLE}.dim_store_product_key ;;
+    description: ""
+  }
+
+  dimension: sales {
+    sql: ${TABLE}.sales ;;
+    description: ""
+    hidden: yes
+    tags: ["array"]
+  }
+
+  dimension: waste {
+    sql: ${TABLE}.waste ;;
+    description: ""
+    hidden: yes
+    tags: ["array"]
+  }
+
+  dimension: md_audit_seq {
+    type: string
+    sql: ${TABLE}.md_audit_seq ;;
+    description: ""
+  }
+
+  dimension_group: d {
+    label: "D"
+    type: date
+    sql: ${TABLE}.d_date ;;
+    description: ""
+    datatype: date
+    timeframes: [
+      raw,
+      date,
+      day_of_month,
+      day_of_week,
+      day_of_week_index,
+      week,
+      week_of_year,
+      month,
+      month_num,
+      month_name,
+      quarter,
+      quarter_of_year,
+      year,
+    ]
+    group_label: "D Date"
+    convert_tz: no
+  }
+
+  dimension_group: md_insert_dttm {
+    label: "Md Insert Dttm"
+    type: time
+    sql: ${TABLE}.md_insert_dttm ;;
+    description: ""
+    datatype: datetime
+    timeframes: [
+      raw,
+      time,
+      time_of_day,
+      date,
+      week,
+      month,
+      quarter,
+      year,
+    ]
+    group_label: "Md Insert Dttm"
+    convert_tz: yes
+  }
+
+  set: s_d {
+    fields: [
+      d_raw,
+      d_date,
+      d_day_of_month,
+      d_day_of_week,
+      d_day_of_week_index,
+      d_week,
+      d_week_of_year,
+      d_month,
+      d_month_num,
+      d_month_name,
+      d_quarter,
+      d_quarter_of_year,
+      d_year,
+      d_date_iso_year,
+      d_date_iso_week_of_year,
+    ]
+  }
+
+  set: s_md_insert_dttm {
+    fields: [
+      md_insert_dttm_raw,
+      md_insert_dttm_time,
+      md_insert_dttm_time_of_day,
+      md_insert_dttm_date,
+      md_insert_dttm_week,
+      md_insert_dttm_month,
+      md_insert_dttm_quarter,
+      md_insert_dttm_year,
+    ]
+  }
+}
+
+view: example_retail_data__fact_daily_sales__sales {
+  label: "Example Retail Data  Fact Daily Sales"
+
+  dimension: dim_payment_method_key {
+    type: number
+    sql: dim_payment_method_key ;;
+    description: ""
+  }
+
+  dimension: transaction_type_code {
+    type: string
+    sql: transaction_type_code ;;
+    description: ""
+  }
+
+  dimension: promotion_type_id {
+    type: string
+    sql: promotion_type_id ;;
+    description: ""
+  }
+
+  dimension: is_commission_item {
+    type: yesno
+    sql: is_commission_item ;;
+    description: ""
+  }
+
+  dimension: number_of_items {
+    type: number
+    sql: number_of_items ;;
+    description: ""
+  }
+
+  dimension: sales_amount {
+    type: number
+    sql: sales_amount ;;
+    description: ""
+  }
+
+  dimension: profit_amount {
+    type: number
+    sql: profit_amount ;;
+    description: ""
+  }
+
+  dimension: fact_transaction_keys {
+    sql: fact_transaction_keys ;;
+    description: "Array of salted keys for fact_transaction_key on receipt-line-level. Used to calculate unique number of visits."
+    hidden: yes
+    tags: ["array"]
+  }
+
+  dimension: fact_transaction_keys_sketch {
+    type: string
+    sql: fact_transaction_keys_sketch ;;
+    description: "HLL++-sketch to efficiently approximate number of visits."
+  }
+}
+
+view: example_retail_data__fact_daily_sales__sales__fact_transaction_keys {
+  label: "Example Retail Data  Fact Daily Sales"
+
+  dimension: fact_transaction_keys {
+    type: number
+    sql: fact_transaction_keys ;;
+    description: "Array of salted keys for fact_transaction_key on receipt-line-level. Used to calculate unique number of visits."
+  }
+}
+
+view: example_retail_data__fact_daily_sales__waste {
+  label: "Example Retail Data  Fact Daily Sales"
+
+  dimension: dim_waste_reason_key {
+    type: number
+    sql: dim_waste_reason_key ;;
+    description: ""
+  }
+
+  dimension: quantity_or_weight_kg {
+    type: number
+    sql: quantity_or_weight_kg ;;
+    description: ""
+  }
+
+  dimension: cost_amount {
+    type: number
+    sql: cost_amount ;;
+    description: ""
+  }
+
+  dimension: total_value {
+    type: number
+    sql: total_value ;;
+    description: ""
+  }
+}
+
+explore: example_retail_data__fact_daily_sales {
+  label: "Example Retail Data  Fact Daily Sales"
+  from: example_retail_data__fact_daily_sales
+
+  join: example_retail_data__fact_daily_sales__sales {
+    relationship: one_to_many
+    sql: LEFT JOIN UNNEST(${example_retail_data__fact_daily_sales.sales}) AS example_retail_data__fact_daily_sales__sales ;;
+    type: left_outer
+    required_joins: []
+  }
+
+  join: example_retail_data__fact_daily_sales__sales__fact_transaction_keys {
+    relationship: one_to_many
+    sql: LEFT JOIN UNNEST(${example_retail_data__fact_daily_sales.sales.fact_transaction_keys}) AS example_retail_data__fact_daily_sales__sales__fact_transaction_keys ;;
+    type: left_outer
+    required_joins: []
+  }
+
+  join: example_retail_data__fact_daily_sales__waste {
+    relationship: one_to_many
+    sql: LEFT JOIN UNNEST(${example_retail_data__fact_daily_sales.waste}) AS example_retail_data__fact_daily_sales__waste ;;
+    type: left_outer
+    required_joins: []
+  }
+
+  hidden: no
+}
+'''
+        
+        # Initialize and run CLI
+        parser = init_argparser()
+        args = parser.parse_args([
+            "--target-dir", 'tests/fixtures',
+            "--output-dir", 'output/tests/',
+            "--select", 'example_retail_data__fact_daily_sales',
+        ])
+        generate(args)
+
+        assert os.path.exists('output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml')
+        
+        with open('output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml') as f:
+            content = f.read()
+        
+        assert content.strip() == expected_content.strip()
+
+
 
     
