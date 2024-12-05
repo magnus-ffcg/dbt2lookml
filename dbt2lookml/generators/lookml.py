@@ -4,59 +4,17 @@ import json
 import os
 import re
 
-from dbt2looker_bigquery import models, looker, parser
+from dbt2lookml import parser, enums
+from dbt2lookml.models import DbtModel, DbtModelColumn, DbtMetaMeasure
+from dbt2lookml.generators.utils import FileHandler
+from dbt2lookml.generators.base import BaseGenerator
 
-class LookmlGenerator():
+class LookmlGenerator(BaseGenerator):
 
     def __init__(self):
-        self.logger = logging.getLogger("rich")
+        self._file_handler = FileHandler()
+        super().__init__()
 
-    def _load_file(self, file_path: str) -> dict:
-        """Load JSON file from disk.
-        
-        Args:
-            file_path: Path to the JSON file
-            
-        Returns:
-            Dictionary containing the JSON data
-        """
-        try:
-            with open(file_path, 'r') as f:
-                raw_file = json.load(f)
-        except FileNotFoundError as e:
-            self.logger.error(f'Could not find manifest file at {file_path}. Use --target-dir to change the search path for the manifest.json file.')
-            raise SystemExit('Failed')
-
-        return raw_file
-
-    def _validate_sql(self, sql: str) -> str:
-        """Validate that a string is a valid Looker SQL expression.
-        
-        Args:
-            sql: SQL expression to validate
-            
-        Returns:
-            Validated SQL expression or None if invalid
-        """
-        sql = sql.strip()
-        def check_if_has_dollar_syntax(sql):
-            """Check if the string either has ${TABLE}.example or ${view_name}"""
-            return '${' in sql and '}' in sql
-        
-        def check_expression_has_ending_semicolons(sql):
-            """Check if the string ends with a semicolon"""
-            return sql.endswith(';;')
-
-        if check_expression_has_ending_semicolons(sql):
-            self.logger.warning(f"SQL expression {sql} ends with semicolons. It is removed and added by lkml.")
-            sql = sql.rstrip(';').rstrip(';').strip()
-
-        if not check_if_has_dollar_syntax(sql):
-            self.logger.warning(f"SQL expression {sql} does not contain $TABLE or $view_name")
-            return None
-        else:
-            return sql
-    
     def _map_bigquery_to_looker(self, column_type: str) -> str:
         """Map BigQuery data type to Looker data type.
         
@@ -70,11 +28,12 @@ class LookmlGenerator():
             column_type = column_type.split('<')[0]  # STRUCT< or ARRAY<
             column_type = column_type.split('(')[0]  # Numeric(1,31)
 
-        looker_type = looker.LOOKER_BIGQUERY_DTYPE_MAP.get(column_type)
-        if column_type is not None and looker_type is None:
-            self.logger.warning(f'Column type {column_type} not supported for conversion from bigquery to looker. No dimension will be created.')
-
-        return looker_type
+        try:
+            looker_type = enums.LookerBigQueryDataType.get(column_type)
+            return looker_type
+        except ValueError:
+            self._logger.warning(f'Column type {column_type} not supported for conversion from bigquery to looker. No dimension will be created.')
+            return None
 
     def _format_label(self, name: str, remove_date: bool = True) -> str:
         """Format a name into a human-readable label."""
@@ -82,7 +41,7 @@ class LookmlGenerator():
             name = name.replace("_date", "")
         return name.replace("_", " ").title()
 
-    def _apply_meta_attributes(self, target_dict: dict, column: models.DbtModelColumn, attributes: list) -> None:
+    def _apply_meta_attributes(self, target_dict: dict, column: DbtModelColumn, attributes: list) -> None:
         """Apply meta attributes from column to target dictionary if they exist."""
         if column.meta.looker is not None:
             for attr in attributes:
@@ -93,17 +52,19 @@ class LookmlGenerator():
                     else:
                         target_dict[attr] = value
 
-    def _generate_sql(self, column: models.DbtModelColumn, table_format_sql: bool) -> str:
-        """Generate SQL expression for a column."""
+    def _get_column_name(self, column: DbtModelColumn, table_format_sql: bool) -> str:
+        """Get name of column."""
         if not table_format_sql and '.' in column.name:
             return column.lookml_name
+        
         if '.' in column.name and table_format_sql:
             # For nested fields in the main view, include the parent path
             parent_path = '.'.join(column.name.split('.')[:-1])
             return f'${{{parent_path}}}.{column.lookml_name}'
+        
         return f'${{TABLE}}.{column.name}'
 
-    def _create_iso_field(self, field_type: str, column: models.DbtModelColumn, sql: str) -> dict:
+    def _create_iso_field(self, field_type: str, column: DbtModelColumn, sql: str) -> dict:
         """Create an ISO year or week field."""
         label_type = field_type.replace("_of_year", "")
         field = {
@@ -120,16 +81,16 @@ class LookmlGenerator():
             field['label'] = field['label'].replace('Week', 'Week Of Year')
         return field
     
-    def _get_column_type_category(self, column: models.DbtModelColumn) -> str:
+    def _get_looker_type(self, column: DbtModelColumn) -> str:
         """Get the category of a column's type."""
         looker_type = self._map_bigquery_to_looker(column.data_type)
-        if looker_type in looker.LOOKER_DATE_TIME_TYPES:
+        if looker_type in enums.LookerDateTimeTypes: 
             return 'time'
-        elif looker_type in looker.LOOKER_DATE_TYPES:
+        elif looker_type in enums.LookerDateTypes:
             return 'date'
         return 'scalar'
 
-    def _create_dimension(self, column: models.DbtModelColumn, sql: str, is_hidden: bool = False) -> dict:
+    def _create_dimension(self, column: DbtModelColumn, sql: str, is_hidden: bool = False) -> dict:
         """Create a basic dimension dictionary."""
         data_type = self._map_bigquery_to_looker(column.data_type)
         if data_type is None:
@@ -142,7 +103,7 @@ class LookmlGenerator():
             dimension['label'] = column.meta.looker.label
             
         # Add type for scalar types (should come before sql)
-        if data_type in looker.LOOKER_SCALAR_TYPES:
+        if data_type in enums.LookerScalarTypes:
             dimension['type'] = data_type
             
         dimension.update({
@@ -178,32 +139,32 @@ class LookmlGenerator():
 
     def _lookml_dimension_group(
         self, 
-        column: models.DbtModelColumn, 
-        type: str, 
+        column: DbtModelColumn, 
+        looker_type: str, 
         table_format_sql: bool, 
-        model: models.DbtModel
+        model: DbtModel
     ) -> tuple:
         if self._map_bigquery_to_looker(column.data_type) is None:
             raise NotImplementedError()
         else:
-            if type == 'time':
+            if looker_type == 'time':
                 convert_tz = 'yes'
-                timeframes = looker.LOOKER_TIME_TIMEFRAMES
+                timeframes = enums.LookerTimeTimeframes.values()
                 column_name_adjusted = column.name.replace("_date","")
-            elif type == 'date':
+            elif looker_type == 'date':
                 convert_tz = 'no'
-                timeframes = looker.LOOKER_DATE_TIMEFRAMES
+                timeframes = enums.LookerDateTimeframes.values()
                 column_name_adjusted = column.name.replace("_date","")
             else:
-                raise NotImplementedError()
+                raise NotImplementedError() 
 
-            sql = self._generate_sql(column, table_format_sql)
-
+            sql = self._get_column_name(column, table_format_sql)
+            
             dimensions = []
             dimension_group = {
                 'name': column_name_adjusted,
                 'label': self._format_label(column.lookml_name),
-                'type': type,
+                'type': looker_type,
                 'sql': sql,
                 'description': column.description,
                 'datatype': self._map_bigquery_to_looker(column.data_type),
@@ -220,7 +181,7 @@ class LookmlGenerator():
                 ]
             }
 
-            if type == 'date':
+            if looker_type == 'date':
                 iso_year = self._create_iso_field('year', column, sql)
                 iso_week_of_year = self._create_iso_field('week_of_year', column, sql)
                 dimensions = [iso_year, iso_week_of_year]
@@ -231,7 +192,7 @@ class LookmlGenerator():
 
     def _lookml_dimensions_from_model(
         self, 
-        model: models.DbtModel, 
+        model: DbtModel, 
         include_names: list = None, 
         exclude_names: list = []
     ) -> tuple:
@@ -286,11 +247,12 @@ class LookmlGenerator():
             data_type = self._map_bigquery_to_looker(column.data_type)
             
             if data_type is None:
-                self.logger.debug(f"{model.name} {column.name} is not part of catalog table. Skipping.")
+                self._logger.debug(f"{model.name} {column.name} is not part of catalog table. Skipping.")
                 continue
             
-            sql = self._generate_sql(column, table_format_sql)
-            dimension = self._create_dimension(column, sql)
+            column_name = self._get_column_name(column, table_format_sql)
+            dimension = self._create_dimension(column, column_name)
+            
             if dimension is not None:
                 dimensions.append(dimension)
 
@@ -298,7 +260,7 @@ class LookmlGenerator():
 
     def _lookml_measures_from_model(
         self, 
-        model: models.DbtModel, 
+        model: DbtModel, 
         include_names: list = None, 
         exclude_names: list = []
     ) -> list:
@@ -320,8 +282,7 @@ class LookmlGenerator():
                 if column.name in exclude_names:
                     continue
 
-            if self._map_bigquery_to_looker(column.data_type) in looker.LOOKER_SCALAR_TYPES:
-
+            if self._map_bigquery_to_looker(column.data_type) in enums.LookerScalarTypes.values():
                 if hasattr(column.meta, 'looker_measures'):
                     # For each measure found in the combined dictionary, create a lookml_measure.
                     for measure in column.meta.looker_measures:
@@ -331,7 +292,7 @@ class LookmlGenerator():
         # Return the list of lookml measures.
         return lookml_measures
 
-    def _apply_measure_attributes(self, measure_dict: dict, measure: models.DbtMetaMeasure) -> None:
+    def _apply_measure_attributes(self, measure_dict: dict, measure: DbtMetaMeasure) -> None:
         """Apply measure attributes to the measure dictionary."""
         # Simple attributes that can be directly copied
         direct_attributes = [
@@ -351,20 +312,20 @@ class LookmlGenerator():
 
     def _lookml_measure(
         self, 
-        column: models.DbtModelColumn, 
-        measure: models.DbtMetaMeasure, 
+        column: DbtModelColumn, 
+        measure: DbtMetaMeasure, 
         table_format_sql: bool, 
-        model: models.DbtModel
+        model: DbtModel
     ) -> dict:
         """Create a LookML measure from a DBT model column and measure."""
-        if measure.type.value not in looker.LOOKER_BIGQUERY_MEASURE_TYPES:
-            self.logger.warning(f"Measure type {measure.type.value} not supported for conversion to looker. No measure will be created.")
+        if measure.type.value not in [t.value for t in enums.LookerBigQueryMeasureTypes]:
+            self._logger.warning(f"Measure type {measure.type.value} not supported for conversion to looker. No measure will be created.")
             return None
         
         m = {
             'name': f'm_{measure.type.value}_{column.name}',
             'type': measure.type.value,
-            'sql': self._generate_sql(column, table_format_sql),
+            'sql': self._get_column_name(column, table_format_sql),
             'description': f'{measure.type.value} of {column.name}',
         }
 
@@ -380,7 +341,7 @@ class LookmlGenerator():
             if validated_sql is not None:
                 m['sql'] = validated_sql
                 if measure.type.value != 'number':
-                    self.logger.warn(f"SQL expression {measure.sql} is not a number type measure. It is overwritten to be number since SQL is set.")
+                    self._logger.warn(f"SQL expression {measure.sql} is not a number type measure. It is overwritten to be number since SQL is set.")
                     m['type'] = 'number'
 
         if measure.sql_distinct_key is not None:
@@ -388,15 +349,15 @@ class LookmlGenerator():
             if validated_sql is not None:
                 m['sql_distinct_key'] = validated_sql
             else:
-                self.logger.warn(f"SQL expression {measure.sql_distinct_key} is not valid. It is not set as sql_distinct_key.")
+                self._logger.warn(f"SQL expression {measure.sql_distinct_key} is not valid. It is not set as sql_distinct_key.")
 
         # Apply all other measure attributes
         self._apply_measure_attributes(m, measure)
 
-        self.logger.debug(f"measure created: {m}")
+        self._logger.debug(f"measure created: {m}")
         return m
 
-    def _extract_array_models(self, columns: list[models.DbtModelColumn]) -> list[models.DbtModelColumn]:
+    def _extract_array_models(self, columns: list[DbtModelColumn]) -> list[DbtModelColumn]:
         """Extract array models from a list of columns.
         
         Args:
@@ -416,7 +377,7 @@ class LookmlGenerator():
         return array_list
 
 
-    def _group_strings(self, all_columns: list[models.DbtModelColumn], array_columns: list[models.DbtModelColumn]) -> dict:
+    def _group_strings(self, all_columns: list[DbtModelColumn], array_columns: list[DbtModelColumn]) -> dict:
         """Group strings into a nested structure.
         
         Args:
@@ -434,19 +395,19 @@ class LookmlGenerator():
             result = '.'.join(modified_parts)
             return result
         
-        def is_single_type_array(column: models.DbtModelColumn):
+        def is_single_type_array(column: DbtModelColumn):
             if column.data_type == 'ARRAY':
                 if len(column.inner_types) == 1 and ' ' not in column.inner_types[0]: #TODO: Improve to make sure this is a single type
                     return True
             return False
         
-        def recurse(parent: models.DbtModelColumn, all_columns: list[models.DbtModelColumn], level = 0):
+        def recurse(parent: DbtModelColumn, all_columns: list[DbtModelColumn], level = 0):
             structure = {
                 'column' : parent,
                 'children' : []
             }
 
-            self.logger.debug(f"level {level}, {parent.name}")
+            self._logger.debug(f"level {level}, {parent.name}")
             for column in all_columns:
                     
                 if column.data_type in ('ARRAY', 'STRUCT'):
@@ -466,7 +427,7 @@ class LookmlGenerator():
         
         for parent in array_columns:
             nested_columns[parent.name] = recurse(parent, [d for d in all_columns if remove_parts(d.name) == parent.name])
-            self.logger.debug('nested_parent: %s', parent.name)
+            self._logger.debug('nested_parent: %s', parent.name)
 
         return nested_columns
 
@@ -508,7 +469,7 @@ class LookmlGenerator():
 
         return join_list
 
-    def _get_view_label(self, model: models.DbtModel) -> str:
+    def _get_view_label(self, model: DbtModel) -> str:
         """Get the view label from the model metadata or name.
         
         Args:
@@ -525,10 +486,10 @@ class LookmlGenerator():
         if hasattr(model, 'name'):
             return model.name.replace("_", " ").title()
             
-        self.logger.warning(f"Model has no name")
+        self._logger.warning(f"Model has no name")
         return None
 
-    def _get_excluded_array_names(self, model: models.DbtModel, array_models: list) -> list:
+    def _get_excluded_array_names(self, model: DbtModel, array_models: list) -> list:
         """Get list of dimension names to exclude from main view (array fields and their children).
         
         Args:
@@ -549,7 +510,7 @@ class LookmlGenerator():
 
     def _create_main_view(
         self, 
-        model: models.DbtModel, 
+        model: DbtModel, 
         view_name: str, 
         view_label: str, 
         exclude_names: list
@@ -596,9 +557,9 @@ class LookmlGenerator():
 
     def _create_nested_view(
         self, 
-        model: models.DbtModel, 
+        model: DbtModel, 
         base_name: str, 
-        array_model: models.DbtModelColumn, 
+        array_model: DbtModelColumn, 
         view_label: str,
         use_table_name_as_view: bool = False
     ) -> dict:
@@ -652,7 +613,7 @@ class LookmlGenerator():
 
     def _create_explore(
         self, 
-        model: models.DbtModel, 
+        model: DbtModel, 
         view_name: str, 
         view_label: str, 
         structure: dict, 
@@ -685,7 +646,7 @@ class LookmlGenerator():
 
     def _lookml_dimension_groups_from_model(
         self, 
-        model: models.DbtModel, 
+        model: DbtModel, 
         include_names: list = None, 
         exclude_names: list = []
     ) -> dict:
@@ -715,11 +676,11 @@ class LookmlGenerator():
                 if column.name in exclude_names:
                     continue
 
-            column_type = self._get_column_type_category(column)
-            if column_type in ('time', 'date'):
+            looker_type = self._get_looker_type(column)
+            if looker_type in ('time', 'date'):
                 dimension_group, dimension_group_set, dimensions = self._lookml_dimension_group(
                     column=column,
-                    type=column_type,
+                    looker_type=looker_type,
                     table_format_sql=table_format_sql,
                     model=model
                 )
@@ -734,7 +695,7 @@ class LookmlGenerator():
     def _write_lookml_file(
         self, 
         output_dir: str, 
-        model: models.DbtModel, 
+        model: DbtModel, 
         view_name: str, 
         contents: str,
         use_table_name_as_view: bool = False
@@ -764,14 +725,12 @@ class LookmlGenerator():
         file_path = f'{path}/{file_name}.view.lkml'
         
         # Write contents
-        with open(file_path, 'w') as f:
-            f.truncate()
-            f.write(contents)
-            
-        self.logger.debug(f'Generated {file_path}')
+        self._file_handler.write(file_path, contents)
+        self._logger.debug(f'Generated {file_path}')
+        
         return file_path
 
-    def _get_model_key(self, model: models.DbtModel, use_table_name_as_view: bool) -> str:
+    def _get_model_key(self, model: DbtModel, use_table_name_as_view: bool) -> str:
         """Get the key to use for the model in locale file.
         
         Args:
@@ -788,7 +747,7 @@ class LookmlGenerator():
 
     def lookml_view_from_dbt_model(
         self, 
-        model: models.DbtModel, 
+        model: DbtModel, 
         output_dir: str, 
         skip_explore_joins: bool, 
         use_table_name_as_view: bool = False,
@@ -808,7 +767,7 @@ class LookmlGenerator():
         Returns:
             Dictionary containing the generated LookML
         """
-        self.logger.info(f"Starting processing of {model.name}")
+        self._logger.info(f"Starting processing of {model.name}")
         
         # Extract array fields and structure
         array_models = self._extract_array_models(model.columns.values())
@@ -833,7 +792,7 @@ class LookmlGenerator():
             if 'dimensions' in main_view:
                 for dim in main_view['dimensions']:
                     if 'label' in dim:
-                        dim['label'] = f"models.{model_key}.{dim['name']}"
+                        dim['label'] = f"{model_key}.{dim['name']}"
 
         lookml_list = [main_view]
 
@@ -864,7 +823,7 @@ class LookmlGenerator():
                 use_table_name_as_view=use_table_name_as_view
             )
         except Exception as e:
-            self.logger.error(f"Failed to write LookML file for {model.name}: {str(e)}")
+            self._logger.error(f"Failed to write LookML file for {model.name}: {str(e)}")
             raise
 
     def generate(
@@ -879,7 +838,7 @@ class LookmlGenerator():
         use_table_name_as_view: bool = False,
         generate_locale: bool = False
     ):
-        """Generate LookML views and explores from DBT models.
+        """Generate LookML views and explores from DBT 
         
         Args:
             target_dir: Directory containing DBT files
@@ -896,8 +855,8 @@ class LookmlGenerator():
             List of generated LookML files
         """
         # Load dbt files
-        raw_manifest = self._load_file(os.path.join(target_dir, 'manifest.json'))
-        raw_catalog = self._load_file(os.path.join(target_dir, 'catalog.json'))
+        raw_manifest = self._file_handler.read(os.path.join(target_dir, 'manifest.json'))
+        raw_catalog = self._file_handler.read(os.path.join(target_dir, 'catalog.json'))
         
         # Get dbt models
         dbt_parser = parser.DbtParser(raw_manifest, raw_catalog)
@@ -905,7 +864,7 @@ class LookmlGenerator():
 
         # Generate lookml views
         lookml_views = [
-            self.lookml_view_from_dbt_model(model, output_dir, skip_explore_joins, use_table_name_as_view, generate_locale=generate_locale)
+            self.lookml_view_from_dbt_model(model, output_dir, skip_explore_joins, use_table_name_as_view)
             for model in dbt_models
         ]
         
@@ -919,9 +878,7 @@ class LookmlGenerator():
                     model_labels[field.name] = field.lookml_name.replace("_", " ").title()
                 locale_data["models"][model_key] = model_labels
             
-            locale_file_path = os.path.join(output_dir, "en.strings.json")
-            with open(locale_file_path, 'w') as locale_file:
-                json.dump(locale_data, locale_file, indent=4)
+            self._file_handler.write(os.path.join(output_dir, "en.strings.json"), json.dumps(locale_data, indent=4))
         
         return lookml_views
 

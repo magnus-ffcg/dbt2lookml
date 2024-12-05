@@ -1,13 +1,14 @@
 import logging
 from typing import Dict, Optional, List
-from dbt2looker_bigquery import models
+from dbt2lookml import models
+from dbt2lookml.log import Logger
 
 
-class DbtParser():
+class DbtParser(Logger):
     def __init__(self, raw_manifest, raw_catalog):
-        self.catalog = models.DbtCatalog(**raw_catalog)
-        self.manifest = models.DbtManifest(**raw_manifest)
-        self.logger = logging.getLogger("rich")
+        self._catalog = models.DbtCatalog(**raw_catalog)
+        self._manifest = models.DbtManifest(**raw_manifest)
+        super().__init__()
 
     def _filter_nodes_by_type(self, nodes: Dict, resource_type: str) -> List:
         """Filter nodes by resource type and ensure they have names"""
@@ -40,7 +41,7 @@ class DbtParser():
 
     def _get_exposed_models(self, exposures_tag: Optional[str] = None) -> List[str]:
         """Get list of exposed model names, optionally filtered by tag"""
-        exposures = self._filter_nodes_by_type(self.manifest.exposures, 'exposure')
+        exposures = self._filter_nodes_by_type(self._manifest.exposures, 'exposure')
         
         if exposures_tag:
             exposures = [exp for exp in exposures if self._tags_match(exposures_tag, exp)]
@@ -70,7 +71,7 @@ class DbtParser():
 
     def _get_catalog_column_info(self, model_id: str, column_name: str) -> tuple:
         """Get column type information from catalog"""
-        node = self.catalog.nodes.get(model_id)
+        node = self._catalog.nodes.get(model_id)
         if not node or column_name.lower() not in node.columns:
             return None, []
         
@@ -80,11 +81,11 @@ class DbtParser():
     def parse_models(self, tag: Optional[str] = None, exposures_only: bool = False, 
                     exposures_tag: Optional[str] = None, select_model: Optional[str] = None) -> List[models.DbtModel]:
         """Parse dbt models from manifest and filter by criteria"""
-        all_models = self._filter_nodes_by_type(self.manifest.nodes, 'model')
+        all_models = self._filter_nodes_by_type(self._manifest.nodes, 'model')
 
         for model in all_models:
             if not hasattr(model, 'name'):
-                self.logger.error('Cannot parse model with id: "%s" - is the model file empty?', model.unique_id)
+                self._logger.error('Cannot parse model with id: "%s" - is the model file empty?', model.unique_id)
                 raise SystemExit('Failed')
 
         exposed_names = self._get_exposed_models(exposures_tag) if exposures_only else None
@@ -101,19 +102,19 @@ class DbtParser():
 
     def _log_model_stats(self, models: List[models.DbtModel]) -> None:
         """Log statistics about the models"""
-        self.logger.debug('Found manifest entries for %d models', len(models))
-        adapter_type = self.manifest.metadata.adapter_type
+        self._logger.debug('Found manifest entries for %d models', len(models))
+        adapter_type = self._manifest.metadata.adapter_type
         
         for model in models:
             if not hasattr(model, 'columns') or not model.columns:
                 continue
                 
             measure_count = sum(len(col.meta.looker_measures) for col in model.columns.values())
-            self.logger.debug('Model %s has %d columns with %d measures',
+            self._logger.debug('Model %s has %d columns with %d measures',
                           model.name, len(model.columns), measure_count)
             
-            if model.unique_id not in self.catalog.nodes:
-                self.logger.debug(
+            if model.unique_id not in self._catalog.nodes:
+                self._logger.debug(
                     f'Model {model.unique_id} not found in catalog. No looker view will be generated. '
                     f'Check if model has materialized in {adapter_type} at {model.relation_name}'
                 )
@@ -123,7 +124,7 @@ class DbtParser():
         typed_models = []
         
         for model in models:
-            if model.unique_id not in self.catalog.nodes:
+            if model.unique_id not in self._catalog.nodes:
                 continue
 
             updated_columns = {
@@ -132,10 +133,10 @@ class DbtParser():
             }
 
             # Add missing array columns from catalog
-            catalog_node = self.catalog.nodes[model.unique_id]
+            catalog_node = self._catalog.nodes[model.unique_id]
             for col_name, catalog_col in catalog_node.columns.items():
                 if col_name not in model.columns and catalog_col.type.startswith('ARRAY'):
-                    self.logger.debug("%s is an array column", col_name)
+                    self._logger.debug("%s is an array column", col_name)
                     updated_columns[col_name] = self._create_missing_array_column(
                         col_name, catalog_col.data_type, catalog_col.inner_types
                     )
@@ -148,10 +149,10 @@ class DbtParser():
 
     def _log_typed_model_stats(self, original_models: List[models.DbtModel], typed_models: List[models.DbtModel]) -> None:
         """Log statistics about typed models"""
-        self.logger.debug('Found catalog entries for %d models', len(typed_models))
-        self.logger.debug('Catalog entries missing for %d models', len(original_models) - len(typed_models))
+        self._logger.debug('Found catalog entries for %d models', len(typed_models))
+        self._logger.debug('Catalog entries missing for %d models', len(original_models) - len(typed_models))
 
         for model in typed_models:
             if all(col.data_type is None for col in model.columns.values()):
-                self.logger.debug('Model %s has no typed columns, no dimensions will be generated. %s', 
+                self._logger.debug('Model %s has no typed columns, no dimensions will be generated. %s', 
                               model.unique_id, model)

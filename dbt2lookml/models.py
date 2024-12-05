@@ -1,11 +1,12 @@
-from enum import Enum
+
 from typing import Union, Dict, List, Optional
 import logging
 from pydantic import field_validator, model_validator
 from typing import Literal
 from pydantic import BaseModel, Field, validator
 import re
-from . import looker, schema_parser
+from dbt2lookml import enums
+from dbt2lookml import schema_parser
 
 schema_parser = schema_parser.SchemaParser()
 
@@ -126,12 +127,12 @@ class DbtMetaLooker(BaseModel):
     hidden: Optional[bool] = Field(default=None)
     label: Optional[str] = Field(default=None)
     group_label: Optional[str] = Field(default=None)
-    value_format_name: Optional[looker.LookerValueFormatName] = Field(default=None) #TODO - make validator not discard as much if a invalid value is given
-    timeframes: Optional[List[looker.LookerTimeFrame]] = Field(default=None) #TODO - make validator not discard as much if a invalid value is given
+    value_format_name: Optional[enums.LookerValueFormatName] = Field(default=None) #TODO - make validator not discard as much if a invalid value is given
+    timeframes: Optional[List[enums.LookerTimeFrame]] = Field(default=None) #TODO - make validator not discard as much if a invalid value is given
 
 class DbtMetaMeasure(DbtMetaLooker):
     ''' A measure defined in a dbt model'''
-    type: looker.LookerMeasureType = Field(default=None)
+    node_type: enums.LookerMeasureType = Field(default=None, alias='type')
     description: Optional[str] = Field(default=None, alias='description')
     sql: Optional[str] = Field(default=None)
     approximate: Optional[Union[bool, str]] = Field(default=None)
@@ -247,9 +248,6 @@ class UnsupportedDbtAdapterError(ValueError):
     code = 'unsupported_dbt_adapter'
     msg_template = '{wrong_value} is not a supported dbt adapter, only bigquery is supported.'
 
-class SupportedDbtAdapters(str, Enum):
-    ''' BigQuery is the only supported adapter. '''
-    bigquery = 'bigquery'
 
 class DbtManifestMetadata(BaseModel):
     adapter_type: str
@@ -258,7 +256,7 @@ class DbtManifestMetadata(BaseModel):
     @classmethod
     def adapter_must_be_supported(cls, v):
         try:
-            SupportedDbtAdapters(v)
+            enums.SupportedDbtAdapters(v)
         except ValueError:
             raise UnsupportedDbtAdapterError(wrong_value=v)
         return v

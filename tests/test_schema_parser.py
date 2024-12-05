@@ -1,10 +1,8 @@
 import pytest
-from dbt2looker_bigquery.schema_parser import SchemaParser
+from dbt2lookml.schema_parser import SchemaParser
 
 class TestSchemaParser:
     
-
-  
     def test_parse_simple_array_types(self):
         assert SchemaParser().parse("ARRAY<STRUCT<names ARRAY<STRING>, age INT64>>") == [
             "age INT64",

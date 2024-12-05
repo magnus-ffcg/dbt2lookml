@@ -1,12 +1,12 @@
 import pytest
 from unittest.mock import patch, MagicMock
 from argparse import Namespace
-from dbt2looker_bigquery.cli import generate, init_argparser
+from dbt2lookml.cli import Cli
 import sys
 
 def test_create_parser():
     """Test argument parser initialization"""
-    parser = init_argparser()
+    parser = Cli()._init_argparser()
     args = parser.parse_args([])
     assert args.target_dir == './target'
     assert args.output_dir == '.'
@@ -19,7 +19,7 @@ def test_create_parser():
 
 def test_parse_args_custom():
     """Test parsing arguments with custom values"""
-    parser = init_argparser()
+    parser = Cli()._init_argparser()
     args = parser.parse_args([
         '--target-dir', '/custom/target',
         '--output-dir', '/custom/output',

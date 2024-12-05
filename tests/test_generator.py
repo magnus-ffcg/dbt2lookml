@@ -1,7 +1,10 @@
 import pytest
-from dbt2looker_bigquery.generator import LookmlGenerator, NotImplementedError
-from dbt2looker_bigquery.models import DbtModelColumn, DbtModelColumnMeta, DbtCatalogNodeColumn
-from dbt2looker_bigquery import looker, models
+from dbt2lookml.generators.lookml import LookmlGenerator, NotImplementedError
+from dbt2lookml.generators.utils import Sql
+from dbt2lookml.models import DbtModelColumn, DbtModelColumnMeta, DbtCatalogNodeColumn
+from dbt2lookml import enums, models
+from dbt2lookml.exceptions import CliError
+
 import os
 import tempfile
 import json
@@ -15,8 +18,8 @@ import json
 ])
 def test_validate_sql(sql, expected):
     """Test SQL validation for Looker expressions"""
-    lookml_generator = LookmlGenerator()
-    assert lookml_generator._validate_sql(sql) == expected
+    sql_util = Sql()
+    assert sql_util.validate_sql(sql) == expected
 
 @pytest.mark.parametrize("bigquery_type,expected_looker_type", [
     ("STRING", "string"),
@@ -63,7 +66,7 @@ def test_dimension_group_time():
     result = lookml_generator._lookml_dimension_group(column, "time", True, model)
     assert isinstance(result[0], dict)
     assert result[0].get("type") == "time"
-    assert result[0].get("timeframes") == looker.LOOKER_TIME_TIMEFRAMES
+    assert result[0].get("timeframes") == enums.LookerTimeTimeframes.values()
     assert result[0].get("convert_tz") == "yes"
 
 def test_dimension_group_invalid_type():
@@ -126,14 +129,15 @@ def test_dimension_group_date():
     dimension_group, dimension_set, _ = lookml_generator._lookml_dimension_group(column, "date", True, model)
     assert dimension_group['type'] == 'date'
     assert dimension_group['convert_tz'] == 'no'
-    assert dimension_group['timeframes'] == looker.LOOKER_DATE_TIMEFRAMES
+    assert dimension_group['timeframes'] == enums.LookerDateTimeframes.values()
     assert dimension_group['label'] == "Custom Date Label"
     assert dimension_group['group_label'] == "Custom Group"
     assert dimension_group['name'] == "created"  # _date removed
     
     # Check dimension set
     assert dimension_set['name'] == "s_created"
-    assert all(tf in dimension_set['fields'] for tf in [f"created_{t}" for t in looker.LOOKER_DATE_TIMEFRAMES])
+    assert all(tf in dimension_set['fields'] for tf in [f"created_{t}" for t in enums.LookerDateTimeframes.values()])
+    #assert dimension_set['label'] == "Custom Date Label"
 
 def test_dimension_group_unsupported_type():
     """Test dimension group creation with unsupported column type"""
@@ -498,8 +502,8 @@ def test_group_strings_nested_array():
 def test_load_file_not_found():
     """Test handling of file not found error"""
     lookml_generator = LookmlGenerator()
-    with pytest.raises(SystemExit, match='Failed'):
-        lookml_generator._load_file('nonexistent.json')
+    with pytest.raises(CliError, match='File not found'):
+        lookml_generator._file_handler.read('nonexistent.json')
 
 def test_write_lookml_file_with_table_name(tmp_path):
     """Test writing LookML file using table name."""
@@ -686,7 +690,7 @@ def test_lookml_dimensions_with_metadata():
                 label="Custom Label",
                 group_label="Custom Group",
                 hidden=True,
-                value_format_name=looker.LookerValueFormatName.id
+                value_format_name=enums.LookerValueFormatName.ID
             )
         )
     )
@@ -775,7 +779,7 @@ def test_generate_with_locale(mock_dbt_model, mocker):
     # Mock DbtParser
     mock_parser = mocker.Mock()
     mock_parser.parse_typed_models.return_value = [mock_dbt_model, second_model]
-    mocker.patch('dbt2looker_bigquery.parser.DbtParser', return_value=mock_parser)
+    mocker.patch('dbt2lookml.parser.DbtParser', return_value=mock_parser)
     
     # Mock file operations
     mock_open = mocker.mock_open()
@@ -783,7 +787,7 @@ def test_generate_with_locale(mock_dbt_model, mocker):
     mocker.patch('os.makedirs')  # Mock directory creation
     
     # Mock json operations
-    mock_json_dump = mocker.patch('json.dump')
+    mock_json_dump = mocker.patch('json.dumps')
     mock_json_load = mocker.patch('json.load')
     mock_json_load.side_effect = [{'nodes': {}}, {'nodes': {}}, {'nodes': {}}, {'nodes': {}}]  # For manifest and catalog
     
@@ -822,7 +826,7 @@ def test_generate_with_locale(mock_dbt_model, mocker):
                 "status": "Status"
             }
         }
-    }, mocker.ANY, indent=4)
+    }, indent=4)
 
     # Reset mocks for table name test
     mock_open.reset_mock()
@@ -851,7 +855,7 @@ def test_generate_with_locale(mock_dbt_model, mocker):
                 "status": "Status"
             }
         }
-    }, mocker.ANY, indent=4)
+    }, indent=4)
     
     # Verify that lookml_view_from_dbt_model uses locale references
     lookml_calls = [call for call in mock_lkml_dump.call_args_list if isinstance(call[0][0], dict)]
@@ -894,3 +898,5 @@ def test_generate_with_locale(mock_dbt_model, mocker):
                 dim['label'] == original_label 
                 for original_label in ["User Id", "Created At", "Amount", "Status"]
             ), f"Original label still present in dimension {dim['name']}"
+            
+

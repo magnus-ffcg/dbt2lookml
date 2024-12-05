@@ -1,5 +1,5 @@
 import pytest
-from dbt2looker_bigquery.models import (
+from dbt2lookml.models import (
     DbtModel, DbtModelColumn, DbtModelMeta, DbtMetaLooker,
     DbtCatalogNode, DbtCatalogNodeColumn, DbtModelColumnMeta
 )

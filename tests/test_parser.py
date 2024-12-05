@@ -1,8 +1,8 @@
 import pytest
 import logging
-from dbt2looker_bigquery.parser import DbtParser
-from dbt2looker_bigquery.models import DbtModel, DbtCatalogNode, DbtCatalogNodeColumn, DbtModelColumnMeta, DbtModelColumn, DbtMetaMeasure
-from dbt2looker_bigquery.looker import LookerMeasureType
+from dbt2lookml.parser import DbtParser
+from dbt2lookml.models import DbtModel, DbtCatalogNode, DbtCatalogNodeColumn, DbtModelColumnMeta, DbtModelColumn, DbtMetaMeasure
+from dbt2lookml.enums import LookerMeasureType
 
 class TestDbtParser:
     @pytest.fixture
@@ -235,10 +235,6 @@ class TestDbtParser:
         assert model.name == "model1"
         assert list(model.columns.values())[0].data_type == "INT64"
 
-    def test_logging_setup(self, parser):
-        """Test that logger is properly initialized"""
-        assert parser.logger is not None
-        assert parser.logger.name == "rich"
 
     def test_create_missing_array_column(self, parser):
         """Test creating a missing array column"""
@@ -274,8 +270,8 @@ class TestDbtParser:
                     name="col1",
                     data_type='STRING',
                     meta=DbtModelColumnMeta(looker_measures=[
-                        DbtMetaMeasure(type=LookerMeasureType.count),
-                        DbtMetaMeasure(type=LookerMeasureType.sum)
+                        DbtMetaMeasure(type=LookerMeasureType.COUNT),
+                        DbtMetaMeasure(type=LookerMeasureType.SUM)
                     ])
                 )
             },

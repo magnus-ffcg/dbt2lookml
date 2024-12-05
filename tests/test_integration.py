@@ -3,7 +3,7 @@ import os
 import pytest
 from unittest.mock import mock_open, patch, MagicMock
 from pathlib import Path
-from dbt2looker_bigquery.cli import generate, init_argparser
+from dbt2lookml.cli import Cli
 
 class TestIntegration:
 
@@ -248,7 +248,8 @@ view: fact_daily_sales_v1__waste {
 '''
         
         # Initialize and run CLI
-        parser = init_argparser()
+        cli = Cli()
+        parser = cli._init_argparser()
         args = parser.parse_args([
             "--target-dir", 'tests/fixtures',
             "--output-dir", 'output/tests/',
@@ -256,7 +257,7 @@ view: fact_daily_sales_v1__waste {
             "--use-table-name",
             "--skip-explore-joins",
         ])
-        generate(args)
+        cli.generate(args)
 
         assert os.path.exists('output/tests/example/retail_data/fact_daily_sales_v1.view.lkml')
         
@@ -506,14 +507,15 @@ view: example_retail_data__fact_daily_sales__waste {
 '''
         
         # Initialize and run CLI
-        parser = init_argparser()
+        cli = Cli()
+        parser = cli._init_argparser()
         args = parser.parse_args([
             "--target-dir", 'tests/fixtures',
             "--output-dir", 'output/tests/',
             "--select", 'example_retail_data__fact_daily_sales',
             "--skip-explore-joins",
         ])
-        generate(args)
+        cli.generate(args)
 
         assert os.path.exists('output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml')
         
@@ -792,13 +794,14 @@ explore: example_retail_data__fact_daily_sales {
 '''
         
         # Initialize and run CLI
-        parser = init_argparser()
+        cli = Cli()
+        parser = cli._init_argparser()
         args = parser.parse_args([
             "--target-dir", 'tests/fixtures',
             "--output-dir", 'output/tests/',
             "--select", 'example_retail_data__fact_daily_sales',
         ])
-        generate(args)
+        cli.generate(args)
 
         assert os.path.exists('output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml')
         

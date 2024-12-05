@@ -7,7 +7,7 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "dbt2looker-bigquery",
+    "dbt2lookml",
     "dist",
 ]
 
@@ -21,7 +21,7 @@ wheels = [
 ]
 
 [[package]]
-name = "dbt2looker-bigquery"
+name = "dbt2lookml"
 version = "0.13.1"
 source = { editable = "." }
 dependencies = [
