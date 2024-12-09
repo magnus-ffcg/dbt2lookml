@@ -8,17 +8,34 @@ try:
 except ImportError:
     from importlib_metadata import version
 
-from dbt2lookml.generators.lookml import LookmlGenerator
-from dbt2lookml.log import Logger
+from dbt2lookml.generators import LookmlGenerator
 from dbt2lookml.enums import LookerScalarTypes
 from dbt2lookml.exceptions import CliError
 
-class Cli(Logger):
+import logging
+from rich.logging import RichHandler
+
+logging.basicConfig(
+    level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
+)
+
+class Cli():
     DEFAULT_LOOKML_OUTPUT_DIR = '.'
+    HEADER = """
+     ____   __  ___  __          __          
+ ___/ / /  / /_|_  |/ /__  ___  / /_____ ____
+/ _  / _ \/ __/ __// / _ \/ _ \/  '_/ -_) __/
+\_,_/_.__/\__/____/_/\___/\___/_/\_\\__/_/ 
+
+    Convert your dbt models to LookML views   
+                                                                               
+    """
     
     def _init_argparser(self):
         """Create and configure the argument parser"""
-        parser = argparse.ArgumentParser(description="dbt2lookml - Generate Looker views from dbt models (bigquery)")
+        parser = argparse.ArgumentParser(
+            description=self.HEADER, 
+            formatter_class=argparse.RawDescriptionHelpFormatter)
         parser.add_argument(
             '--version',
             action='version',
@@ -91,9 +108,8 @@ class Cli(Logger):
         return parser
 
     def generate(self,args):
-        """Run the CLI with the provided arguments"""
-        
-        self._logger.info('DBT2LOOKML - Generate Looker views from dbt models (bigquery)')
+        """Generate LookML views from dbt models"""
+        logging.info('Parsing dbt models (bigquery) and creating lookml views...')
         
         lookml_views = LookmlGenerator().generate(
             target_dir=args.target_dir,
@@ -107,8 +123,8 @@ class Cli(Logger):
             generate_locale=args.generate_locale
         )
 
-        self._logger.info(f'Generated {len(lookml_views)} views')
-        self._logger.info('Success')
+        logging.info(f'Generated {len(lookml_views)} views')
+        logging.info('Success')
  
     def run(self):
         """Run the CLI"""
@@ -116,12 +132,13 @@ class Cli(Logger):
             argparser = self._init_argparser()
             args = argparser.parse_args()
             
-            self.set_loglevel(args.log_level)
+            logging.getLogger().setLevel(args.log_level)
+
             self.generate(args)
             
         except CliError as e:
             # Logs should already be printed by the handler 
-            self._logger.error('Error occurred during generation. Stopped execution.')
+            logging.error('Error occurred during generation. Stopped execution.')
 
 
 def main():

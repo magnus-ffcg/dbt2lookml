@@ -246,7 +246,7 @@ view: fact_daily_sales_v1__waste {
   }
 }
 '''
-        
+
         # Initialize and run CLI
         cli = Cli()
         parser = cli._init_argparser()
@@ -257,14 +257,12 @@ view: fact_daily_sales_v1__waste {
             "--use-table-name",
             "--skip-explore-joins",
         ])
-        cli.generate(args)
-
-        assert os.path.exists('output/tests/example/retail_data/fact_daily_sales_v1.view.lkml')
-        
-        with open('output/tests/example/retail_data/fact_daily_sales_v1.view.lkml') as f:
-            content = f.read()
-        
-        assert content.strip() == expected_content.strip()
+        self._extracted_from_test_integration_skip_251(
+            cli,
+            args,
+            'output/tests/example/retail_data/fact_daily_sales_v1.view.lkml',
+            expected_content,
+        )
         
     def test_integration_skip_explore_joins(self):
         
@@ -505,7 +503,7 @@ view: example_retail_data__fact_daily_sales__waste {
   }
 }
 '''
-        
+
         # Initialize and run CLI
         cli = Cli()
         parser = cli._init_argparser()
@@ -515,14 +513,12 @@ view: example_retail_data__fact_daily_sales__waste {
             "--select", 'example_retail_data__fact_daily_sales',
             "--skip-explore-joins",
         ])
-        cli.generate(args)
-
-        assert os.path.exists('output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml')
-        
-        with open('output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml') as f:
-            content = f.read()
-        
-        assert content.strip() == expected_content.strip()
+        self._extracted_from_test_integration_skip_251(
+            cli,
+            args,
+            'output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml',
+            expected_content,
+        )
 
 
     def test_integration_skip(self):
@@ -792,7 +788,7 @@ explore: example_retail_data__fact_daily_sales {
   hidden: no
 }
 '''
-        
+
         # Initialize and run CLI
         cli = Cli()
         parser = cli._init_argparser()
@@ -801,13 +797,19 @@ explore: example_retail_data__fact_daily_sales {
             "--output-dir", 'output/tests/',
             "--select", 'example_retail_data__fact_daily_sales',
         ])
-        cli.generate(args)
+        self._extracted_from_test_integration_skip_251(
+            cli,
+            args,
+            'output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml',
+            expected_content,
+        )
 
-        assert os.path.exists('output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml')
-        
-        with open('output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml') as f:
+    # TODO Rename this here and in `test_integration_skip_explore_joins_and_use_table_name`, `test_integration_skip_explore_joins` and `test_integration_skip`
+    def _extracted_from_test_integration_skip_251(self, cli, args, arg2, expected_content):
+        cli.generate(args)
+        assert os.path.exists(arg2)
+        with open(arg2) as f:
             content = f.read()
-        
         assert content.strip() == expected_content.strip()
 
 

@@ -4,8 +4,8 @@ version = "0.13.1"
 description = "Generate lookml view files from bigquery dbt models "
 authors = []
 readme = "README.md"
-homepage = "https://github.com/rognerud/dbt2looker-bigquery"
-repository = "https://github.com/rognerud/dbt2looker-bigquery"
+homepage = "https://github.com/rognerud/dbt2lookml"
+repository = "https://github.com/rognerud/dbt2lookml"
 
 [tool.poetry.dependencies]
 lkml = ">=1.1"
@@ -16,12 +16,14 @@ typing-extensions = ">=4.0"
 importlib-metadata = ">=4"
 rich = ">=13.9.4"
 pytest-mock = "^3.14.0"
+datamodel-code-generator = "^0.26.3"
 
 [tool.poetry.group.dev.dependencies]
 debugpy = "^1.8.8"
 pytest = "^8.3.3"
 pytest-mock = "^3.14.0"
 pytest-cov = "^6.0.0"
+datamodel-code-generator = "^0.26.3"
 
 [tool.uv]
 
@@ -52,5 +54,23 @@ commit = false
 message = "Bump version: {current_version} → {new_version}"
 commit_args = ""
 
-[pytest]
+[tool.pytest]
 mock_use_standalone_module = true
+
+[tool.black]
+skip-string-normalization = true
+line-length = 100
+
+[tool.isort]
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 100
+known_first_party = "kelvin"
+
+[tool.datamodel-codegen]
+field-constraints = true
+snake-case-field = true
+strip-default-none = false
+target-python-version = "3.12"

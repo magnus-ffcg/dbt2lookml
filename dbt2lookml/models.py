@@ -5,10 +5,10 @@ from pydantic import field_validator, model_validator
 from typing import Literal
 from pydantic import BaseModel, Field, validator
 import re
-from dbt2lookml import enums
-from dbt2lookml import schema_parser
+from dbt2looker_bigquery import enums
+from dbt2looker_bigquery.schema import SchemaParser
 
-schema_parser = schema_parser.SchemaParser()
+schema_parser = SchemaParser()
 
 try:
     from typing import Literal
@@ -70,27 +70,22 @@ class DbtCatalogNodeColumn(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def validate_inner_type(cls, values):
-        type = values.get('type')
+        column_type = values.get('type')
 
         def truncate_before_character(string, character):
             # Find the position of the character in the string.
             pos = string.find(character)
-            
-            # If found, return everything up to that point.
-            if pos != -1:
-                return string[:pos]
-            
-            # If not found, return the original string.
-            return string
 
-         
-        data_type = truncate_before_character(type, '<')
+            # If found, return everything up to that point.
+            return string[:pos] if pos != -1 else string
+
+        data_type = truncate_before_character(column_type, '<')
         values['data_type'] = truncate_before_character(data_type, '(')
-        
-        inner_types = schema_parser.parse(type)
-        if inner_types and inner_types != type:
+
+        inner_types = schema_parser.parse(column_type)
+        if inner_types and inner_types != column_type:
             values['inner_types'] = inner_types
-            
+
         return values
 
 class DbtCatalogNodeRelationship(BaseModel):
@@ -235,12 +230,11 @@ class DbtModel(DbtNode):
             # Skip the entry if the column is a dict, not a DbtModelColumn instance
             if isinstance(column, dict):
                 new_columns[name] = column
-            else:
-                # Ensure the column is a DbtModelColumn instance before proceeding
-                if not isinstance(column, DbtModelColumn):
-                    raise TypeError(f"The value for key {name} is not a DbtModelColumn instance.")
+            elif isinstance(column, DbtModelColumn):
                 # Lowercase the name and update the column name
                 new_columns[name.lower()] = column.model_copy(update={'name': column.name.lower()})
+            else:
+                raise TypeError(f"The value for key {name} is not a DbtModelColumn instance.")
         return new_columns
 
 # dbt2looker utility types - only used in manifest
@@ -257,8 +251,8 @@ class DbtManifestMetadata(BaseModel):
     def adapter_must_be_supported(cls, v):
         try:
             enums.SupportedDbtAdapters(v)
-        except ValueError:
-            raise UnsupportedDbtAdapterError(wrong_value=v)
+        except ValueError as e:
+            raise UnsupportedDbtAdapterError(wrong_value=v) from e
         return v
 
 class DbtManifest(BaseModel):

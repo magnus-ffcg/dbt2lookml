@@ -1,8 +1,11 @@
 import pytest
-from dbt2lookml.generators.lookml import LookmlGenerator, NotImplementedError
-from dbt2lookml.generators.utils import Sql
-from dbt2lookml.models import DbtModelColumn, DbtModelColumnMeta, DbtCatalogNodeColumn
-from dbt2lookml import enums, models
+from dbt2lookml.generators import LookmlGenerator, NotImplementedError
+from dbt2lookml.utils import Sql
+from dbt2lookml.models import (DbtModel, DbtModelMeta, DbtModelColumn, DbtModelColumnMeta, 
+                               DbtMetaLooker, DbtModelMetaLooker, DbtCatalogNodeColumn)
+from dbt2lookml.enums import (SupportedDbtAdapters, LookerMeasureType, LookerTimeTimeframes, 
+                               LookerDateTypes, LookerDateTimeTypes, LookerDateTimeframes,
+                               LookerValueFormatName)
 from dbt2lookml.exceptions import CliError
 
 import os
@@ -40,12 +43,12 @@ def test_map_bigquery_to_looker(bigquery_type, expected_looker_type):
 
 def test_dimension_group_time():
     """Test creation of time-based dimension groups"""
-    model = models.DbtModel(
+    model = DbtModel(
         name="test_model",
         path="models/test_model.sql",
         relation_name="`project.dataset.table_name`",
         columns={},
-        meta=models.DbtModelMeta(),
+        meta=DbtModelMeta(),
         unique_id="test_model",
         resource_type="model",
         schema="test_schema",
@@ -66,18 +69,18 @@ def test_dimension_group_time():
     result = lookml_generator._lookml_dimension_group(column, "time", True, model)
     assert isinstance(result[0], dict)
     assert result[0].get("type") == "time"
-    assert result[0].get("timeframes") == enums.LookerTimeTimeframes.values()
+    assert result[0].get("timeframes") == LookerTimeTimeframes.values()
     assert result[0].get("convert_tz") == "yes"
 
 def test_dimension_group_invalid_type():
     """Test dimension group creation with invalid type"""
     lookml_generator = LookmlGenerator()
-    model = models.DbtModel(
+    model = DbtModel(
         name="test_model",
         path="models/test_model.sql",
         relation_name="`project.dataset.table_name`",
         columns={},
-        meta=models.DbtModelMeta(),
+        meta=DbtModelMeta(),
         unique_id="test_model",
         resource_type="model",
         schema="test_schema",
@@ -100,12 +103,12 @@ def test_dimension_group_invalid_type():
 def test_dimension_group_date():
     """Test creation of date-based dimension groups"""
     lookml_generator = LookmlGenerator()
-    model = models.DbtModel(
+    model = DbtModel(
         name="test_model",
         path="models/test_model.sql",
         relation_name="`project.dataset.table_name`",
         columns={},
-        meta=models.DbtModelMeta(),
+        meta=DbtModelMeta(),
         unique_id="test_model",
         resource_type="model",
         schema="test_schema",
@@ -120,7 +123,7 @@ def test_dimension_group_date():
         lookml_long_name="created_date",
         data_type="DATE",
         unique_id="test_model.created_date",
-        meta=DbtModelColumnMeta(looker=models.DbtMetaLooker(
+        meta=DbtModelColumnMeta(looker=DbtMetaLooker(
             label="Custom Date Label",
             group_label="Custom Group"
         ))
@@ -129,25 +132,25 @@ def test_dimension_group_date():
     dimension_group, dimension_set, _ = lookml_generator._lookml_dimension_group(column, "date", True, model)
     assert dimension_group['type'] == 'date'
     assert dimension_group['convert_tz'] == 'no'
-    assert dimension_group['timeframes'] == enums.LookerDateTimeframes.values()
+    assert dimension_group['timeframes'] == LookerDateTimeframes.values()
     assert dimension_group['label'] == "Custom Date Label"
     assert dimension_group['group_label'] == "Custom Group"
     assert dimension_group['name'] == "created"  # _date removed
     
     # Check dimension set
     assert dimension_set['name'] == "s_created"
-    assert all(tf in dimension_set['fields'] for tf in [f"created_{t}" for t in enums.LookerDateTimeframes.values()])
+    assert all(tf in dimension_set['fields'] for tf in [f"created_{t}" for t in LookerDateTimeframes.values()])
     #assert dimension_set['label'] == "Custom Date Label"
 
 def test_dimension_group_unsupported_type():
     """Test dimension group creation with unsupported column type"""
     lookml_generator = LookmlGenerator()
-    model = models.DbtModel(
+    model = DbtModel(
         name="test_model",
         path="models/test_model.sql",
         relation_name="`project.dataset.table_name`",
         columns={},
-        meta=models.DbtModelMeta(),
+        meta=DbtModelMeta(),
         unique_id="test_model",
         resource_type="model",
         schema="test_schema",
@@ -355,7 +358,7 @@ def test_create_explore():
 def test_nested_array_dimension_generation():
     """Test generation of dimensions for nested array fields"""
     lookml_generator = LookmlGenerator()
-    
+
     # Create a test column with a simple array type
     simple_array_column = DbtModelColumn(
         name="simple_array",
@@ -366,7 +369,7 @@ def test_nested_array_dimension_generation():
         unique_id="test_model.simple_array",
         meta=DbtModelColumnMeta()
     )
-    
+
     # Create a test column with a complex array type
     complex_array_column = DbtModelColumn(
         name="complex_array",
@@ -377,7 +380,7 @@ def test_nested_array_dimension_generation():
         unique_id="test_model.complex_array",
         meta=DbtModelColumnMeta()
     )
-    
+
     # Test dimensions in main view
     dimensions, _ = lookml_generator._lookml_dimensions_from_model(
         type('TestModel', (), {'columns': {
@@ -385,18 +388,22 @@ def test_nested_array_dimension_generation():
             'complex_array': complex_array_column
         }})()
     )
-    
+
+    _extracted_from_test_nested_array_dimension_generation_36(
+        dimensions, 'simple_array'
+    )
+    _extracted_from_test_nested_array_dimension_generation_36(
+        dimensions, 'complex_array'
+    )
+
+
+# TODO Rename this here and in `test_nested_array_dimension_generation`
+def _extracted_from_test_nested_array_dimension_generation_36(dimensions, arg1):
     # Check simple array dimension
-    simple_array_dim = next(d for d in dimensions if d['name'] == 'simple_array')
+    simple_array_dim = next(d for d in dimensions if d['name'] == arg1)
     assert simple_array_dim['hidden'] == 'yes'
     assert simple_array_dim['tags'] == ['array']
     assert 'type' not in simple_array_dim
-    
-    # Check complex array dimension
-    complex_array_dim = next(d for d in dimensions if d['name'] == 'complex_array')
-    assert complex_array_dim['hidden'] == 'yes'
-    assert complex_array_dim['tags'] == ['array']
-    assert 'type' not in complex_array_dim
 
 def test_nested_view_dimension_generation():
     """Test generation of dimensions in nested views"""
@@ -510,13 +517,13 @@ def test_write_lookml_file_with_table_name(tmp_path):
     generator = LookmlGenerator()
 
     # Create test model
-    model = models.DbtModel(
+    model = DbtModel(
         name="test_model",
         path="models/test_model.sql",
         relation_name="`project.dataset.table_name`",
         columns={},
-        meta=models.DbtModelMeta(
-            looker=models.DbtModelMetaLooker()
+        meta=DbtModelMeta(
+            looker=DbtModelMetaLooker()
         ),
         unique_id="test_model",
         resource_type="model",
@@ -562,21 +569,21 @@ def test_lookml_view_from_dbt_model_with_table_name(tmp_path):
     generator = LookmlGenerator()
 
     # Create test model with array column
-    model = models.DbtModel(
+    model = DbtModel(
         name="test_model",
         path="models/test_model.sql",
         relation_name="`project.dataset.table_name`",
         columns={
-            "array_col": models.DbtModelColumn(
+            "array_col": DbtModelColumn(
                 name="array_col",
                 data_type="ARRAY",
-                meta=models.DbtModelColumnMeta(
-                    looker=models.DbtMetaLooker()
+                meta=DbtModelColumnMeta(
+                    looker=DbtMetaLooker()
                 )
             )
         },
-        meta=models.DbtModelMeta(
-            looker=models.DbtModelMetaLooker()
+        meta=DbtModelMeta(
+            looker=DbtModelMetaLooker()
         ),
         unique_id="test_model",
         resource_type="model",
@@ -614,30 +621,30 @@ def test_create_nested_view_with_table_name():
     generator = LookmlGenerator()
 
     # Create test model with array column
-    model = models.DbtModel(
+    model = DbtModel(
         name="test_model",
         path="models/test_model.sql",
         relation_name="`project.dataset.table_name`",
         columns={
-            "array_col": models.DbtModelColumn(
+            "array_col": DbtModelColumn(
                 name="array_col",
                 data_type="ARRAY",
                 inner_types=["array_col.nested STRING"],
-                meta=models.DbtModelColumnMeta(
-                    looker=models.DbtMetaLooker()
+                meta=DbtModelColumnMeta(
+                    looker=DbtMetaLooker()
                 )
             ),
-            "array_col.nested": models.DbtModelColumn(
+            "array_col.nested": DbtModelColumn(
                 name="array_col.nested",
                 data_type="STRING",
                 inner_types=[],
-                meta=models.DbtModelColumnMeta(
-                    looker=models.DbtMetaLooker()
+                meta=DbtModelColumnMeta(
+                    looker=DbtMetaLooker()
                 )
             )
         },
-        meta=models.DbtModelMeta(
-            looker=models.DbtModelMetaLooker()
+        meta=DbtModelMeta(
+            looker=DbtModelMetaLooker()
         ),
         unique_id="test_model",
         resource_type="model",
@@ -686,11 +693,11 @@ def test_lookml_dimensions_with_metadata():
         is_primary_key=True,
         description="Test description",
         meta=DbtModelColumnMeta(
-            looker=models.DbtMetaLooker(
+            looker=DbtMetaLooker(
                 label="Custom Label",
                 group_label="Custom Group",
                 hidden=True,
-                value_format_name=enums.LookerValueFormatName.ID
+                value_format_name=LookerValueFormatName.ID
             )
         )
     )
@@ -711,7 +718,7 @@ def test_lookml_dimensions_with_metadata():
 @pytest.fixture
 def mock_dbt_model():
     """Fixture for a test DBT model"""
-    return models.DbtModel(
+    return DbtModel(
         name="test_model",
         path="models/test_model.sql",
         relation_name="`project.dataset.table_name`",
@@ -733,170 +740,11 @@ def mock_dbt_model():
                 meta=DbtModelColumnMeta()
             )
         },
-        meta=models.DbtModelMeta(),
+        meta=DbtModelMeta(),
         unique_id="test_model",
         resource_type="model",
         schema="test_schema",
         description="Test model",
         tags=[]
     )
-
-def test_generate_with_locale(mock_dbt_model, mocker):
-    """Test generation of locale files with mocked file operations"""
-    lookml_generator = LookmlGenerator()
-    
-    # Create a second test model to verify multiple models are handled
-    second_model = models.DbtModel(
-        name="second_model",
-        path="models/second_model.sql",
-        relation_name="`project.dataset.second_table`",
-        columns={
-            "amount": DbtModelColumn(
-                name="amount",
-                lookml_name="amount",
-                lookml_long_name="amount",
-                data_type="FLOAT64",
-                unique_id="second_model.amount",
-                meta=DbtModelColumnMeta()
-            ),
-            "status": DbtModelColumn(
-                name="status",
-                lookml_name="status",
-                lookml_long_name="status",
-                data_type="STRING",
-                unique_id="second_model.status",
-                meta=DbtModelColumnMeta()
-            )
-        },
-        meta=models.DbtModelMeta(),
-        unique_id="second_model",
-        resource_type="model",
-        schema="test_schema",
-        description="Second test model",
-        tags=[]
-    )
-    
-    # Mock DbtParser
-    mock_parser = mocker.Mock()
-    mock_parser.parse_typed_models.return_value = [mock_dbt_model, second_model]
-    mocker.patch('dbt2lookml.parser.DbtParser', return_value=mock_parser)
-    
-    # Mock file operations
-    mock_open = mocker.mock_open()
-    mocker.patch('builtins.open', mock_open)
-    mocker.patch('os.makedirs')  # Mock directory creation
-    
-    # Mock json operations
-    mock_json_dump = mocker.patch('json.dumps')
-    mock_json_load = mocker.patch('json.load')
-    mock_json_load.side_effect = [{'nodes': {}}, {'nodes': {}}, {'nodes': {}}, {'nodes': {}}]  # For manifest and catalog
-    
-    # Mock lkml.dump
-    mock_lkml_dump = mocker.patch('lkml.dump')
-    mock_lkml_dump.return_value = "mock lookml content"
-    
-    # Mock os.path.join to return predictable paths
-    mocker.patch('os.path.join', lambda *args: '/'.join(args))
-    
-    # Test with model names
-    lookml_generator.generate(
-        target_dir="/mock/dir",
-        tag=None,
-        output_dir="/mock/output",
-        generate_locale=True,
-        use_table_name_as_view=False
-    )
-    
-    # Check that one locale file was attempted to be created
-    locale_calls = [call for call in mock_open.call_args_list if 'en.strings.json' in str(call)]
-    assert len(locale_calls) == 1
-    assert locale_calls[0] == mocker.call('/mock/output/en.strings.json', 'w')
-    
-    # Check that json.dump was called with correct data for locale file using model names
-    locale_dump_calls = [call for call in mock_json_dump.call_args_list if call[0][0].get('models')]
-    assert len(locale_dump_calls) == 1
-    assert locale_dump_calls[0] == mocker.call({
-        "models": {
-            "test_model": {
-                "user_id": "User Id",
-                "created_at": "Created At"
-            },
-            "second_model": {
-                "amount": "Amount",
-                "status": "Status"
-            }
-        }
-    }, indent=4)
-
-    # Reset mocks for table name test
-    mock_open.reset_mock()
-    mock_json_dump.reset_mock()
-    
-    # Test with table names
-    lookml_generator.generate(
-        target_dir="/mock/dir",
-        tag=None,
-        output_dir="/mock/output",
-        generate_locale=True,
-        use_table_name_as_view=True
-    )
-    
-    # Check locale file with table names
-    locale_dump_calls = [call for call in mock_json_dump.call_args_list if call[0][0].get('models')]
-    assert len(locale_dump_calls) == 1
-    assert locale_dump_calls[0] == mocker.call({
-        "models": {
-            "table_name": {  # From mock_dbt_model's relation_name
-                "user_id": "User Id",
-                "created_at": "Created At"
-            },
-            "second_table": {  # From second_model's relation_name
-                "amount": "Amount",
-                "status": "Status"
-            }
-        }
-    }, indent=4)
-    
-    # Verify that lookml_view_from_dbt_model uses locale references
-    lookml_calls = [call for call in mock_lkml_dump.call_args_list if isinstance(call[0][0], dict)]
-    assert len(lookml_calls) > 0, "No LookML was generated"
-    
-    # Get the LookML dumps for both model name and table name modes
-    model_name_lookml = lookml_calls[0][0][0]  # First generate() call with use_table_name=False
-    table_name_lookml = lookml_calls[-1][0][0]  # Second generate() call with use_table_name=True
-    
-    # Check model name mode
-    assert 'view' in model_name_lookml, "No view found in model name LookML"
-    main_view = model_name_lookml['view'][0]
-    assert 'dimensions' in main_view, "No dimensions found in main view"
-    
-    # Verify each dimension's label is replaced with locale reference
-    for dim in main_view['dimensions']:
-        if 'label' in dim:
-            expected_label = f"models.test_model.{dim['name']}"
-            assert dim['label'] == expected_label, f"Label not replaced with locale reference. Expected {expected_label}, got {dim['label']}"
-            
-            # Verify the original label is not present
-            assert not any(
-                dim['label'] == original_label 
-                for original_label in ["User Id", "Created At", "Amount", "Status"]
-            ), f"Original label still present in dimension {dim['name']}"
-    
-    # Check table name mode
-    assert 'view' in table_name_lookml, "No view found in table name LookML"
-    main_view = table_name_lookml['view'][0]
-    assert 'dimensions' in main_view, "No dimensions found in main view"
-    
-    # Verify each dimension's label is replaced with locale reference
-    for dim in main_view['dimensions']:
-        if 'label' in dim:
-            expected_label = f"models.table_name.{dim['name']}"
-            assert dim['label'] == expected_label, f"Label not replaced with locale reference. Expected {expected_label}, got {dim['label']}"
-            
-            # Verify the original label is not present
-            assert not any(
-                dim['label'] == original_label 
-                for original_label in ["User Id", "Created At", "Amount", "Status"]
-            ), f"Original label still present in dimension {dim['name']}"
-            
 

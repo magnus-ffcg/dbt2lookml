@@ -1,17 +1,13 @@
 import pytest
 from dbt2lookml.enums import (
-    ExtendedEnum,
-    SupportedDbtAdapters,
-    LookerMeasureType,
-    LookerValueFormatName,
-    LookerTimeFrame,
-    LookerBigQueryDataType,
-    LookerBigQueryMeasureTypes,
-    LookerDateTimeTypes,
-    LookerDateTypes,
-    LookerScalarTypes,
-    LookerDateTimeframes,
-    LookerTimeTimeframes
+    LookerScalarTypes, 
+    LookerMeasureType, 
+    SupportedDbtAdapters, 
+    LookerBigQueryDataType, 
+    LookerValueFormatName, 
+    LookerTimeFrame, 
+    LookerDateTimeTypes, 
+    LookerDateTypes
 )
 
 

@@ -1,6 +1,6 @@
 import pytest
 import logging
-from dbt2lookml.parser import DbtParser
+from dbt2lookml.parsers import DbtParser
 from dbt2lookml.models import DbtModel, DbtCatalogNode, DbtCatalogNodeColumn, DbtModelColumnMeta, DbtModelColumn, DbtMetaMeasure
 from dbt2lookml.enums import LookerMeasureType
 
@@ -107,17 +107,17 @@ class TestDbtParser:
 
     def test_filter_nodes_by_type(self, parser):
         """Test filtering nodes by resource type"""
-        models = parser._filter_nodes_by_type(parser.manifest.nodes, "model")
+        models = parser._filter_nodes_by_type(parser._manifest.nodes, "model")
         assert len(models) == 2
         assert all(model.resource_type == "model" for model in models)
 
-        exposures = parser._filter_nodes_by_type(parser.manifest.exposures, "exposure")
+        exposures = parser._filter_nodes_by_type(parser._manifest.exposures, "exposure")
         assert len(exposures) == 1
         assert all(exp.resource_type == "exposure" for exp in exposures)
 
     def test_filter_models(self, parser):
         """Test filtering models with various criteria"""
-        all_models = parser._filter_nodes_by_type(parser.manifest.nodes, "model")
+        all_models = parser._filter_nodes_by_type(parser._manifest.nodes, "model")
         
         # Test filtering by select_model
         filtered = parser._filter_models(all_models, select_model="model1")
@@ -139,37 +139,37 @@ class TestDbtParser:
         assert len(filtered) == 1
         assert filtered[0].name == "model1"
 
-    def test_parse_models_no_filter(self, parser):
+    def test_get_models_no_filter(self, parser):
         """Test parsing all models without any filters"""
-        models = parser.parse_models()
+        models = parser.get_models()
         assert len(models) == 2
         assert {model.name for model in models} == {"model1", "model2"}
 
-    def test_parse_models_with_tag(self, parser):
+    def test_get_models_with_tag(self, parser):
         """Test parsing models filtered by tag"""
-        models = parser.parse_models(tag="analytics")
+        models = parser.get_models(tag="analytics")
         assert len(models) == 1
         assert models[0].name == "model1"
 
-    def test_parse_models_with_exposures(self, parser):
+    def test_get_models_with_exposures(self, parser):
         """Test parsing models filtered by exposures"""
-        models = parser.parse_models(exposures_only=True)
+        models = parser.get_models(exposures_only=True)
         assert len(models) == 1
         assert models[0].name == "model1"
 
-    def test_parse_models_with_exposures_and_tag(self, parser):
+    def test_get_models_with_exposures_and_tag(self, parser):
         """Test parsing models filtered by both exposures and tag"""
-        models = parser.parse_models(exposures_only=True, tag="analytics")
+        models = parser.get_models(exposures_only=True, tag="analytics")
         assert len(models) == 1
         assert models[0].name == "model1"
 
         # Should return empty when tag doesn't match exposed model
-        models = parser.parse_models(exposures_only=True, tag="reporting")
+        models = parser.get_models(exposures_only=True, tag="reporting")
         assert len(models) == 0
 
-    def test_parse_models_with_select_model(self, parser):
+    def test_get_models_with_select_model(self, parser):
         """Test parsing specific model by name"""
-        models = parser.parse_models(select_model="model2")
+        models = parser.get_models(select_model="model2")
         assert len(models) == 1
         assert models[0].name == "model2"
 
@@ -227,7 +227,7 @@ class TestDbtParser:
 
     def test_process_typed_models(self, parser):
         """Test processing models with type information"""
-        models = parser.parse_models(tag="analytics")
+        models = parser.get_models(tag="analytics")
         typed_models = parser._process_typed_models(models)
         
         assert len(typed_models) == 1

@@ -1,10 +1,9 @@
 import json
+import logging
+from dbt2looker_bigquery.exceptions import CliError
 
-from dbt2lookml.log import Logger
-from dbt2lookml.exceptions import CliError
 
-
-class FileHandler(Logger):
+class FileHandler():
     
     def read(self, file_path: str, is_json=True) -> dict:
         """Load file from disk. Default is to load as a JSON file
@@ -17,13 +16,10 @@ class FileHandler(Logger):
         """
         try:
             with open(file_path, 'r') as f:
-                if is_json:
-                    raw_file = json.load(f)
-                else:
-                    raw_file = f.read()
+                raw_file = json.load(f) if is_json else f.read()
         except FileNotFoundError as e:
-            self._logger.error(f'Could not find file at {file_path}. Use --target-dir to change the search path for the manifest.json file.')
-            raise CliError('File not found')
+            logging.error(f'Could not find file at {file_path}. Use --target-dir to change the search path for the manifest.json file.')
+            raise CliError('File not found') from e
 
         return raw_file
     
@@ -42,10 +38,10 @@ class FileHandler(Logger):
                 f.truncate() # Clear file to allow overwriting
                 f.write(contents)
         except Exception as e:
-            self._logger.error(f'Could not write file at {file_path}.')
-            raise CliError('Could not write file')
+            logging.error(f'Could not write file at {file_path}.')
+            raise CliError('Could not write file') from e
         
-class Sql(Logger):
+class Sql():
     def validate_sql(self, sql: str) -> str:
         """Validate that a string is a valid Looker SQL expression.
         
@@ -65,11 +61,11 @@ class Sql(Logger):
             return sql.endswith(';;')
 
         if check_expression_has_ending_semicolons(sql):
-            self._logger.warning(f"SQL expression {sql} ends with semicolons. It is removed and added by lkml.")
+            logging.warning(f"SQL expression {sql} ends with semicolons. It is removed and added by lkml.")
             sql = sql.rstrip(';').rstrip(';').strip()
 
         if not check_if_has_dollar_syntax(sql):
-            self._logger.warning(f"SQL expression {sql} does not contain $TABLE or $view_name")
+            logging.warning(f"SQL expression {sql} does not contain $TABLE or $view_name")
             return None
         else:
             return sql
