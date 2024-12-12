@@ -72,11 +72,6 @@ class Cli:
             type=str,
         )
         parser.add_argument(
-            '--model-connection',
-            help='DB Connection Name for generated model files',
-            type=str,
-        )
-        parser.add_argument(
             '--remove-schema-string',
             help='string to remove from folder name when generating lookml files',
             type=str,
