@@ -31,6 +31,6 @@ The output you can see under example/use-table-name/ folder
 poetry run dbt2lookml --target-dir tests/fixtures --output-dir example/skip-explore
 ```
 
-The output you can see under examples/skip-explore/ folder
+The output you can see under example/skip-explore/ folder
 
 
