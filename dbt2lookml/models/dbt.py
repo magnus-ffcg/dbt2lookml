@@ -1,12 +1,8 @@
-
-from typing import Union, Dict, List, Optional
 import logging
-from pydantic import field_validator, model_validator
-from typing import Literal
-from pydantic import BaseModel, Field, validator
-import re
-from dbt2looker_bigquery import enums
-from dbt2looker_bigquery.schema import SchemaParser
+from typing import Union, Dict, List, Optional
+from pydantic import field_validator, model_validator, BaseModel, Field
+from dbt2lookml import enums
+from dbt2lookml.schema import SchemaParser
 
 schema_parser = SchemaParser()
 
@@ -14,9 +10,13 @@ try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
+    
+from dbt2lookml.exceptions import UnsupportedDbtAdapterError
+from dbt2lookml.models.looker import DbtMetaLooker
+
 
 def yes_no_validator(value: Union[bool, str]):
-    ''' Convert booleans or strings to lookml yes/no syntax'''
+    '''Convert booleans or strings to lookml yes/no syntax'''
     if isinstance(value, bool):
         return 'yes' if value else 'no'
     elif value.lower() in ['yes', 'no']:
@@ -27,46 +27,58 @@ def yes_no_validator(value: Union[bool, str]):
         logging.warning(f'Value must be "yes", "no", or a boolean. Got {value}')
         return None
 
+
 class DbtNode(BaseModel):
-    ''' A dbt node. extensible to models, seeds, etc.'''
+    '''A dbt node. extensible to models, seeds, etc.'''
+
     name: str
     unique_id: str
-    resource_type: str
+    resource_type: Literal['model', 'seed', 'snapshot', 'analysis', 'test', 'operation', 'sql_operation', 'source', 'macro', 'exposure', 'metric', 'group', 'saved_query', 'semantic_model', 'unit_test', 'fixture']
+
+
 
 class DbtExposureRef(BaseModel):
-    ''' A reference in a dbt exposure '''
+    '''A reference in a dbt exposure'''
+
     name: str
     package: Optional[str] = None
     version: Optional[Union[str, int]] = None
 
+
 class DbtExposure(DbtNode):
-    ''' A dbt exposure '''
+    '''A dbt exposure'''
+
     name: str
     description: Optional[str] = None
     url: Optional[str] = None
     refs: List[DbtExposureRef]
-    tags: Optional[List[str]] = [] # Adds exposure tags
+    tags: Optional[List[str]] = []  # Adds exposure tags
+    #depends_on: Optional[Dict[str, List[str]]] = None
+
 
 class DbtCatalogNodeMetadata(BaseModel):
-    ''' Metadata about a dbt catalog node '''
+    '''Metadata about a dbt catalog node'''
+
     type: str
     db_schema: str = Field(..., alias='schema')
     name: str
     comment: Optional[str] = None
     owner: Optional[str] = None
 
+
 class DbtCatalogNodeColumn(BaseModel):
-    ''' A column in a dbt catalog node '''
+    '''A column in a dbt catalog node'''
+
     type: str
     data_type: Optional[str] = 'MISSING'
-    inner_types: Optional[list[str]]=[]
+    inner_types: Optional[List[str]] = []
     comment: Optional[str] = None
     index: int
     name: str
     # child_name: Optional[str]
     # parent: Optional[str]  # Added field to store the parent node
     parent: Optional['DbtCatalogNodeColumn'] = None
-    
+
     @model_validator(mode="before")
     @classmethod
     def validate_inner_type(cls, values):
@@ -88,14 +100,18 @@ class DbtCatalogNodeColumn(BaseModel):
 
         return values
 
+
 class DbtCatalogNodeRelationship(BaseModel):
-    ''' A model for nodes containing relationships '''
+    '''A model for nodes containing relationships'''
+
     type: str
     columns: List[DbtCatalogNodeColumn]
     relationships: List[str]  # List of relationships, adjust the type accordingly
 
+
 class DbtCatalogNode(BaseModel):
-    ''' A dbt catalog node '''
+    '''A dbt catalog node'''
+
     metadata: DbtCatalogNodeMetadata
     columns: Dict[str, DbtCatalogNodeColumn]
 
@@ -107,58 +123,22 @@ class DbtCatalogNode(BaseModel):
             for name, column in v.items()
         }
 
+
 class DbtCatalog(BaseModel):
-    ''' A dbt catalog '''
+    '''A dbt catalog'''
+
     nodes: Dict[str, DbtCatalogNode]
 
-class LookViewFile(BaseModel):
-    ''' A file in a looker view directory '''
-    filename: str
-    contents: str
-    db_schema: str = Field(..., alias='schema')
-
-class DbtMetaLooker(BaseModel):
-    ''' Looker-specific metadata for a dbt model '''
-    hidden: Optional[bool] = Field(default=None)
-    label: Optional[str] = Field(default=None)
-    group_label: Optional[str] = Field(default=None)
-    value_format_name: Optional[enums.LookerValueFormatName] = Field(default=None) #TODO - make validator not discard as much if a invalid value is given
-    timeframes: Optional[List[enums.LookerTimeFrame]] = Field(default=None) #TODO - make validator not discard as much if a invalid value is given
-
-class DbtMetaMeasure(DbtMetaLooker):
-    ''' A measure defined in a dbt model'''
-    node_type: enums.LookerMeasureType = Field(default=None, alias='type')
-    description: Optional[str] = Field(default=None, alias='description')
-    sql: Optional[str] = Field(default=None)
-    approximate: Optional[Union[bool, str]] = Field(default=None)
-    approximate_threshold: Optional[int] = Field(default=None)
-    allow_approximate_optimization: Optional[Union[bool, str]] = Field(default=None)
-    can_filter: Optional[Union[bool, str]] = Field(default=None)
-    tags: Optional[List[str]] = Field(default=None)
-    sql_distinct_key: Optional[str] = Field(default=None)
-    alias: Optional[str] = Field(default=None)
-    convert_tz: Optional[Union[bool, str]] = Field(default=None)
-    suggestable: Optional[Union[bool, str]] = Field(default=None)
-    precision: Optional[int] = Field(default=None)
-    percentile: Optional[Union[bool, str]] = Field(default=None)
-    
-    @field_validator('approximate', 'allow_approximate_optimization', 'can_filter', 'convert_tz', 'suggestable', 'percentile', mode='before')
-    def validate_yes_no_fields(cls, v):
-        return yes_no_validator(v)
-
-class DbtMetaDimension(DbtMetaLooker):
-    ''' a derived dimension defined in a dbt model '''
-
 class DbtModelColumnMeta(BaseModel):
-    ''' Metadata about a column in a dbt model '''
-    looker: Optional[DbtMetaLooker] = DbtMetaLooker() 
-    looker_measures: Optional[List[DbtMetaMeasure]] = []
-
+    '''Metadata about a column in a dbt model'''
+    looker: Optional[DbtMetaLooker] = DbtMetaLooker()
+    
 class DbtModelColumn(BaseModel):
-    ''' A column in a dbt model '''
+    '''A column in a dbt model'''
+
     name: str
-    lookml_long_name: str
-    lookml_name: str
+    lookml_long_name: Optional[str] = ''
+    lookml_name: Optional[str] = ''
     description: Optional[str] = None
     data_type: Optional[str] = None
     inner_types: Optional[list[str]] = []
@@ -181,7 +161,7 @@ class DbtModelColumn(BaseModel):
         values['description'] = values.get('description', "This field is missing a description.")
         # If the field is an array, it's a nested field
         return values
-    
+
     @model_validator(mode="before")
     @classmethod
     def set_primary_key(cls, values):
@@ -191,24 +171,18 @@ class DbtModelColumn(BaseModel):
         if {'type': 'primary_key'} in constraints:
             logging.debug('Found primary key on %s model', values['name'])
             values['is_primary_key'] = True
-       
+
         return values
 
-class DbtModelMetaLooker(DbtMetaLooker):
-    ''' Looker-specific metadata about a dbt model '''
-    label: Optional[str] = None
-    hidden: Optional[Union[bool, str]] = Field(default=None)
-
-    @field_validator('hidden', mode='before')
-    def validate_yes_no_fields(cls, v):
-        return yes_no_validator(v)
 
 class DbtModelMeta(BaseModel):
-    ''' Metadata about a dbt model '''
-    looker: Optional[DbtModelMetaLooker] = None
+    '''Metadata about a dbt model'''
+    looker: Optional[DbtMetaLooker] = DbtMetaLooker()
+
 
 class DbtModel(DbtNode):
-    ''' A dbt model '''
+    '''A dbt model'''
+
     resource_type: Literal['model']
     relation_name: str
     db_schema: str = Field(..., alias='schema')
@@ -237,11 +211,6 @@ class DbtModel(DbtNode):
                 raise TypeError(f"The value for key {name} is not a DbtModelColumn instance.")
         return new_columns
 
-# dbt2looker utility types - only used in manifest
-class UnsupportedDbtAdapterError(ValueError):
-    code = 'unsupported_dbt_adapter'
-    msg_template = '{wrong_value} is not a supported dbt adapter, only bigquery is supported.'
-
 
 class DbtManifestMetadata(BaseModel):
     adapter_type: str
@@ -255,7 +224,8 @@ class DbtManifestMetadata(BaseModel):
             raise UnsupportedDbtAdapterError(wrong_value=v) from e
         return v
 
+
 class DbtManifest(BaseModel):
     nodes: Dict[str, Union[DbtModel, DbtNode]]
     metadata: DbtManifestMetadata
-    exposures : Dict[str, DbtExposure]
+    exposures: Dict[str, DbtExposure]

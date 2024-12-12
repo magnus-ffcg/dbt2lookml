@@ -1,21 +1,20 @@
 from enum import Enum
 
-class ExtendedEnum(Enum):    
+
+class ExtendedEnum(Enum):
     @classmethod
     def values(cls):
         return list(map(lambda c: c.value, cls))
-    
+
     @classmethod
     def get(cls, key):
-        member = cls.__members__.get(key)
-        if member:
-            return member.value
-        return None
+        return member.value if (member := cls.__members__.get(key)) else None
 
 
 class SupportedDbtAdapters(str, ExtendedEnum):
-    ''' BigQuery is the only supported adapter. '''
+    '''BigQuery is the only supported adapter.'''
     BIGQUERY = 'bigquery'
+
 
 class LookerMeasureType(str, ExtendedEnum):
     NUMBER = "number"
@@ -24,13 +23,14 @@ class LookerMeasureType(str, ExtendedEnum):
     AVERAGE_DISTINCT = "average_distinct"
     COUNT = "count"
     COUNT_DISTINCT = "count_distinct"
-    LIST = "list"   
+    LIST = "list"
     MAX = "max"
     MEDIAN = "median"
     MEDIAN_DISTINCT = "median_distinct"
     MIN = "min"
     SUM = "sum"
     SUM_DISTINCT = "sum_distinct"
+
 
 class LookerValueFormatName(str, ExtendedEnum):
     DECIMAL_0 = "decimal_0"
@@ -50,6 +50,7 @@ class LookerValueFormatName(str, ExtendedEnum):
     PERCENT_2 = "percent_2"
     PERCENT_3 = "percent_3"
     PERCENT_4 = "percent_4"
+
 
 class LookerTimeFrame(str, ExtendedEnum):
     DATE = "date"
@@ -110,6 +111,7 @@ class LookerTimeFrame(str, ExtendedEnum):
     YEAR = "year"
     YESNO = "yesno"
 
+
 class LookerBigQueryDataType(str, ExtendedEnum):
     INT64 = "number"
     INTEGER = "number"
@@ -129,35 +131,21 @@ class LookerBigQueryDataType(str, ExtendedEnum):
     ARRAY = "string"
     STRUCT = "string"
 
-class LookerBigQueryMeasureTypes(str, ExtendedEnum):
-    COUNT ="count"
-    COUNT_DISTINCT ="count_distinct"
-    SUM ="sum"
-    AVERAGE ="average"
-    MIN ="min"
-    MAX ="max"
-    MEDIAN ="median"
-    PERCENTILE ="percentile"
-    PERCENTILE_APPROX ="percentile_approx"
-    STDDEV ="stddev"
-    STDDEV_POP ="stddev_pop"
-    STDDEV_SAMP ="stddev_samp"
-    VARIANCE ="variance"
-    VAR_POP ="var_pop"
-    VAR_SAMP ="var_samp"
-    SUM_DISTINCT ="sum_distinct"
 
 class LookerDateTimeTypes(str, ExtendedEnum):
     DATETIME = "datetime"
     TIMESTAMP = "timestamp"
 
+
 class LookerDateTypes(str, ExtendedEnum):
     DATE = "date"
+
 
 class LookerScalarTypes(str, ExtendedEnum):
     NUMBER = "number"
     YESNO = "yesno"
     STRING = "string"
+
 
 class LookerDateTimeframes(str, ExtendedEnum):
     RAW = "raw"
@@ -174,6 +162,7 @@ class LookerDateTimeframes(str, ExtendedEnum):
     QUARTER_OF_YEAR = "quarter_of_year"
     YEAR = "year"
 
+
 class LookerTimeTimeframes(str, ExtendedEnum):
     RAW = "raw"
     TIME = "time"
@@ -183,3 +172,15 @@ class LookerTimeTimeframes(str, ExtendedEnum):
     MONTH = "month"
     QUARTER = "quarter"
     YEAR = "year"
+    
+class LookerRelationshipType(str, ExtendedEnum):
+    MANY_TO_ONE = "many_to_one"
+    MANY_TO_MANY = "many_to_many"
+    ONE_TO_ONE = "one_to_one"
+    ONE_TO_MANY = "one_to_many"
+
+class LookerJoinType(str, ExtendedEnum):
+    LEFT_OUTER = "left_outer"
+    FULL_OUTER = "full_outer"
+    INNER = "inner"
+    CROSS = "cross"

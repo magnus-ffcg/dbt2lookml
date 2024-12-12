@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import pytest
 from unittest.mock import mock_open, patch, MagicMock
 from pathlib import Path
@@ -8,7 +9,7 @@ from dbt2lookml.cli import Cli
 class TestIntegration:
 
     def test_integration_skip_explore_joins_and_use_table_name(self):
-        
+
         expected_content = '''
 view: fact_daily_sales_v1 {
   label: "Example Retail Data  Fact Daily Sales"
@@ -250,22 +251,28 @@ view: fact_daily_sales_v1__waste {
         # Initialize and run CLI
         cli = Cli()
         parser = cli._init_argparser()
-        args = parser.parse_args([
-            "--target-dir", 'tests/fixtures',
-            "--output-dir", 'output/tests/',
-            "--select", 'example_retail_data__fact_daily_sales',
-            "--use-table-name",
-            "--skip-explore-joins",
-        ])
-        self._extracted_from_test_integration_skip_251(
+        args = parser.parse_args(
+            [
+                "--target-dir",
+                'tests/fixtures',
+                "--output-dir",
+                'output/tests/',
+                "--select",
+                'example_retail_data__fact_daily_sales',
+                "--use-table-name",
+                "--skip-explore",
+            ]
+        )
+        assert args.build_explore == False # False means it shouldnt be skipped
+        self._assert_integration_test(
             cli,
             args,
             'output/tests/example/retail_data/fact_daily_sales_v1.view.lkml',
             expected_content,
         )
-        
+
     def test_integration_skip_explore_joins(self):
-        
+
         expected_content = '''
 view: example_retail_data__fact_daily_sales {
   label: "Example Retail Data  Fact Daily Sales"
@@ -507,22 +514,27 @@ view: example_retail_data__fact_daily_sales__waste {
         # Initialize and run CLI
         cli = Cli()
         parser = cli._init_argparser()
-        args = parser.parse_args([
-            "--target-dir", 'tests/fixtures',
-            "--output-dir", 'output/tests/',
-            "--select", 'example_retail_data__fact_daily_sales',
-            "--skip-explore-joins",
-        ])
-        self._extracted_from_test_integration_skip_251(
+        args = parser.parse_args(
+            [
+                "--target-dir",
+                'tests/fixtures',
+                "--output-dir",
+                'output/tests/',
+                "--select",
+                'example_retail_data__fact_daily_sales',
+                "--skip-explore",
+            ]
+        )
+        assert args.build_explore == False 
+        self._assert_integration_test(
             cli,
             args,
             'output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml',
             expected_content,
         )
 
+    def test_integration_with_an_explore(self):
 
-    def test_integration_skip(self):
-        
         expected_content = '''
 view: example_retail_data__fact_daily_sales {
   label: "Example Retail Data  Fact Daily Sales"
@@ -763,6 +775,7 @@ view: example_retail_data__fact_daily_sales__waste {
 explore: example_retail_data__fact_daily_sales {
   label: "Example Retail Data  Fact Daily Sales"
   from: example_retail_data__fact_daily_sales
+  hidden: no
 
   join: example_retail_data__fact_daily_sales__sales {
     relationship: one_to_many
@@ -784,34 +797,36 @@ explore: example_retail_data__fact_daily_sales {
     type: left_outer
     required_joins: []
   }
-
-  hidden: no
 }
 '''
 
         # Initialize and run CLI
         cli = Cli()
         parser = cli._init_argparser()
-        args = parser.parse_args([
-            "--target-dir", 'tests/fixtures',
-            "--output-dir", 'output/tests/',
-            "--select", 'example_retail_data__fact_daily_sales',
-        ])
-        self._extracted_from_test_integration_skip_251(
+        args = parser.parse_args(
+            [
+                "--target-dir",
+                'tests/fixtures',
+                "--output-dir",
+                'output/tests/',
+                "--select",
+                'example_retail_data__fact_daily_sales',
+            ]
+        )
+        
+        assert args.build_explore == True # True means it should add the explore
+        self._assert_integration_test(
             cli,
             args,
             'output/tests/example/retail_data/example_retail_data__fact_daily_sales.view.lkml',
             expected_content,
         )
 
-    # TODO Rename this here and in `test_integration_skip_explore_joins_and_use_table_name`, `test_integration_skip_explore_joins` and `test_integration_skip`
-    def _extracted_from_test_integration_skip_251(self, cli, args, arg2, expected_content):
-        cli.generate(args)
-        assert os.path.exists(arg2)
-        with open(arg2) as f:
-            content = f.read()
+    def _assert_integration_test(self, cli, args, file_path, expected_content):
+        models = cli.parse(args)
+        cli.generate(args, models)
+        assert os.path.exists(file_path)
+        content = Path(file_path).read_text()
         assert content.strip() == expected_content.strip()
+        os.remove(file_path)
 
-
-
-    

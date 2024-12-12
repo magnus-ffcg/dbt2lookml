@@ -19,22 +19,25 @@ models:
       - name: id
         description: "The primary key for this table"
         meta:
+          looker:
+              # Optional - override the dimension name for this column
+              dimension:
+                name: unique_page_view_id
+                value_format_name: id      # Optional - specify a format for a dimension
+                label: "Unique Page View ID"
+                group_label: "Identifiers"
+                description: "Unique id for this page view"
 
-          # Optional - override the dimension name for this column
-          dimension:
-            name: unique_page_view_id
-            value_format_name: id      # Optional - specify a format for a dimension
-
-          # Optional - add measures based on this column
-          measures:
-            total_page_views:
-              type: count        # any looker aggregate measure
-            blog_views:
-              group_label: Blog Info     # Optional - specify a group label for the measure
-              type: count
-              value_format_name: decimal_0     # Optional - specify a format for the dimension
-              filters:
-                - path: "/blog%"    # must filter on a valid dimension name
+              # Optional - add measures based on this column
+              measures:
+                - name: total_page_views
+                  type: count        # any looker aggregate measure
+                - name: blog_views
+                  group_label: Blog Info     # Optional - specify a group label for the measure
+                  type: count
+                  value_format_name: decimal_0     # Optional - specify a format for the dimension
+                  filters:
+                    - path: "/blog%"    # must filter on a valid dimension name
 
       - name: referring_domain
         description: "Website domain of the referrer. e.g. google.com"
@@ -45,10 +48,14 @@ models:
       - name: user_id
         description: "persistent id of the user viewing the page"
 
-    # Optionally - specify how other models join to this table and an explore will be generated
-    meta:
-      joins:
-        - join: users                               # Reference another dbt model to join to
-          sql_on: "${users.id} = ${pages.user_id}"  # Sql string containing join clause
-          type: left_outer                          # Optional - left_outer is default
-          relationship: many_to_one                 # Optional - many_to_one is default
+    meta: 
+      looker:
+        description: "Page views for Hubble landing page"
+        label: "Page Views"
+        joins:
+          - join: users                               # Reference another dbt model to join to
+            sql_on: "${users.id} = ${pages.user_id}"  # Sql string containing join clause
+            type: left_outer                          # Optional - left_outer is default
+            relationship: many_to_one                 # Optional - many_to_one is default
+
+      

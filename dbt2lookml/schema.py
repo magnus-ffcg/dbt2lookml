@@ -1,11 +1,21 @@
+"""Schema parsing functionality for BigQuery schema strings.
+
+This module provides tools for parsing BigQuery schema strings into structured
+field definitions. It handles nested structures (STRUCT) and complex types (ARRAY)
+while maintaining the hierarchical relationships between fields.
+"""
+
 from dataclasses import dataclass
-from typing import List, Union
+from typing import List
+
 from contextlib import contextmanager
 import re
+
 
 @dataclass
 class SchemaField:
     """Represents a field in the BigQuery schema with its name, type, and path."""
+
     name: str
     type_str: str
     path: List[str]
@@ -16,6 +26,7 @@ class SchemaField:
         path_str = '.'.join(self.path + ([self.name] if self.name else []))
         return f"{path_str} {self.type_str}".strip()
 
+
 class SchemaParser:
     """Parser for BigQuery schema strings that handles nested structures and complex types."""
 
@@ -23,28 +34,41 @@ class SchemaParser:
         self._fields: List[SchemaField] = []
         self._current_path: List[str] = []
 
-    def _parse_content(self, text: str, split_fields: bool = False) -> Union[str, List[str]]:
-        """Extracts content within angle brackets, optionally splitting on top-level commas."""
-        result = []
+    def _parse_inner_content(self, text: str) -> str:
+        """Extracts content within angle brackets."""
         current = []
         level = 0
-        
-        for char in text + (',' if split_fields else ''):
+
+        for char in text:
             if char == '<':
                 level += 1
             elif char == '>':
                 level -= 1
                 if level < 0:
                     break
-            elif split_fields and char == ',' and level == 0:
+            current.append(char)
+
+        return ''.join(current).strip()
+
+    def _split_fields(self, text: str) -> List[str]:
+        """Splits content on top-level commas."""
+        result = []
+        current = []
+        level = 0
+
+        for char in text + ',':
+            if char == '<':
+                level += 1
+            elif char == '>':
+                level -= 1
+            elif char == ',' and level == 0:
                 if current:
                     result.append(''.join(current).strip())
                 current = []
                 continue
             current.append(char)
-        
-        content = ''.join(current).strip()
-        return [f for f in result + [content] if f] if split_fields else content
+
+        return [f for f in result if f]
 
     def _normalize_type(self, type_str: str) -> str:
         """Normalizes type strings by removing precision/scale for numeric types."""
@@ -57,13 +81,12 @@ class SchemaParser:
         Returns: (inner_content, type_prefix, has_struct)"""
         type_str = self._normalize_type(type_str)
         if type_str.startswith('ARRAY<'):
-            inner = self._parse_content(type_str[6:])
+            inner = self._parse_inner_content(type_str[6:])
             if inner.startswith('STRUCT<'):
-                return self._parse_content(inner[7:]), 'ARRAY', True # ARRAY<STRUCT<...>...>
-            else:     
-                return inner, inner, False
-        elif type_str.startswith('STRUCT<'):
-            return self._parse_content(type_str[7:]), 'STRUCT', True
+                return self._parse_inner_content(inner[7:]), 'ARRAY', True
+            return inner, inner, False
+        if type_str.startswith('STRUCT<'):
+            return self._parse_inner_content(type_str[7:]), 'STRUCT', True
         return type_str, type_str, False
 
     @contextmanager
@@ -80,14 +103,21 @@ class SchemaParser:
     def _add_field(self, name: str, type_str: str, inner_types: List[str] = None):
         """Adds a field to the result list."""
         type_str = self._normalize_type(type_str)
-        self._fields.append(SchemaField(name=name, type_str=type_str, path=self._current_path.copy(), inner_types=inner_types))
+        self._fields.append(
+            SchemaField(
+                name=name,
+                type_str=type_str,
+                path=self._current_path.copy(),
+                inner_types=inner_types,
+            )
+        )
 
     def _process_fields(self, content: str):
         """Processes multiple field definitions."""
-        for field in self._parse_content(content, split_fields=True):
+        for field in self._split_fields(content):
             name, type_str = field.split(' ', 1)
             inner, type_prefix, has_struct = self._process_type(type_str.strip())
-            
+
             if has_struct:
                 self._add_field(name, type_prefix)
                 with self._path_context(name):
@@ -99,11 +129,11 @@ class SchemaParser:
         """Parses a BigQuery schema string into a list of field definitions."""
         self._fields = []
         self._current_path = []
-        
+
         inner, type_prefix, has_struct = self._process_type(schema_str)
         if has_struct:
             self._process_fields(inner)
         else:
             self._fields.append(SchemaField(name="", type_str=type_prefix, path=[]))
-        
+
         return sorted(str(field) for field in self._fields)

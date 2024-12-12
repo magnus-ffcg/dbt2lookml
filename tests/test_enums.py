@@ -1,21 +1,35 @@
 import pytest
 from dbt2lookml.enums import (
-    LookerScalarTypes, 
-    LookerMeasureType, 
-    SupportedDbtAdapters, 
-    LookerBigQueryDataType, 
-    LookerValueFormatName, 
-    LookerTimeFrame, 
-    LookerDateTimeTypes, 
-    LookerDateTypes
+    LookerScalarTypes,
+    LookerMeasureType,
+    SupportedDbtAdapters,
+    LookerBigQueryDataType,
+    LookerValueFormatName,
+    LookerTimeFrame,
+    LookerDateTimeTypes,
+    LookerDateTypes,
 )
 
 
 class TestEnums:
     def test_enum_values(self):
         assert LookerScalarTypes.values() == ['number', 'yesno', 'string']
-        assert LookerMeasureType.values() == ['number', 'string', 'average', 'average_distinct', 'count', 'count_distinct', 'list', 'max', 'median', 'median_distinct', 'min', 'sum', 'sum_distinct']
-        
+        assert LookerMeasureType.values() == [
+            'number',
+            'string',
+            'average',
+            'average_distinct',
+            'count',
+            'count_distinct',
+            'list',
+            'max',
+            'median',
+            'median_distinct',
+            'min',
+            'sum',
+            'sum_distinct',
+        ]
+
     def test_enum_value(self):
         assert LookerBigQueryDataType.get("INT64") == "number"
         assert LookerBigQueryDataType.get("BOOLEAN") == "yesno"
@@ -23,9 +37,19 @@ class TestEnums:
     def test_extended_enum_values(self):
         """Test ExtendedEnum values() method"""
         assert LookerMeasureType.values() == [
-            'number', 'string', 'average', 'average_distinct', 'count', 
-            'count_distinct', 'list', 'max', 'median', 'median_distinct', 
-            'min', 'sum', 'sum_distinct'
+            'number',
+            'string',
+            'average',
+            'average_distinct',
+            'count',
+            'count_distinct',
+            'list',
+            'max',
+            'median',
+            'median_distinct',
+            'min',
+            'sum',
+            'sum_distinct',
         ]
 
     def test_extended_enum_get(self):

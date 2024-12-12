@@ -1,7 +1,6 @@
 import argparse
-import json
-import pathlib
 import os
+import lkml
 
 try:
     from importlib.metadata import version
@@ -11,6 +10,8 @@ except ImportError:
 from dbt2lookml.generators import LookmlGenerator
 from dbt2lookml.enums import LookerScalarTypes
 from dbt2lookml.exceptions import CliError
+from dbt2lookml.utils import FileHandler
+from dbt2lookml.parsers import DbtParser
 
 import logging
 from rich.logging import RichHandler
@@ -19,23 +20,27 @@ logging.basicConfig(
     level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
 )
 
-class Cli():
+
+class Cli:
     DEFAULT_LOOKML_OUTPUT_DIR = '.'
     HEADER = """
      ____   __  ___  __          __          
  ___/ / /  / /_|_  |/ /__  ___  / /_____ ____
-/ _  / _ \/ __/ __// / _ \/ _ \/  '_/ -_) __/
-\_,_/_.__/\__/____/_/\___/\___/_/\_\\__/_/ 
+/ _  / _ \\/ __/ __// / _ \\/ _ \\/  '_/ -_) __/
+\\_,_/_.__/\\__/____/_/\\___/\\___/_/\\_\\\\__/_/ 
 
     Convert your dbt models to LookML views   
                                                                                
     """
-    
+    def __init__(self):
+        self._args_parser = self._init_argparser()
+        self._file_handler = FileHandler()
+        
     def _init_argparser(self):
         """Create and configure the argument parser"""
         parser = argparse.ArgumentParser(
-            description=self.HEADER, 
-            formatter_class=argparse.RawDescriptionHelpFormatter)
+            description=self.HEADER, formatter_class=argparse.RawDescriptionHelpFormatter
+        )
         parser.add_argument(
             '--version',
             action='version',
@@ -86,9 +91,10 @@ class Cli():
             type=str,
         )
         parser.add_argument(
-            '--skip-explore-joins',
+            '--skip-explore',
             help='add this flag to skip generating an sample "explore" in views for nested structures',
-            action='store_true',
+            action='store_false',
+            dest="build_explore",
         )
         parser.add_argument(
             '--use-table-name',
@@ -96,55 +102,88 @@ class Cli():
             action='store_true',
         )
         parser.add_argument(
-            '--select',
-            help='select a specific model to generate lookml for',
-            type=str
+            '--select', help='select a specific model to generate lookml for', type=str
         )
         parser.add_argument(
             '--generate-locale',
             help='Generate locale files for each label on each field in view',
-            action='store_true'
+            action='store_true',
         )
+        parser.set_defaults(build_explore=True)
         return parser
+    
+    def _write_lookml_file(
+        self,
+        output_dir: str,
+        file_path: str,
+        contents: str,
+    ) -> str:
+        """Write LookML content to a file."""
+        # Create directory structure
 
-    def generate(self,args):
+        file_name = os.path.basename(file_path)
+        file_path = os.path.join(output_dir, file_path.split(file_name)[0])
+        os.makedirs(file_path, exist_ok=True)
+
+        file_path = f'{file_path}/{file_name}'
+
+        # Write contents
+        self._file_handler.write(file_path, contents)
+        logging.debug(f'Generated {file_path}')
+
+        return file_path
+
+
+    def generate(self, args, models):
         """Generate LookML views from dbt models"""
         logging.info('Parsing dbt models (bigquery) and creating lookml views...')
-        
-        lookml_views = LookmlGenerator().generate(
-            target_dir=args.target_dir,
-            output_dir=args.output_dir,
-            tag=args.tag,
-            exposures_only=args.exposures_only,
-            exposures_tag=args.exposures_tag,
-            skip_explore_joins=args.skip_explore_joins,
-            select=args.select,
-            use_table_name_as_view=args.use_table_name,
-            generate_locale=args.generate_locale
-        )
 
-        logging.info(f'Generated {len(lookml_views)} views')
+
+        lookml_generator = LookmlGenerator(args)
+        
+        views = []
+        for model in models:
+            file_path, lookml = lookml_generator.generate(
+                model=model,
+            )
+
+            view = self._write_lookml_file(
+                output_dir=args.output_dir,
+                file_path=file_path,
+                contents=lkml.dump(lookml),
+            )
+            
+            views.append(view)
+
+        logging.info(f'Generated {len(views)} views')
         logging.info('Success')
- 
+
+    def parse(self, args):
+        """ parse dbt models """
+        raw_manifest = self._file_handler.read(os.path.join(args.target_dir, 'manifest.json'))
+        raw_catalog = self._file_handler.read(os.path.join(args.target_dir, 'catalog.json'))
+
+        parser = DbtParser(raw_manifest, raw_catalog)
+        return parser.get_models(args)
+
     def run(self):
         """Run the CLI"""
         try:
-            argparser = self._init_argparser()
-            args = argparser.parse_args()
-            
+            args = self._args_parser.parse_args()
             logging.getLogger().setLevel(args.log_level)
 
-            self.generate(args)
-            
+            models = self.parse(args)
+            self.generate(args, models)
+
         except CliError as e:
-            # Logs should already be printed by the handler 
+            # Logs should already be printed by the handler
             logging.error('Error occurred during generation. Stopped execution.')
 
 
 def main():
     cli = Cli()
-    cli.run()   
+    cli.run()
+
 
 if __name__ == '__main__':
     main()
-    

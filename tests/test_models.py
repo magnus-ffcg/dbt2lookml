@@ -1,8 +1,20 @@
 import pytest
-from dbt2lookml.models import (
-    DbtModel, DbtModelColumn, DbtModelMeta, DbtMetaLooker,
-    DbtCatalogNode, DbtCatalogNodeColumn, DbtModelColumnMeta
+from dbt2lookml.models.dbt import (
+    DbtModel,
+    DbtModelColumn,
+    DbtModelMeta,
+    DbtCatalogNode,
+    DbtCatalogNodeColumn,
+    DbtModelColumnMeta,
 )
+from dbt2lookml.models.looker import (
+    DbtMetaLooker,
+    DbtMetaLookerDimension,
+    DbtMetaLookerMeasure,
+    DbtMetaLookerJoin,
+    DbtMetaLookerBase
+)
+
 
 class TestDbtModels:
     @pytest.fixture
@@ -18,23 +30,21 @@ class TestDbtModels:
                     "name": "id",
                     "description": "Primary key",
                     "data_type": "INT64",
-                    "meta": {
-                        "looker": {
-                            "hidden": False,
-                            "label": "ID"
-                        }
-                    }
+                    "meta": {"looker": {"dimension": {"hidden": False, "label": "ID"}}},
                 }
             },
             "unique_id": "test_model.id",
             "tags": ["test"],
             "meta": {
                 "looker": {
-                    "label": "Test Model",
-                    "hidden": False
+                    "hidden": False,
+                    "view": {
+                        "hidden": False,
+                        "label": "Test View",
+                    }
                 }
             },
-            "path": "models/test_model.sql"
+            "path": "models/test_model.sql",
         }
 
     def test_dbt_model_creation(self, sample_model_data):
@@ -45,8 +55,11 @@ class TestDbtModels:
         assert model.db_schema == "my_schema"
         assert isinstance(model.meta, DbtModelMeta)
         assert isinstance(model.meta.looker, DbtMetaLooker)
+        assert isinstance(model.meta.looker.view, DbtMetaLookerBase)
         assert len(model.columns) == 1
         assert isinstance(model.columns["id"], DbtModelColumn)
+        assert isinstance(model.columns["id"].meta.looker, DbtMetaLooker)
+        assert isinstance(model.columns["id"].meta.looker.dimension, DbtMetaLookerDimension)
 
     def test_dbt_model_column_validation(self):
         """Test DbtModelColumn validation"""
@@ -56,21 +69,26 @@ class TestDbtModels:
             lookml_long_name="test_col",
             description="Test column",
             data_type="STRING",
-            meta=DbtModelColumnMeta()
+            meta=DbtModelColumnMeta(),
         )
         assert column.name == "test_col"
         assert column.data_type == "STRING"
         assert not column.nested
         assert not column.is_primary_key
 
-    @pytest.mark.parametrize("value,expected", [
-        (True, True),
-        (False, False),
-    ])
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (True, True),
+            (False, False),
+        ],
+    )
     def test_yes_no_validator(self, value, expected):
         """Test yes/no validation in meta fields"""
-        meta = DbtMetaLooker(hidden=value)
-        assert meta.hidden == expected
+        meta = DbtMetaLooker()
+        meta.view = DbtMetaLookerBase(hidden=value)
+        assert meta.view.hidden == expected
+
 
 class TestDbtCatalog:
     @pytest.fixture
@@ -81,13 +99,7 @@ class TestDbtCatalog:
                 "schema": "test_schema",
                 "name": "test_table",
             },
-            "columns": {
-                "id": {
-                    "type": "INT64",
-                    "index": 1,
-                    "name": "id"
-                }
-            }
+            "columns": {"id": {"type": "INT64", "index": 1, "name": "id"}},
         }
 
     def test_catalog_node_creation(self, sample_catalog_node):
