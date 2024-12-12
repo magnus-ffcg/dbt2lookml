@@ -233,30 +233,3 @@ view: example_retail_data__fact_daily_sales__waste {
     description: ""
   }
 }
-
-explore: example_retail_data__fact_daily_sales {
-  label: "Example Retail Data  Fact Daily Sales"
-  from: example_retail_data__fact_daily_sales
-  hidden: no
-
-  join: example_retail_data__fact_daily_sales__sales {
-    relationship: one_to_many
-    sql: LEFT JOIN UNNEST(${example_retail_data__fact_daily_sales.sales}) AS example_retail_data__fact_daily_sales__sales ;;
-    type: left_outer
-    required_joins: []
-  }
-
-  join: example_retail_data__fact_daily_sales__sales__fact_transaction_keys {
-    relationship: one_to_many
-    sql: LEFT JOIN UNNEST(${example_retail_data__fact_daily_sales.sales.fact_transaction_keys}) AS example_retail_data__fact_daily_sales__sales__fact_transaction_keys ;;
-    type: left_outer
-    required_joins: []
-  }
-
-  join: example_retail_data__fact_daily_sales__waste {
-    relationship: one_to_many
-    sql: LEFT JOIN UNNEST(${example_retail_data__fact_daily_sales.waste}) AS example_retail_data__fact_daily_sales__waste ;;
-    type: left_outer
-    required_joins: []
-  }
-}
