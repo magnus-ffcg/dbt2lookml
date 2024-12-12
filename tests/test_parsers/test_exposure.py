@@ -15,7 +15,11 @@ class TestExposureParser:
                     "name": "dashboard1",
                     "type": "dashboard",
                     "tags": ["analytics_dashboard"],
-                    "depends_on": ["model.test.model1"],
+                    "depends_on": {
+                        "nodes": [
+                            "model.test.model1"
+                        ],
+                    },
                     "unique_id": "exposure.test.dashboard1",
                     "refs": [{"name": "model1", "package": "test"}],
                 }

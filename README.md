@@ -1,7 +1,9 @@
 # dbt2lookml
 Use `dbt2lookml` to generate Looker view files automatically from dbt models in Bigquery.
 
-This is a fork of forks of dbt2looker and dbt2lookml took a similar but not identical approach.
+This is a fork of forks of dbt2looker and dbt2looker-biqquery and took a similar but not identical approach and this sort went in the direction of a new-package dbt2lookml. Should pretty much work the same as dbt2looker-bigquery.
+
+NOTE: this is not pypi package yet.
 
 ## Quickstart
 
@@ -64,15 +66,20 @@ models:
         description: unique event id for page view
         meta:
             looker:
-              hidden: True
-              label: event
-              group_label: identifiers
-              value_format_name: id
-              
-            looker_measures:
-              - type: count_distinct
-                sql_distinct_key: ${url}
-              - type: count
-                value_format_name: decimal_1
-
-```
+              dimension:
+                hidden: True
+                label: event
+                group_label: identifiers
+                value_format_name: id
+              measures:
+                - type: count_distinct
+                  sql_distinct_key: ${url}
+                - type: count
+                  value_format_name: decimal_1
+    meta:
+      looker:
+        joins:
+          - join: users
+            sql_on: "${users.id} = ${model-name.user_id}"
+            type: left_outer
+            relationship: many_to_one

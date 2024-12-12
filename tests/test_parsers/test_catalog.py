@@ -1,16 +1,22 @@
 """Tests for the catalog parser module."""
 import pytest
-from dbt2lookml.models.dbt import DbtModel, DbtCatalog, DbtModelColumnMeta
+import json
+from dbt2lookml.models.dbt import DbtModel, DbtModelMeta, DbtCatalog, DbtModelColumn, DbtModelColumnMeta
+from dbt2lookml.models.looker import DbtMetaLooker, DbtMetaLookerDimension
 from dbt2lookml.parsers.catalog import CatalogParser
 
 class TestCatalogParser:
     @pytest.fixture
     def sample_catalog(self):
-        return DbtCatalog(**{
+        raw_catalog = {
             "nodes": {
                 "model.test.model1": {
                     "unique_id": "model.test.model1",
-                    "metadata": {"type": "table", "schema": "test_schema", "name": "model1"},
+                    "metadata": {
+                        "type": "table", 
+                        "schema": "test_schema", 
+                        "name": "model1"
+                    },
                     "columns": {
                         "id": {
                             "name": "id",
@@ -22,7 +28,8 @@ class TestCatalogParser:
                     },
                 }
             }
-        })
+        }
+        return DbtCatalog.model_validate(raw_catalog)
 
     @pytest.fixture
     def parser(self, sample_catalog):
@@ -63,14 +70,20 @@ class TestCatalogParser:
             schema="test_schema",
             description="Test model",
             columns={
-                "id": {
-                    "name": "id",
-                    "description": "Primary key",
-                    "data_type": None,  # This will be filled from catalog
-                    "meta": {"looker": {"hidden": False}},
-                }
+                "id": DbtModelColumn(
+                    name="id",
+                    description="Primary key",
+                    data_type=None,
+                    meta=DbtModelColumnMeta(
+                        looker=DbtMetaLooker(
+                            dimension=DbtMetaLookerDimension(
+                                hidden=False,
+                            )
+                        )    
+                    ),
+                ),
             },
-            meta={"looker": {}},
+            meta=DbtModelMeta(),
             path="models/test.sql",
             tags=[]  # Add empty tags list
         )
@@ -79,3 +92,4 @@ class TestCatalogParser:
         assert processed_model is not None
         assert processed_model.columns["id"].data_type == "INT64"
         assert processed_model.columns["id"].inner_types == ["INT64"]
+
