@@ -3,7 +3,7 @@ Use `dbt2lookml` to generate Looker view files automatically from dbt models in 
 
 This is a fork of forks of dbt2looker and dbt2looker-biqquery and took a similar but not identical approach and this sort went in the direction of a new-package dbt2lookml. Should pretty much work the same as dbt2looker-bigquery.
 
-It has been tested with dbt v1.8 and generated 2800+ views in roughly6 seconds.
+It has been tested with dbt v1.8 and generated 2800+ views in roughly 6 seconds.
 
 ## Installation
 
