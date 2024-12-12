@@ -49,7 +49,7 @@ dbt docs generate
 
 **Generate Looker view files but skip the explore and its joins**
 ```shell
-(poetry run) dbt2lookml --skip-explore-joins
+(poetry run) dbt2lookml --skip-explore
 ```
 
 **Generate Looker view files but use table name as view name**
