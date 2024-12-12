@@ -7,7 +7,12 @@ It has been tested with dbt v1.8 and generated 2800+ views in roughly 6 seconds.
 
 ## Installation
 
-NOTE: this is not pypi package yet, it will come soon.
+### Through pip:
+
+```shell
+pip install dbt2lookml
+```
+### Through poetry:
 
 ```shell
 git clone https://github.com/magnus-ffcg/dbt2lookml.git
@@ -20,46 +25,56 @@ poetry install
 Run `dbt2lookml` in the root of your dbt project *after compiling dbt docs*.
 (dbt2lookml uses docs to infer types and such)
 
-**Generate Looker view files for all models:**
+**If you are using poetry:**
+You need to append "poetry run" in beginning of each command
+
+```shell
+poetry run dbt2lookml [args e.g. --target-dir [dbt-repo]/target --output-dir output]
+```
+
+**When running for the first time make sure dbt has the data available:**
 ```shell
 dbt docs generate
-(poetry run) dbt2lookml
+```
+**Generate Looker view files for all models:**
+```shell
+dbt2lookml --target-dir [dbt-repo]/target --output-dir output
 ```
 
 **Generate Looker view files for all models tagged `prod`**
 ```shell
-(poetry run) dbt2lookml --tag prod
+dbt2lookml [default args] --tag prod
 ```
 
 **Generate Looker view files for dbt named `test`**
 ```shell
-(poetry run) dbt2lookml --select test
+dbt2lookml [default args] --select test
 ```
 
 **Generate Looker view files for all exposed models**
 [dbt docs - exposures](https://docs.getdbt.com/docs/build/exposures)
 ```shell
-(poetry run) dbt2lookml --exposures-only
+dbt2lookml [default args] --exposures-only
 ```
 
 **Generate Looker view files for all exposed models and specific tags**
 ```shell
-(poetry run) dbt2lookml --exposures-only --exposures-tag looker
+dbt2lookml [default args] --exposures-only --exposures-tag looker
 ```
 
 **Generate Looker view files but skip the explore and its joins**
 ```shell
-(poetry run) dbt2lookml --skip-explore
+dbt2lookml [default args] --skip-explore
 ```
 
 **Generate Looker view files but use table name as view name**
 ```shell
-(poetry run) dbt2lookml --use-table-name
+dbt2lookml [default args]--use-table-name
 ```
 
 **Generate Looker view files but also generate a locale file**
 ```shell
-(poetry run) dbt2lookml --generate-locale
+dbt2lookml [default args]--generate-locale
 ```
 
 ## Defining measures or other metadata for looker
