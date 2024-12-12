@@ -10,7 +10,7 @@ try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
-    
+
 from dbt2lookml.exceptions import UnsupportedDbtAdapterError
 from dbt2lookml.models.looker import DbtMetaLooker
 
@@ -33,8 +33,24 @@ class DbtNode(BaseModel):
 
     name: str
     unique_id: str
-    resource_type: Literal['model', 'seed', 'snapshot', 'analysis', 'test', 'operation', 'sql_operation', 'source', 'macro', 'exposure', 'metric', 'group', 'saved_query', 'semantic_model', 'unit_test', 'fixture']
-
+    resource_type: Literal[
+        'model',
+        'seed',
+        'snapshot',
+        'analysis',
+        'test',
+        'operation',
+        'sql_operation',
+        'source',
+        'macro',
+        'exposure',
+        'metric',
+        'group',
+        'saved_query',
+        'semantic_model',
+        'unit_test',
+        'fixture',
+    ]
 
 
 class DbtExposureRef(BaseModel):
@@ -45,6 +61,16 @@ class DbtExposureRef(BaseModel):
     version: Optional[Union[str, int]] = None
 
 
+class DbtDependsOn(BaseModel):
+    """A model for dependencies between dbt objects.
+
+    Contains lists of macros and nodes that an object depends on.
+    """
+
+    macros: List[str] = []
+    nodes: List[str] = []
+
+
 class DbtExposure(DbtNode):
     '''A dbt exposure'''
 
@@ -53,7 +79,7 @@ class DbtExposure(DbtNode):
     url: Optional[str] = None
     refs: List[DbtExposureRef]
     tags: Optional[List[str]] = []  # Adds exposure tags
-    #depends_on: Optional[Dict[str, List[str]]] = None
+    depends_on: DbtDependsOn = DbtDependsOn()
 
 
 class DbtCatalogNodeMetadata(BaseModel):
@@ -129,10 +155,13 @@ class DbtCatalog(BaseModel):
 
     nodes: Dict[str, DbtCatalogNode]
 
+
 class DbtModelColumnMeta(BaseModel):
     '''Metadata about a column in a dbt model'''
+
     looker: Optional[DbtMetaLooker] = DbtMetaLooker()
-    
+
+
 class DbtModelColumn(BaseModel):
     '''A column in a dbt model'''
 
@@ -141,7 +170,7 @@ class DbtModelColumn(BaseModel):
     lookml_name: Optional[str] = ''
     description: Optional[str] = None
     data_type: Optional[str] = None
-    inner_types: Optional[list[str]] = []
+    inner_types: list[str] = []
     meta: Optional[DbtModelColumnMeta] = DbtModelColumnMeta()
     nested: Optional[bool] = False
     is_primary_key: Optional[bool] = False
@@ -177,11 +206,15 @@ class DbtModelColumn(BaseModel):
 
 class DbtModelMeta(BaseModel):
     '''Metadata about a dbt model'''
+
     looker: Optional[DbtMetaLooker] = DbtMetaLooker()
 
 
 class DbtModel(DbtNode):
-    '''A dbt model'''
+    """A dbt model representing a SQL transformation.
+
+    Contains information about the model's structure, columns, and metadata.
+    """
 
     resource_type: Literal['model']
     relation_name: str
@@ -196,6 +229,7 @@ class DbtModel(DbtNode):
     @field_validator('columns')
     @classmethod
     def case_insensitive_column_names(cls, v: Dict[str, DbtModelColumn]):
+        """Convert all column names to lowercase for case-insensitive matching."""
         new_columns = {}
         for name, column in v.items():
             # Skip the entry if the name is not a string
@@ -213,19 +247,31 @@ class DbtModel(DbtNode):
 
 
 class DbtManifestMetadata(BaseModel):
+    """Metadata about a dbt manifest.
+
+    Contains information about the dbt adapter type and ensures it's supported.
+    """
+
     adapter_type: str
 
     @field_validator('adapter_type')
     @classmethod
     def adapter_must_be_supported(cls, v):
-        try:
-            enums.SupportedDbtAdapters(v)
-        except ValueError as e:
-            raise UnsupportedDbtAdapterError(wrong_value=v) from e
+        """Validate that the adapter type is supported."""
+        if v not in enums.SupportedDbtAdapters:
+            raise UnsupportedDbtAdapterError(
+                f'Adapter type {v} is not supported. '
+                f'Supported adapters are: {[e.value for e in enums.SupportedDbtAdapters]}'
+            )
         return v
 
 
 class DbtManifest(BaseModel):
+    """A dbt manifest containing nodes, metadata, and exposures.
+
+    The manifest is the main entry point for accessing dbt project information.
+    """
+
     nodes: Dict[str, Union[DbtModel, DbtNode]]
     metadata: DbtManifestMetadata
     exposures: Dict[str, DbtExposure]

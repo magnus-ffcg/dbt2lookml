@@ -1,4 +1,5 @@
 """Catalog-specific parsing functionality."""
+
 from typing import List, Optional, Tuple
 
 from dbt2lookml.models.dbt import (
@@ -20,9 +21,7 @@ class CatalogParser:
         """Process a model by updating its columns with catalog information."""
         processed_columns = {}
         for column_name, column in model.columns.items():
-            if processed_column := self._update_column_with_inner_types(
-                column, model.unique_id
-            ):
+            if processed_column := self._update_column_with_inner_types(column, model.unique_id):
                 processed_columns[column_name] = processed_column
 
         # Create missing array columns
@@ -54,7 +53,9 @@ class CatalogParser:
             meta=DbtModelColumnMeta(),
         )
 
-    def _get_catalog_column_info(self, model_id: str, column_name: str) -> Tuple[Optional[str], List[str]]:
+    def _get_catalog_column_info(
+        self, model_id: str, column_name: str
+    ) -> Tuple[Optional[str], List[str]]:
         """Get column type information from catalog."""
         node = self._catalog.nodes.get(model_id)
         if not node or column_name.lower() not in node.columns:
@@ -62,8 +63,10 @@ class CatalogParser:
 
         column = node.columns[column_name.lower()]
         return column.data_type, column.inner_types or []
-    
-    def _update_column_with_inner_types(self, column: DbtModelColumn, model_id: str) -> Optional[DbtModelColumn]:
+
+    def _update_column_with_inner_types(
+        self, column: DbtModelColumn, model_id: str
+    ) -> Optional[DbtModelColumn]:
         """Update a column with type information from catalog."""
         data_type, inner_types = self._get_catalog_column_info(model_id, column.name)
         if data_type is not None:

@@ -1,4 +1,5 @@
 """Base DBT parser functionality."""
+
 import logging
 from typing import Dict, List, Optional, Tuple
 
@@ -26,10 +27,17 @@ class DbtParser:
 
         # Get exposed models if needed
         exposed_names = None
-        if hasattr(args, 'exposures_only') and args.exposures_only or \
-               hasattr(args, 'exposures_tag') and args.exposures_tag or \
-               hasattr(args, 'build_explore') and args.build_explore:
-            exposed_names = self._exposure_parser.get_exposures(args.exposures_tag if hasattr(args, 'exposures_tag') else None)
+        if (
+            hasattr(args, 'exposures_only')
+            and args.exposures_only
+            or hasattr(args, 'exposures_tag')
+            and args.exposures_tag
+            or hasattr(args, 'build_explore')
+            and args.build_explore
+        ):
+            exposed_names = self._exposure_parser.get_exposures(
+                args.exposures_tag if hasattr(args, 'exposures_tag') else None
+            )
 
         # Filter models based on criteria
         filtered_models = self._model_parser.filter_models(
@@ -46,6 +54,3 @@ class DbtParser:
                 processed_models.append(processed_model)
 
         return processed_models
-
-
-    

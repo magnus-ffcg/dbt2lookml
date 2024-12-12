@@ -32,10 +32,11 @@ class Cli:
     Convert your dbt models to LookML views   
                                                                                
     """
+
     def __init__(self):
         self._args_parser = self._init_argparser()
         self._file_handler = FileHandler()
-        
+
     def _init_argparser(self):
         """Create and configure the argument parser"""
         parser = argparse.ArgumentParser(
@@ -111,7 +112,7 @@ class Cli:
         )
         parser.set_defaults(build_explore=True)
         return parser
-    
+
     def _write_lookml_file(
         self,
         output_dir: str,
@@ -133,14 +134,12 @@ class Cli:
 
         return file_path
 
-
     def generate(self, args, models):
         """Generate LookML views from dbt models"""
         logging.info('Parsing dbt models (bigquery) and creating lookml views...')
 
-
         lookml_generator = LookmlGenerator(args)
-        
+
         views = []
         for model in models:
             file_path, lookml = lookml_generator.generate(
@@ -152,14 +151,14 @@ class Cli:
                 file_path=file_path,
                 contents=lkml.dump(lookml),
             )
-            
+
             views.append(view)
 
         logging.info(f'Generated {len(views)} views')
         logging.info('Success')
 
     def parse(self, args):
-        """ parse dbt models """
+        """parse dbt models"""
         raw_manifest = self._file_handler.read(os.path.join(args.target_dir, 'manifest.json'))
         raw_catalog = self._file_handler.read(os.path.join(args.target_dir, 'catalog.json'))
 

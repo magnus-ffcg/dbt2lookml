@@ -1,4 +1,5 @@
 """LookML dimension generator module."""
+
 from typing import Dict, List, Optional, Tuple
 
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
@@ -15,13 +16,15 @@ from dbt2lookml.enums import (
 from dbt2lookml.generators.utils import map_bigquery_to_looker, get_column_name
 
 
-class LookmlDimensionGenerator():
+class LookmlDimensionGenerator:
     """Lookml dimension generator."""
-    
+
     def __init__(self, args):
         self._cli_args = args
 
-    def _format_label(self, name: str, remove_date: bool = True) -> str:
+    def _format_label(self, name: str|None, remove_date: bool = True) -> str:
+        if name is None:
+            return ""
         """Format a name into a human-readable label."""
         if remove_date:
             name = name.replace("_date", "")
@@ -31,7 +34,7 @@ class LookmlDimensionGenerator():
         self, target_dict: dict, column: DbtModelColumn, attributes: list
     ) -> None:
         """Apply meta attributes from column to target dictionary if they exist."""
-        if column.meta.looker is not None and column.meta.looker.dimension is not None:
+        if column.meta and column.meta.looker and column.meta.looker.dimension is not None:
             for attr in attributes:
                 value = getattr(column.meta.looker.dimension, attr, None)
                 if value is not None:
@@ -41,7 +44,7 @@ class LookmlDimensionGenerator():
                         meta_value = 'yes' if value else 'no'
                     else:
                         meta_value = value
-                    target_dict[attr] = value.value if attr == 'value_format_name' else value
+                    target_dict[attr] = meta_value
 
     def _create_iso_field(self, field_type: str, column: DbtModelColumn, sql: str) -> dict:
         """Create an ISO year or week field."""
@@ -69,7 +72,7 @@ class LookmlDimensionGenerator():
             return 'date'
         return 'scalar'
 
-    def _create_dimension(self, column: DbtModelColumn, sql: str, is_hidden: bool = False) -> dict:
+    def _create_dimension(self, column: DbtModelColumn, sql: str, is_hidden: bool = False) -> Optional[dict]:
         """Create a basic dimension dictionary."""
         data_type = map_bigquery_to_looker(column.data_type)
         if data_type is None:
@@ -92,16 +95,20 @@ class LookmlDimensionGenerator():
             dimension['hidden'] = 'yes'
 
         # Handle array and struct types
-        if 'ARRAY' in column.data_type:
+        if 'ARRAY' in f'{column.data_type}':
             dimension['hidden'] = 'yes'
             dimension['tags'] = ['array']
             dimension.pop('type', None)
-        elif 'STRUCT' in column.data_type:
+        elif 'STRUCT' in f'{column.data_type}':
             dimension['hidden'] = 'no'
             dimension['tags'] = ['struct']
-            
-         # Apply meta looker attributes
-        self._apply_meta_looker_attributes(dimension, column, ['description', 'group_label', 'value_format_name', 'label', 'hidden'])
+
+        # Apply meta looker attributes
+        self._apply_meta_looker_attributes(
+            dimension,
+            column,
+            ['description', 'group_label', 'value_format_name', 'label', 'hidden'],
+        )
 
         return dimension
 
@@ -111,7 +118,7 @@ class LookmlDimensionGenerator():
         """Create dimension group for date/time fields."""
         if map_bigquery_to_looker(column.data_type) is None:
             return None, None, None
-            
+
         if looker_type == 'date':
             convert_tz = 'no'
             timeframes = LookerDateTimeframes.values()
@@ -219,7 +226,7 @@ class LookmlDimensionGenerator():
                     # Skip column equal to parent
                     continue
                 elif not column.name.startswith(f"{parent}."):
-                    continue     
+                    continue
 
             if column.name in exclude_names or column.data_type == 'DATETIME':
                 continue
@@ -248,7 +255,7 @@ class LookmlDimensionGenerator():
         dimension_groups = []
         dimension_group_sets = []
         table_format_sql = not include_names
-        
+
         for column in model.columns.values():
             if include_names and column.name not in include_names:
                 continue
@@ -273,5 +280,3 @@ class LookmlDimensionGenerator():
             'dimension_groups': dimension_groups or None,
             'dimension_group_sets': dimension_group_sets or None,
         }
-
-    

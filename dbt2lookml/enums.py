@@ -13,6 +13,7 @@ class ExtendedEnum(Enum):
 
 class SupportedDbtAdapters(str, ExtendedEnum):
     '''BigQuery is the only supported adapter.'''
+
     BIGQUERY = 'bigquery'
 
 
@@ -172,12 +173,14 @@ class LookerTimeTimeframes(str, ExtendedEnum):
     MONTH = "month"
     QUARTER = "quarter"
     YEAR = "year"
-    
+
+
 class LookerRelationshipType(str, ExtendedEnum):
     MANY_TO_ONE = "many_to_one"
     MANY_TO_MANY = "many_to_many"
     ONE_TO_ONE = "one_to_one"
     ONE_TO_MANY = "one_to_many"
+
 
 class LookerJoinType(str, ExtendedEnum):
     LEFT_OUTER = "left_outer"

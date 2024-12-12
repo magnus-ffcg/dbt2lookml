@@ -1,4 +1,5 @@
 """Model-specific parsing functionality."""
+
 import logging
 from typing import Dict, List, Optional
 
@@ -19,16 +20,15 @@ class ModelParser:
         for model in all_models:
             if not hasattr(model, 'name'):
                 logging.error(
-                    'Cannot parse model with id: "%s" - is the model file empty?', 
-                    model.unique_id
+                    'Cannot parse model with id: "%s" - is the model file empty?', model.unique_id
                 )
                 continue
 
         return all_models
 
     def filter_models(
-        self, 
-        models_list: List[DbtModel], 
+        self,
+        models_list: List[DbtModel],
         select_model: Optional[str] = None,
         tag: Optional[str] = None,
         exposed_names: Optional[List[str]] = None,
@@ -50,12 +50,11 @@ class ModelParser:
     def _filter_nodes_by_type(self, nodes: Dict, resource_type: str) -> List[DbtModel]:
         """Filter nodes by resource type and ensure they have names."""
         return [
-            node for node in nodes.values()
+            node
+            for node in nodes.values()
             if isinstance(node, DbtModel) and node.resource_type == resource_type
         ]
 
     def _tags_match(self, tag: str, model: DbtModel) -> bool:
         """Check if model has the specified tag."""
         return tag in model.tags
-    
-    

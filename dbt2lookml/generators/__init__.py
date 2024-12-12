@@ -1,4 +1,5 @@
 """LookML Generator implementations."""
+
 import os
 from typing import Dict, List, Optional
 
@@ -11,7 +12,7 @@ from dbt2lookml.generators.measure import LookmlMeasureGenerator
 
 class LookmlGenerator:
     """Main LookML generator that coordinates dimension, view, and explore generation."""
-    
+
     def __init__(self, cli_args):
         self._cli_args = cli_args
         self.dimension_generator = LookmlDimensionGenerator(cli_args)
@@ -35,7 +36,7 @@ class LookmlGenerator:
             for column in columns
             if column.data_type is not None and column.data_type == 'ARRAY'
         ]
-        
+
     def _get_excluded_array_names(self, model: DbtModel, array_models: list) -> list:
         """Get list of dimension names to exclude from main view."""
         exclude_names = []
@@ -57,7 +58,7 @@ class LookmlGenerator:
             file_name = view_name
 
         return f'{file_path}/{file_name}.view.lkml'
-    
+
     def generate(self, model: DbtModel) -> Dict:
         """Generate LookML for a model."""
         # Get view name
@@ -66,14 +67,14 @@ class LookmlGenerator:
             if self._cli_args.use_table_name
             else model.name
         )
-        
+
         # Get view label
         view_label = self._get_view_label(model)
-        
+
         # Get array models and structure
         array_models = self._extract_array_models(list(model.columns.values()))
         exclude_names = self._get_excluded_array_names(model, array_models)
-        
+
         # Create main view
         views = self.view_generator.generate(
             model=model,
@@ -82,16 +83,18 @@ class LookmlGenerator:
             exclude_names=exclude_names,
             array_models=array_models,
             dimension_generator=self.dimension_generator,
-            measure_generator=self.measure_generator
+            measure_generator=self.measure_generator,
         )
-        
+
         # Create LookML base
         lookml = {
             'view': [views],
         }
-        
+
         # Create explore if needed
-        if self._cli_args.build_explore:  # When build_explore is True, we should generate the explore
+        if (
+            self._cli_args.build_explore
+        ):  # When build_explore is True, we should generate the explore
             # Create explore
             explore = self.explore_generator.generate(
                 model=model,
@@ -99,9 +102,9 @@ class LookmlGenerator:
                 view_label=view_label,
                 array_models=array_models,
             )
-            
+
             lookml['explore'] = explore
-        
+
         return self._get_file_path(model, view_name), lookml
 
 

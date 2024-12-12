@@ -1,12 +1,14 @@
 """LookML explore generator module."""
+
 import logging
 
 from typing import Dict, List, Optional
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
 
 
-class LookmlExploreGenerator():
+class LookmlExploreGenerator:
     """Lookml explore generator."""
+
     def __init__(self, args):
         self._cli_args = args
 
@@ -63,7 +65,7 @@ class LookmlExploreGenerator():
         """Recursively build joins for nested structures."""
         if not structure:
             return []
-            
+
         join_list = []
         for parent, children in structure.items():
             # Use table name from relation_name if use_table_name is True
@@ -106,24 +108,16 @@ class LookmlExploreGenerator():
                         )
 
                         # Recursively process any deeper nested arrays
-                        join_list.extend(
-                            self.recurse_joins(child_structure, model)  
-                        )
+                        join_list.extend(self.recurse_joins(child_structure, model))
 
         return join_list
 
     def generate(
-        self,
-        model: DbtModel,
-        view_name: str,
-        view_label: str,
-        array_models: list
+        self, model: DbtModel, view_name: str, view_label: str, array_models: list
     ) -> dict:
         """Create the explore definition."""
         # Get nested structure for joins
-        structure = self._group_strings(
-            list(model.columns.values()), array_models
-        )
+        structure = self._group_strings(list(model.columns.values()), array_models)
 
         # Check if model.meta.looker exists and has hidden attribute
         hidden = 'no'

@@ -4,12 +4,13 @@ from dbt2lookml.generators.utils import map_bigquery_to_looker
 from dbt2lookml.enums import LookerMeasureType, LookerScalarTypes
 from dbt2lookml.generators.utils import get_column_name
 
-class LookmlMeasureGenerator():
+
+class LookmlMeasureGenerator:
     """Lookml dimension generator."""
-    
+
     def __init__(self, args):
         self._cli_args = args
-        
+
     def _apply_measure_attributes(self, measure_dict: dict, measure: DbtMetaLookerMeasure) -> None:
         """Apply measure attributes to the measure dictionary."""
         direct_attributes = [
@@ -68,8 +69,7 @@ class LookmlMeasureGenerator():
         # Handle filters
         if measure.filters:
             m['filters'] = [
-                {'field': f.filter_dimension, 'value': f.filter_expression}
-                for f in measure.filters
+                {'field': f.filter_dimension, 'value': f.filter_expression} for f in measure.filters
             ]
 
         return m
@@ -98,7 +98,7 @@ class LookmlMeasureGenerator():
 
             if (
                 map_bigquery_to_looker(column.data_type) in LookerScalarTypes.values()
-                and hasattr(column.meta, 'looker') 
+                and hasattr(column.meta, 'looker')
                 and hasattr(column.meta.looker, 'measures')
                 and column.meta.looker.measures
             ):

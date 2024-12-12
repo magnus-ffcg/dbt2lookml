@@ -1,4 +1,5 @@
 """Exposure-related parsing functionality."""
+
 from typing import List, Optional
 
 from dbt2lookml.models.dbt import DbtManifest, DbtExposure
@@ -12,9 +13,7 @@ class ExposureParser:
         self._manifest = manifest
 
     def get_exposures(
-        self,
-        exposures_tag: Optional[str] = None,
-        model_name: Optional[str] = None
+        self, exposures_tag: Optional[str] = None, model_name: Optional[str] = None
     ) -> List[str]:
         """Get list of exposed model names.
 
@@ -26,12 +25,15 @@ class ExposureParser:
             List of exposure names that match the filter criteria
         """
         exposures = [
-            exp for exp in self._manifest.exposures.values()
+            exp
+            for exp in self._manifest.exposures.values()
             if isinstance(exp, DbtExposure) and exp.resource_type == 'exposure'
         ]
 
-        if exposures_tag :
-            exposures = [exp for exp in exposures if exp.tags is not None and exposures_tag in exp.tags]
+        if exposures_tag:
+            exposures = [
+                exp for exp in exposures if exp.tags is not None and exposures_tag in exp.tags
+            ]
 
         if model_name:
             exposures = [exp for exp in exposures if model_name in exp.depends_on.nodes]

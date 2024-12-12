@@ -11,4 +11,3 @@ class NotImplementedError(CliError):
 class UnsupportedDbtAdapterError(ValueError):
     code = 'unsupported_dbt_adapter'
     msg_template = '{wrong_value} is not a supported dbt adapter, only bigquery is supported.'
-
