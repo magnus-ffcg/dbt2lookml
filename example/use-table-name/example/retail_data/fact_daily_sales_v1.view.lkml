@@ -1,4 +1,4 @@
-view: example_retail_data__fact_daily_sales {
+view: fact_daily_sales_v1 {
   label: "Example Retail Data  Fact Daily Sales"
   sql_table_name: `example-project-123`.`retail_data`.`fact_daily_sales_v1` ;;
 
@@ -137,7 +137,7 @@ view: example_retail_data__fact_daily_sales {
   }
 }
 
-view: example_retail_data__fact_daily_sales__sales {
+view: fact_daily_sales_v1__sales {
   label: "Example Retail Data  Fact Daily Sales"
 
   dimension: dim_payment_method_key {
@@ -196,7 +196,7 @@ view: example_retail_data__fact_daily_sales__sales {
   }
 }
 
-view: example_retail_data__fact_daily_sales__sales__fact_transaction_keys {
+view: fact_daily_sales_v1__sales__fact_transaction_keys {
   label: "Example Retail Data  Fact Daily Sales"
 
   dimension: fact_transaction_keys {
@@ -206,7 +206,7 @@ view: example_retail_data__fact_daily_sales__sales__fact_transaction_keys {
   }
 }
 
-view: example_retail_data__fact_daily_sales__waste {
+view: fact_daily_sales_v1__waste {
   label: "Example Retail Data  Fact Daily Sales"
 
   dimension: dim_waste_reason_key {
@@ -234,28 +234,28 @@ view: example_retail_data__fact_daily_sales__waste {
   }
 }
 
-explore: example_retail_data__fact_daily_sales {
+explore: fact_daily_sales_v1 {
   label: "Example Retail Data  Fact Daily Sales"
-  from: example_retail_data__fact_daily_sales
+  from: fact_daily_sales_v1
   hidden: no
 
-  join: example_retail_data__fact_daily_sales__sales {
+  join: fact_daily_sales_v1__sales {
     relationship: one_to_many
-    sql: LEFT JOIN UNNEST(${example_retail_data__fact_daily_sales.sales}) AS example_retail_data__fact_daily_sales__sales ;;
+    sql: LEFT JOIN UNNEST(${fact_daily_sales_v1.sales}) AS fact_daily_sales_v1__sales ;;
     type: left_outer
     required_joins: []
   }
 
-  join: example_retail_data__fact_daily_sales__sales__fact_transaction_keys {
+  join: fact_daily_sales_v1__sales__fact_transaction_keys {
     relationship: one_to_many
-    sql: LEFT JOIN UNNEST(${example_retail_data__fact_daily_sales.sales.fact_transaction_keys}) AS example_retail_data__fact_daily_sales__sales__fact_transaction_keys ;;
+    sql: LEFT JOIN UNNEST(${fact_daily_sales_v1.sales.fact_transaction_keys}) AS fact_daily_sales_v1__sales__fact_transaction_keys ;;
     type: left_outer
     required_joins: []
   }
 
-  join: example_retail_data__fact_daily_sales__waste {
+  join: fact_daily_sales_v1__waste {
     relationship: one_to_many
-    sql: LEFT JOIN UNNEST(${example_retail_data__fact_daily_sales.waste}) AS example_retail_data__fact_daily_sales__waste ;;
+    sql: LEFT JOIN UNNEST(${fact_daily_sales_v1.waste}) AS fact_daily_sales_v1__waste ;;
     type: left_outer
     required_joins: []
   }
