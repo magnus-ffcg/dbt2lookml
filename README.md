@@ -5,6 +5,20 @@ This is a fork of forks of dbt2looker and dbt2looker-biqquery and took a similar
 
 It has been tested with dbt v1.8 and generated 2800+ views in roughly 6 seconds.
 
+## Why do you need dbt2lookml?
+
+For very few data-models and/or small analytics team, lookers built in lookml generation works fine
+and is likely preferrred. For larger teams and/or many/complex models, lookers are a bit of a pain to build manually or semi-automatically through looker.
+
+So dbt2lookml is not built to be a replacement for looker, but instead a way to generate looker views from dbt models in a more automated way.
+
+## How is it supposed to work?
+
+As an example, in our project we build dbt through google workflows, after dbt run, we generate dbt docs and elementary. In the end of the workflow, we trigger a pub/sub message that dbt has finished.
+Based on this message, a cloud function is triggered, which then runs dbt2lookml to generate views
+In the same cloud function, we also publish the changes to a specific git repository called lookml-base
+In our main looker project we import the views from the lookml-base repository and then we handle the extends, explores, etc in there. A recommendation is to use dbt versioning to stabilize the lookml files, so you can have multiple versions of the same dbt model and therefor control which base-view you should use in your extended view. This way we can have constant updates of the views when they change instead having to be reactive to changes in the dbt models.
+
 ## Installation
 
 ### Through pip:
