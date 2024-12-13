@@ -119,26 +119,17 @@ class LookmlExploreGenerator:
         # Get nested structure for joins
         structure = self._group_strings(list(model.columns.values()), array_models)
 
-        # Check if model.meta.looker exists and has hidden attribute
-        hidden = 'no'
-        if (
-            hasattr(model, 'meta')
-            and hasattr(model.meta, 'looker')
-            and hasattr(model.meta.looker, 'hidden')
-        ):
-            hidden = 'yes' if model.meta.looker.hidden else 'no'
-
         # Create explore
         explore = {
             'name': view_name,
             'label': view_label,
             'from': view_name,
-            'hidden': hidden,
+            'hidden': 'no',
         }
 
         # Add joins if present
         if joins := self.recurse_joins(structure, model):
-            logging.info(f"Adding {len(joins)} joins to explore")
+            logging.debug(f"Adding {len(joins)} joins to explore")
             explore['joins'] = joins
 
         return explore

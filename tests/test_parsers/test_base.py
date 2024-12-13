@@ -67,38 +67,39 @@ class TestDbtParser:
             }
         }
 
-    @pytest.fixture
-    def parser(self, sample_manifest, sample_catalog):
-        return DbtParser(sample_manifest, sample_catalog)
+    #@pytest.fixture
+    #def parser(self, sample_manifest, sample_catalog):
+    #    return DbtParser(sample_manifest, sample_catalog)
 
-    def test_get_models_no_filter(self, parser):
+    def test_get_models_no_filter(self, sample_manifest, sample_catalog):
         """Test parsing all models without any filters."""
-        self._extracted_from_test_get_models_with_select_3(None, None, False, parser)
+        self.assert_parser_output(None, None, False, sample_manifest, sample_catalog)
 
-    def test_get_models_with_tag(self, parser):
+    def test_get_models_with_tag(self, sample_manifest, sample_catalog):
         """Test parsing models filtered by tag."""
-        self._extracted_from_test_get_models_with_select_3(
-            None, "analytics", False, parser
+        self.assert_parser_output(
+            None, "analytics", False, sample_manifest, sample_catalog
         )
 
-    def test_get_models_with_exposures(self, parser):
+    def test_get_models_with_exposures(self, sample_manifest, sample_catalog):
         """Test parsing models filtered by exposures."""
-        self._extracted_from_test_get_models_with_select_3(None, None, True, parser)
+        self.assert_parser_output(None, None, True, sample_manifest, sample_catalog)
 
-    def test_get_models_with_select(self, parser):
+    def test_get_models_with_select(self, sample_manifest, sample_catalog):
         """Test parsing specific model by name."""
-        self._extracted_from_test_get_models_with_select_3(
-            "model1", None, False, parser
+        self.assert_parser_output(
+            "model1", None, False, sample_manifest, sample_catalog
         )
 
     # TODO Rename this here and in `test_get_models_no_filter`, `test_get_models_with_tag`, `test_get_models_with_exposures` and `test_get_models_with_select`
-    def _extracted_from_test_get_models_with_select_3(self, select_model, tag, build_explore, parser):
+    def assert_parser_output(self, select_model, tag, build_explore, sample_manifest, sample_catalog):
         args = argparse.Namespace(
             select_model=select_model,
             tag=tag,
             exposures_tag=None,
             build_explore=build_explore,
         )
-        models = parser.get_models(args)
+        parser = DbtParser(args, sample_manifest, sample_catalog)
+        models = parser.get_models()
         assert len(models) == 1
         assert models[0].name == "model1"

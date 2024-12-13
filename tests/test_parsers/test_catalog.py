@@ -88,7 +88,7 @@ class TestCatalogParser:
             tags=[]  # Add empty tags list
         )
 
-        processed_model = parser.process_model(model)
+        processed_model = parser.process_model_columns(model)
         assert processed_model is not None
         assert processed_model.columns["id"].data_type == "INT64"
         assert processed_model.columns["id"].inner_types == ["INT64"]

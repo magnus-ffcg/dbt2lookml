@@ -17,12 +17,15 @@ class CatalogParser:
         """Initialize with catalog data."""
         self._catalog = catalog
 
-    def process_model(self, model: DbtModel) -> Optional[DbtModel]:
+    def process_model_columns(self, model: DbtModel) -> Optional[DbtModel]:
         """Process a model by updating its columns with catalog information."""
         processed_columns = {}
         for column_name, column in model.columns.items():
             if processed_column := self._update_column_with_inner_types(column, model.unique_id):
                 processed_columns[column_name] = processed_column
+            else:
+                # Keep the original column if we can't process it
+                processed_columns[column_name] = column
 
         # Create missing array columns
         if model.unique_id in self._catalog.nodes:
@@ -37,9 +40,8 @@ class CatalogParser:
                         column_name, column.data_type, column.inner_types or []
                     )
 
-        if processed_columns:
-            return model.model_copy(update={'columns': processed_columns})
-        return None
+        # Always return the model, even if no columns were processed
+        return model.model_copy(update={'columns': processed_columns}) if processed_columns else model
 
     def _create_missing_array_column(
         self, column_name: str, data_type: str, inner_types: List[str]

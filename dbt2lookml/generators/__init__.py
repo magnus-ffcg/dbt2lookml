@@ -1,7 +1,7 @@
 """LookML Generator implementations."""
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
 from dbt2lookml.generators.dimension import LookmlDimensionGenerator
@@ -50,17 +50,45 @@ class LookmlGenerator:
         return exclude_names
 
     def _get_file_path(self, model: DbtModel, view_name: str) -> str:
-        """Get the file path for the LookML view."""
-        file_path = os.path.join(model.path.split(model.name)[0])
+        """Get the file path for the LookML view.
+        
+        Args:
+            model: The dbt model to generate a view for
+            view_name: The name to use for the view
+            
+        Returns:
+            str: The full file path for the LookML view file
+            
+        Example:
+            >>> model = DbtModel(name="my_model", path="/path/to/models/my_model.sql")
+            >>> generator._get_file_path(model, "my_view")
+            "/path/to/models/my_view.view.lkml"
+        """
         if self._cli_args.use_table_name:
+            # When using table names, use the directory structure from the model path
+            # but don't include the model name in the path
+            directory = os.path.dirname(model.path)
             file_name = model.relation_name.split('.')[-1].strip('`')
+            return os.path.join(directory, f'{file_name}.view.lkml')
         else:
-            file_name = view_name
+            # Original behavior for model names
+            file_path = os.path.join(model.path.split(model.name)[0])
+            return f'{file_path}/{view_name}.view.lkml'
 
-        return f'{file_path}/{file_name}.view.lkml'
-
-    def generate(self, model: DbtModel) -> Dict:
-        """Generate LookML for a model."""
+    def generate(self, model: DbtModel) -> Tuple[str, Dict]:
+        """Generate LookML for a model.
+        
+        Args:
+            model: The dbt model to generate LookML for
+            
+        Returns:
+            tuple[str, dict]: A tuple containing:
+                - str: The file path where the LookML should be written
+                - dict: The generated LookML content
+                
+        Raises:
+            ValueError: If the model is missing required attributes
+        """
         # Get view name
         view_name = (
             model.relation_name.split('.')[-1].strip('`')

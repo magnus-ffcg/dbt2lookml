@@ -1,6 +1,7 @@
 import pytest
 import logging
 from unittest.mock import Mock, patch, call
+import os
 
 # Only import from cli.py
 from dbt2lookml.cli import Cli
@@ -93,8 +94,8 @@ def test_cli_parse(mock_file_handler, mock_dbt_parser):
     ])
     
     # Verify parser calls with correct args
-    mock_dbt_parser.assert_called_once_with('manifest', 'catalog')
-    mock_parser_instance.get_models.assert_called_once_with(args)
+    mock_dbt_parser.assert_called_once_with(args, 'manifest', 'catalog')
+    mock_parser_instance.get_models.assert_called_once_with()
     
     assert result == ['model1', 'model2']
 
@@ -118,3 +119,136 @@ def test_cli_generate_with_args(mock_generator):
     args = Mock(output_dir='output', build_explore=False)
     cli.generate(args, [Mock()])
     mock_generator.assert_called_with(args)
+
+def test_continue_on_error_flag():
+    """Test --continue-on-error flag behavior"""
+    parser = Cli()._init_argparser()
+    
+    # Without --continue-on-error (default)
+    args = parser.parse_args(['--target-dir', 'target', '--output-dir', 'output'])
+    assert not hasattr(args, 'continue_on_error') or not args.continue_on_error
+    
+    # With --continue-on-error
+    args = parser.parse_args(['--target-dir', 'target', '--output-dir', 'output', '--continue-on-error'])
+    assert args.continue_on_error is True
+
+@patch('dbt2lookml.cli.LookmlGenerator')
+@patch('dbt2lookml.cli.FileHandler')
+def test_generate_with_empty_models(mock_file_handler, mock_generator):
+    """Test generate method with empty models list"""
+    # Setup mock
+    mock_file_handler_instance = Mock()
+    mock_file_handler.return_value = mock_file_handler_instance
+    
+    cli = Cli()
+    args = Mock(output_dir='output')
+    result = cli.generate(args, [])
+    
+    assert result == []
+    mock_generator.assert_not_called()
+    # FileHandler is called in constructor, but write should not be called
+    mock_file_handler_instance.write.assert_not_called()
+
+@patch('dbt2lookml.cli.LookmlGenerator')
+@patch('dbt2lookml.cli.FileHandler')
+def test_generate_with_continue_on_error(mock_file_handler, mock_generator):
+    """Test generate method with --continue-on-error when some models fail"""
+    # Setup mocks
+    mock_generator_instance = Mock()
+    mock_generator.return_value = mock_generator_instance
+    
+    mock_file_handler_instance = Mock()
+    mock_file_handler.return_value = mock_file_handler_instance
+    
+    # First model succeeds, second fails
+    mock_generator_instance.generate.side_effect = [
+        ('model1/test1.view.lkml', {'view': [{'name': 'test'}]}),
+        Exception("Model generation failed")
+    ]
+    
+    # Create test models
+    models = [
+        Mock(name='model1'),
+        Mock(name='model2')
+    ]
+    
+    cli = Cli()
+    args = Mock(
+        output_dir='output',
+        continue_on_error=True  # Enable continue on error
+    )
+    
+    # Mock successful file write
+    mock_file_handler_instance.write.return_value = None
+    
+    # Should not raise exception, should continue processing
+    views = cli.generate(args, models)
+    
+    # Should have one successful view
+    assert len(views) == 1
+    expected_path = os.path.join('output', 'model1', 'test1.view.lkml')
+    
+    # Both models should have been attempted
+    assert mock_generator_instance.generate.call_count == 2
+    
+    # File write should be called once for the successful model
+    mock_file_handler_instance.write.assert_called_once()
+    
+    # Verify the write call arguments
+    write_args = mock_file_handler_instance.write.call_args[0]
+    assert write_args[0] == expected_path # normalize path for Windows
+
+@patch('dbt2lookml.cli.FileHandler')
+def test_write_lookml_file_handles_errors(mock_file_handler):
+    """Test _write_lookml_file error handling"""
+    mock_file_handler_instance = Mock()
+    mock_file_handler.return_value = mock_file_handler_instance
+    
+    # Test OS error
+    mock_file_handler_instance.write.side_effect = OSError("Permission denied")
+    
+    cli = Cli()
+    with pytest.raises(CliError) as exc_info:
+        cli._write_lookml_file('output', 'test.view.lkml', 'content')
+    
+    assert "Failed to write file" in str(exc_info.value)
+    assert "Permission denied" in str(exc_info.value)
+
+@patch('dbt2lookml.cli.DbtParser')
+@patch('dbt2lookml.cli.FileHandler')
+def test_parse_handles_missing_files(mock_file_handler, mock_dbt_parser):
+    """Test parse method handles missing manifest/catalog files"""
+    mock_file_handler_instance = Mock()
+    mock_file_handler.return_value = mock_file_handler_instance
+    mock_file_handler_instance.read.side_effect = FileNotFoundError("manifest.json not found")
+    
+    cli = Cli()
+    args = Mock(target_dir='target')
+    
+    with pytest.raises(CliError) as exc_info:
+        cli.parse(args)
+    
+    assert "Failed to read file" in str(exc_info.value)
+    assert "manifest.json not found" in str(exc_info.value)
+
+@patch('dbt2lookml.cli.LookmlGenerator')
+@patch('dbt2lookml.cli.FileHandler')
+def test_generate_without_continue_on_error(mock_file_handler, mock_generator):
+    """Test generate method without --continue-on-error when a model fails"""
+    # Setup mocks
+    mock_generator_instance = Mock()
+    mock_generator.return_value = mock_generator_instance
+    mock_generator_instance.generate.side_effect = Exception("Model generation failed")
+    
+    cli = Cli()
+    args = Mock(
+        output_dir='output',
+        continue_on_error=False  # Disable continue on error
+    )
+    
+    # Should raise exception immediately
+    with pytest.raises(Exception) as exc_info:
+        cli.generate(args, [Mock(name='model1')])
+    
+    assert "Model generation failed" in str(exc_info.value)
+    assert mock_generator_instance.generate.call_count == 1

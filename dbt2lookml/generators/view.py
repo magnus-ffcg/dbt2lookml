@@ -49,9 +49,25 @@ class LookmlViewGenerator:
             model, exclude_names=exclude_names
         ).get('dimension_group_sets'):
             view['sets'] = sets
+        
+        if hidden := model._get_meta_looker('view', 'hidden'):
+            view['hidden'] = 'yes' if hidden else 'no'
 
         return view
 
+    def _is_yes_no(self, model: DbtModel) -> Optional[bool]:
+        # Check if model.meta.looker exists and has hidden attribute
+        hidden = 'no'
+        if (
+            hasattr(model, 'meta')
+            and hasattr(model.meta, 'looker')
+            and hasattr(model.meta.looker, 'view')
+            and hasattr(model.meta.looker.view, 'hidden')
+        ):
+            hidden = 'yes' if model.meta and model.meta.looker and model.meta.looker.view.hidden else 'no'
+
+        return hidden
+    
     def _create_nested_view(
         self,
         model: DbtModel,

@@ -27,8 +27,17 @@ def yes_no_validator(value: Union[bool, str]):
         logging.warning(f'Value must be "yes", "no", or a boolean. Got {value}')
         return None
 
+class DbtBaseModel(BaseModel):
+    
+    def _get_meta_looker(self, parent_attr, attr) -> Optional[dict]:
+        if meta := getattr(self, 'meta'):
+            if looker := getattr(meta, 'looker'):
+                if parent := getattr(looker, parent_attr):
+                    return getattr(parent, attr)
 
-class DbtNode(BaseModel):
+        return None
+
+class DbtNode(DbtBaseModel):
     '''A dbt node. extensible to models, seeds, etc.'''
 
     name: str
@@ -162,7 +171,7 @@ class DbtModelColumnMeta(BaseModel):
     looker: Optional[DbtMetaLooker] = DbtMetaLooker()
 
 
-class DbtModelColumn(BaseModel):
+class DbtModelColumn(DbtBaseModel):
     '''A column in a dbt model'''
 
     name: str
@@ -206,7 +215,6 @@ class DbtModelColumn(BaseModel):
 
 class DbtModelMeta(BaseModel):
     '''Metadata about a dbt model'''
-
     looker: Optional[DbtMetaLooker] = DbtMetaLooker()
 
 
@@ -244,7 +252,6 @@ class DbtModel(DbtNode):
             else:
                 raise TypeError(f"The value for key {name} is not a DbtModelColumn instance.")
         return new_columns
-
 
 class DbtManifestMetadata(BaseModel):
     """Metadata about a dbt manifest.

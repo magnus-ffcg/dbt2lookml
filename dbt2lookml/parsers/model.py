@@ -42,8 +42,10 @@ class ModelParser:
         if tag:
             filtered = [model for model in filtered if self._tags_match(tag, model)]
 
-        if exposed_names:
+        if exposed_names and len(exposed_names) > 0:
             filtered = [model for model in filtered if model.name in exposed_names]
+
+        logging.info(len(filtered))
 
         return filtered
 

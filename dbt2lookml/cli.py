@@ -105,6 +105,11 @@ class Cli:
             help='Generate locale files for each label on each field in view',
             action='store_true',
         )
+        parser.add_argument(
+            '--continue-on-error',
+            help='Continue generating views even if an error occurs',
+            action='store_true',
+        )
         parser.set_defaults(build_explore=True)
         return parser
 
@@ -115,50 +120,71 @@ class Cli:
         contents: str,
     ) -> str:
         """Write LookML content to a file."""
-        # Create directory structure
+        try:
+            # Create directory structure
+            file_name = os.path.basename(file_path)
+            file_path = os.path.join(output_dir, file_path.split(file_name)[0]).strip('/')
+            os.makedirs(file_path, exist_ok=True)
+            file_path = f'{file_path}/{file_name}'
 
-        file_name = os.path.basename(file_path)
-        file_path = os.path.join(output_dir, file_path.split(file_name)[0])
-        os.makedirs(file_path, exist_ok=True)
+            # Write contents
+            self._file_handler.write(file_path, contents)
+            logging.debug(f'Generated {file_path}')
 
-        file_path = f'{file_path}/{file_name}'
-
-        # Write contents
-        self._file_handler.write(file_path, contents)
-        logging.debug(f'Generated {file_path}')
-
-        return file_path
+            return file_path
+        except OSError as e:
+            logging.error(f"Failed to write file {file_path}: {str(e)}")
+            raise CliError(f"Failed to write file {file_path}: {str(e)}")
+        except Exception as e:
+            logging.error(f"Unexpected error writing file {file_path}: {str(e)}")
+            raise CliError(f"Unexpected error writing file {file_path}: {str(e)}")
 
     def generate(self, args, models):
         """Generate LookML views from dbt models"""
+        if not models:
+            logging.warning("No models found to process")
+            return []
+
         logging.info('Parsing dbt models (bigquery) and creating lookml views...')
 
         lookml_generator = LookmlGenerator(args)
 
         views = []
         for model in models:
-            file_path, lookml = lookml_generator.generate(
-                model=model,
-            )
+            try:
+                file_path, lookml = lookml_generator.generate(
+                    model=model,
+                )
 
-            view = self._write_lookml_file(
-                output_dir=args.output_dir,
-                file_path=file_path,
-                contents=lkml.dump(lookml),
-            )
+                view = self._write_lookml_file(
+                    output_dir=args.output_dir,
+                    file_path=file_path,
+                    contents=lkml.dump(lookml),
+                )
 
-            views.append(view)
+                views.append(view)
+            except Exception as e:
+                logging.error(f"Failed to generate view for model {model.name}: {str(e)}")
+                if not args.continue_on_error:
+                    raise
 
         logging.info(f'Generated {len(views)} views')
         logging.info('Success')
+        
+        return views
 
     def parse(self, args):
         """parse dbt models"""
-        raw_manifest = self._file_handler.read(os.path.join(args.target_dir, 'manifest.json'))
-        raw_catalog = self._file_handler.read(os.path.join(args.target_dir, 'catalog.json'))
+        try:
+            raw_manifest = self._file_handler.read(os.path.join(args.target_dir, 'manifest.json'))
+            raw_catalog = self._file_handler.read(os.path.join(args.target_dir, 'catalog.json'))
 
-        parser = DbtParser(raw_manifest, raw_catalog)
-        return parser.get_models(args)
+            parser = DbtParser(args, raw_manifest, raw_catalog)
+            return parser.get_models()
+        except FileNotFoundError as e:
+            raise CliError(f"Failed to read file: {str(e)}")
+        except Exception as e:
+            raise CliError(f"Unexpected error parsing dbt models: {str(e)}")
 
     def run(self):
         """Run the CLI"""
@@ -171,7 +197,7 @@ class Cli:
 
         except CliError as e:
             # Logs should already be printed by the handler
-            logging.error('Error occurred during generation. Stopped execution.')
+            logging.error(f'Error occurred during generation. {str(e)}')
 
 
 def main():
