@@ -45,8 +45,6 @@ class ModelParser:
         if exposed_names and len(exposed_names) > 0:
             filtered = [model for model in filtered if model.name in exposed_names]
 
-        logging.info(len(filtered))
-
         return filtered
 
     def _filter_nodes_by_type(self, nodes: Dict, resource_type: str) -> List[DbtModel]:

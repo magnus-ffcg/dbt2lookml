@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dbt2lookml"
-version = "0.2.0"
+version = "0.2.1"
 description = "Generate lookml views from bigquery via dbt models"
 authors = []
 readme = "README.md"
@@ -38,7 +38,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.bumpversion]
-current_version = "0.2.0"
+current_version = "0.2.1"
 parse = "(?P<major>\\d+)\\.(?P<minor>\\d+)\\.(?P<patch>\\d+)"
 serialize = ["{major}.{minor}.{patch}"]
 search = "{current_version}"
