@@ -1,43 +1,49 @@
-from typing import Union, Dict, List, Optional
-from pydantic import BaseModel, ValidationInfo, Field, validator, field_validator, model_validator
+from __future__ import annotations
+
+from typing import List, Optional, Union
+
+from pydantic import BaseModel, Field, model_validator
+
 from dbt2lookml.enums import (
-    LookerMeasureType,
-    LookerValueFormatName,
-    LookerTimeFrame,
     LookerJoinType,
+    LookerMeasureType,
     LookerRelationshipType,
+    LookerTimeFrame,
+    LookerValueFormatName,
 )
 
 
 class LookViewFile(BaseModel):
-    '''A file in a looker view directory'''
+    """A file in a looker view directory."""
 
     filename: str
     contents: str
-    db_schema: str = Field(..., alias='schema')
+    db_schema: str = Field(..., alias="schema")
 
 
 class DbtMetaLookerBase(BaseModel):
+    """Base class for Looker metadata."""
+
     label: Optional[str] = None
     description: Optional[str] = None
     hidden: Optional[bool] = None
 
 
 class DbtMetaLookerDimension(DbtMetaLookerBase):
-    '''Looker-specific metadata for a dimension on a dbt model column
+    """Looker-specific metadata for a dimension on a dbt model column.
 
-    meta:
-        looker:
-            dimension:
-                hidden: True
-                label: "Blog Info"
-                group_label: "Blog Info"
-                description: "Blog Info"
-                value_format_name: decimal_0
-                filters:
-                  - path: "/blog%"
-
-    '''
+    Example:
+        meta:
+            looker:
+                dimension:
+                    hidden: True
+                    label: "Blog Info"
+                    group_label: "Blog Info"
+                    description: "Blog Info"
+                    value_format_name: decimal_0
+                    filters:
+                      - path: "/blog%"
+    """
 
     convert_tz: Optional[bool] = Field(default=None)
     group_label: Optional[str] = Field(default=None)
@@ -52,7 +58,7 @@ class DbtMetaLookerMeasureFilter(BaseModel):
 
 
 class DbtMetaLookerMeasure(DbtMetaLookerBase):
-    '''Looker metadata for a measure.'''
+    """Looker metadata for a measure."""
 
     # Required fields
     type: LookerMeasureType
@@ -70,8 +76,8 @@ class DbtMetaLookerMeasure(DbtMetaLookerBase):
     sql_distinct_key: Optional[str] = None  # For count_distinct
     percentile: Optional[int] = None  # For percentile measures
 
-    @model_validator(mode='after')
-    def validate_measure_attributes(self) -> 'DbtMetaLookerMeasure':
+    @model_validator(mode="after")
+    def validate_measure_attributes(self) -> "DbtMetaLookerMeasure":
         """Validate that measure attributes are compatible with the measure type."""
         measure_type = self.type
 
@@ -84,10 +90,11 @@ class DbtMetaLookerMeasure(DbtMetaLookerBase):
             and measure_type != LookerMeasureType.COUNT_DISTINCT
         ):
             raise ValueError(
-                "approximate, approximate_threshold, and sql_distinct_key can only be used with count_distinct measures"
+                "approximate, approximate_threshold, and sql_distinct_key can only be used with "
+                "count_distinct measures"
             )
 
-        if self.percentile is not None and not measure_type.value.startswith('percentile'):
+        if self.percentile is not None and not measure_type.value.startswith("percentile"):
             raise ValueError("percentile can only be used with percentile measures")
 
         if self.precision is not None and measure_type not in [
@@ -100,18 +107,19 @@ class DbtMetaLookerMeasure(DbtMetaLookerBase):
 
 
 class DbtMetaLookerJoin(BaseModel):
-    '''Looker-specific metadata for joins on a dbt model
+    """Looker-specific metadata for joins on a dbt model.
 
-    meta:
-      looker:
-        description: "Page views for Hubble landing page"
-        label: "Page Views"
-        joins:
-          - join: users                               # Reference another dbt model to join to
-            sql_on: "${users.id} = ${pages.user_id}"  # Sql string containing join clause
-            type: left_outer                          # Optional - left_outer is default
-            relationship: many_to_one                 # Relationship type
-    '''
+    Example:
+        meta:
+          looker:
+            description: "Page views for Hubble landing page"
+            label: "Page Views"
+            joins:
+              - join: users                               # Reference another dbt model to join to
+                sql_on: "${users.id} = ${pages.user_id}"  # Sql string containing join clause
+                type: left_outer                          # Optional - left_outer is default
+                relationship: many_to_one                 # Relationship type
+    """
 
     join_model: Optional[str] = Field(default=None)
     sql_on: Optional[str] = Field(default=None)

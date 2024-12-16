@@ -1,9 +1,18 @@
 """Tests for the catalog parser module."""
+
 import pytest
-import json
-from dbt2lookml.models.dbt import DbtModel, DbtModelMeta, DbtCatalog, DbtModelColumn, DbtModelColumnMeta
+
+from dbt2lookml.models.dbt import (
+    DbtCatalog,
+    DbtModel,
+    DbtModelColumn,
+    DbtModelColumnMeta,
+    DbtModelMeta,
+    DbtResourceType,
+)
 from dbt2lookml.models.looker import DbtMetaLooker, DbtMetaLookerDimension
 from dbt2lookml.parsers.catalog import CatalogParser
+
 
 class TestCatalogParser:
     @pytest.fixture
@@ -12,11 +21,7 @@ class TestCatalogParser:
             "nodes": {
                 "model.test.model1": {
                     "unique_id": "model.test.model1",
-                    "metadata": {
-                        "type": "table", 
-                        "schema": "test_schema", 
-                        "name": "model1"
-                    },
+                    "metadata": {"type": "table", "schema": "test_schema", "name": "model1"},
                     "columns": {
                         "id": {
                             "name": "id",
@@ -49,21 +54,19 @@ class TestCatalogParser:
     def test_create_missing_array_column(self, parser):
         """Test creating a missing array column."""
         column = parser._create_missing_array_column(
-            column_name="test_array",
-            data_type="ARRAY<STRING>",
-            inner_types=["STRING"]
+            column_name="test_array", data_type="ARRAY<STRING>", inner_types=["STRING"]
         )
 
         assert column.name == "test_array"
         assert column.data_type == "ARRAY<STRING>"
         assert column.inner_types == ["STRING"]
-        assert column.description == "missing column from manifest.json, generated from catalog.json"
+        assert column.description is None
         assert isinstance(column.meta, DbtModelColumnMeta)
 
     def test_process_model(self, parser):
         """Test processing a model with catalog information."""
         model = DbtModel(
-            resource_type="model",
+            resource_type=DbtResourceType.MODEL,
             name="model1",
             unique_id="model.test.model1",
             relation_name="model1",
@@ -79,17 +82,16 @@ class TestCatalogParser:
                             dimension=DbtMetaLookerDimension(
                                 hidden=False,
                             )
-                        )    
+                        )
                     ),
                 ),
             },
             meta=DbtModelMeta(),
             path="models/test.sql",
-            tags=[]  # Add empty tags list
+            tags=[],  # Add empty tags list
         )
 
         processed_model = parser.process_model_columns(model)
         assert processed_model is not None
         assert processed_model.columns["id"].data_type == "INT64"
         assert processed_model.columns["id"].inner_types == ["INT64"]
-

@@ -2,12 +2,7 @@
 
 from typing import List, Optional, Tuple
 
-from dbt2lookml.models.dbt import (
-    DbtModel,
-    DbtModelColumn,
-    DbtModelColumnMeta,
-    DbtCatalog,
-)
+from dbt2lookml.models.dbt import DbtCatalog, DbtModel, DbtModelColumn, DbtModelColumnMeta
 
 
 class CatalogParser:
@@ -19,14 +14,18 @@ class CatalogParser:
 
     def process_model_columns(self, model: DbtModel) -> Optional[DbtModel]:
         """Process a model by updating its columns with catalog information."""
-        processed_columns = {}
-        for column_name, column in model.columns.items():
-            if processed_column := self._update_column_with_inner_types(column, model.unique_id):
-                processed_columns[column_name] = processed_column
-            else:
-                # Keep the original column if we can't process it
-                processed_columns[column_name] = column
-
+        processed_columns = {
+            column_name: (
+                processed_column
+                if (
+                    processed_column := self._update_column_with_inner_types(
+                        column, model.unique_id
+                    )
+                )
+                else column
+            )
+            for column_name, column in model.columns.items()
+        }
         # Create missing array columns
         if model.unique_id in self._catalog.nodes:
             catalog_node = self._catalog.nodes[model.unique_id]
@@ -41,7 +40,9 @@ class CatalogParser:
                     )
 
         # Always return the model, even if no columns were processed
-        return model.model_copy(update={'columns': processed_columns}) if processed_columns else model
+        return (
+            model.model_copy(update={'columns': processed_columns}) if processed_columns else model
+        )
 
     def _create_missing_array_column(
         self, column_name: str, data_type: str, inner_types: List[str]
@@ -49,28 +50,34 @@ class CatalogParser:
         """Create a new column model for array columns missing from manifest."""
         return DbtModelColumn(
             name=column_name,
-            description="missing column from manifest.json, generated from catalog.json",
             data_type=data_type,
             inner_types=inner_types,
+            description=None,
             meta=DbtModelColumnMeta(),
+            lookml_name=column_name,
         )
 
     def _get_catalog_column_info(
         self, model_id: str, column_name: str
     ) -> Tuple[Optional[str], List[str]]:
         """Get column type information from catalog."""
-        node = self._catalog.nodes.get(model_id)
-        if not node or column_name.lower() not in node.columns:
+        if model_id not in self._catalog.nodes:
             return None, []
 
-        column = node.columns[column_name.lower()]
+        catalog_node = self._catalog.nodes[model_id]
+        if column_name not in catalog_node.columns:
+            return None, []
+
+        column = catalog_node.columns[column_name]
         return column.data_type, column.inner_types or []
 
     def _update_column_with_inner_types(
         self, column: DbtModelColumn, model_id: str
-    ) -> Optional[DbtModelColumn]:
+    ) -> DbtModelColumn:
         """Update a column with type information from catalog."""
         data_type, inner_types = self._get_catalog_column_info(model_id, column.name)
-        if data_type is not None:
-            return column.model_copy(update={'data_type': data_type, 'inner_types': inner_types})
-        return None
+        if data_type:
+            column.data_type = data_type
+        if inner_types:
+            column.inner_types = inner_types
+        return column

@@ -1,120 +1,125 @@
 # dbt2lookml
-Use `dbt2lookml` to generate Looker view files automatically from dbt models in Bigquery.
 
-This is a fork of forks of dbt2looker and dbt2looker-biqquery and took a similar but not identical approach and this sort went in the direction of a new package called dbt2lookml. Should pretty much work the same as dbt2looker-bigquery.
+[![PyPI version](https://badge.fury.io/py/dbt2lookml.svg)](https://badge.fury.io/py/dbt2lookml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-It has been tested with dbt v1.8 and generated 2800+ views in roughly 6 seconds.
+Generate Looker view files automatically from dbt models in BigQuery. Tested with dbt v1.8, capable of generating 2800+ views in roughly 6 seconds.
 
-## Why do you need dbt2lookml?
+## Overview
 
-For very few data-models and/or small analytics team, lookers built in lookml generation works fine
-and is likely preferrred. For larger teams and/or many/complex models, lookers are a bit of a pain to build manually or semi-automatically through looker.
+`dbt2lookml` bridges the gap between dbt and Looker by automatically generating LookML views from your dbt models. It's particularly valuable for:
 
-So dbt2lookml is not built to be a replacement for looker, but instead a way to generate looker views from dbt models in a more automated way.
+- Large data teams managing numerous models
+- Complex data models with many relationships
+- Teams wanting to automate their Looker view generation
+- Projects requiring consistent view definitions across dbt and Looker
 
-## How is it supposed to work?
+## Features
 
-As an example, in our project we build dbt through google workflows, after dbt run, we generate dbt docs and elementary. In the end of the workflow, we trigger a pub/sub message that dbt has finished.
-Based on this message, a cloud function is triggered, which then runs dbt2lookml to generate views
-In the same cloud function, we also publish the changes to a specific git repository called lookml-base
-In our main looker project we import the views from the lookml-base repository and then we handle the extends, explores, etc in there. A recommendation is to use dbt versioning to stabilize the lookml files, so you can have multiple versions of the same dbt model and therefor control which base-view you should use in your extended view. This way we can have constant updates of the views when they change instead having to be reactive to changes in the dbt models.
+- 🚀 Fast generation of LookML views from dbt models
+- 🔄 Automatic type mapping from BigQuery to Looker
+- 🏷️ Support for dbt tags and exposures
+- 🔗 Automatic join detection and generation
+- 📝 Custom measure definition support
+- 🌐 Locale file generation support
 
 ## Installation
 
-### Through pip:
-
-```shell
+### Via pip
+```bash
 pip install dbt2lookml
 ```
-### Through poetry:
 
-```shell
+### Via poetry
+```bash
 git clone https://github.com/magnus-ffcg/dbt2lookml.git
 cd dbt2lookml
 poetry install
 ```
 
-## Quickstart
+## Quick Start
 
-Run `dbt2lookml` in the root of your dbt project *after compiling dbt docs*.
-(dbt2lookml uses docs to infer types and such)
+1. **Generate dbt docs** (required for getting a manifest and catalog file to generate views from):
+   ```bash
+   dbt docs generate
+   ```
 
-**If you are using poetry:**
-You need to append "poetry run" in beginning of each command
+2. **Generate Looker views**:
+   ```bash
+   dbt2lookml --target-dir target --output-dir output
+   ```
 
-```shell
-poetry run dbt2lookml [args e.g. --target-dir [dbt-repo]/target --output-dir output]
+## Usage Examples
+
+### Filter by Tags
+```bash
+# Generate views for models tagged 'prod'
+dbt2lookml --target-dir target --output-dir output --tag prod
 ```
 
-**When running for the first time make sure dbt has the data available:**
-```shell
-dbt docs generate
-```
-**Generate Looker view files for all models:**
-```shell
-dbt2lookml --target-dir [dbt-repo]/target --output-dir output
+### Filter by Model Name
+```bash
+# Generate view for model named 'test'
+dbt2lookml --target-dir target --output-dir output --select test
 ```
 
-**Generate Looker view files for all models tagged `prod`**
-```shell
-dbt2lookml [default args] --tag prod
+### Work with Exposures
+```bash
+# Generate views for exposed models only
+dbt2lookml --target-dir target --output-dir output --exposures-only
+
+# Generate views for exposed models with specific tag
+dbt2lookml --target-dir target --output-dir output --exposures-only --exposures-tag looker
 ```
 
-**Generate Looker view files for dbt named `test`**
-```shell
-dbt2lookml [default args] --select test
+### Additional Options
+```bash
+# Skip explore generation
+dbt2lookml --target-dir target --output-dir output --skip-explore
+
+# Use table names instead of model names
+dbt2lookml --target-dir target --output-dir output --use-table-name
+
+# Generate locale file
+dbt2lookml --target-dir target --output-dir output --generate-locale
 ```
 
-**Generate Looker view files for all exposed models**
-[dbt docs - exposures](https://docs.getdbt.com/docs/build/exposures)
-```shell
-dbt2lookml [default args] --exposures-only
-```
+## Integration Example
 
-**Generate Looker view files for all exposed models and specific tags**
-```shell
-dbt2lookml [default args] --exposures-only --exposures-tag looker
-```
+Here's how you might integrate dbt2lookml in a production workflow:
 
-**Generate Looker view files but skip the explore and its joins**
-```shell
-dbt2lookml [default args] --skip-explore
-```
+1. Run dbt through Google Cloud Workflows
+2. Generate dbt docs and elementary
+3. Trigger a Pub/Sub message on completion
+4. Cloud Function runs dbt2lookml
+5. Push generated views to lookml-base repository
+6. Import views in main Looker project
 
-**Generate Looker view files but use table name as view name**
-```shell
-dbt2lookml [default args]--use-table-name
-```
+## Configuration
 
-**Generate Looker view files but also generate a locale file**
-```shell
-dbt2lookml [default args]--generate-locale
-```
+### Defining Looker Metadata
 
-## Defining measures or other metadata for looker
-
-You can define looker measures in your dbt `schema.yml` files. For example:
+Add Looker-specific configuration in your dbt `schema.yml`:
 
 ```yaml
 models:
   - name: model-name
     columns:
       - name: url
-        description: "Page url"
-      - name: event_id
-        description: unique event id for page view
+        description: "Page URL"
         meta:
-            looker:
-              dimension:
-                hidden: True
-                label: event
-                group_label: identifiers
-                value_format_name: id
-              measures:
-                - type: count_distinct
-                  sql_distinct_key: ${url}
-                - type: count
-                  value_format_name: decimal_1
+          looker:
+            dimension:
+              hidden: true
+              label: "Page URL"
+              group_label: "Page Info"
+            measures:
+              - type: count_distinct
+                sql_distinct_key: ${url}
+                label: "Unique Pages"
+              - type: count
+                value_format_name: decimal_1
+                label: "Total Page Views"
     meta:
       looker:
         joins:
@@ -122,3 +127,35 @@ models:
             sql_on: "${users.id} = ${model-name.user_id}"
             type: left_outer
             relationship: many_to_one
+```
+
+#### Supported Metadata Options
+
+##### Dimension Options
+- `hidden`: Boolean
+- `label`: String
+- `group_label`: String
+- `value_format_name`: String
+
+##### Measure Options
+- `type`: String (count, sum, average, etc.)
+- `sql_distinct_key`: String
+- `value_format_name`: String
+- `filters`: Array of filter objects
+
+##### Join Options
+- `sql_on`: String (join condition)
+- `type`: String (left_outer, inner, etc.)
+- `relationship`: String (many_to_one, one_to_many, etc.)
+
+## Contributing
+
+Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+Higly inspired by [dbt-looker](https://github.com/looker/dbt-looker) and [dbt2looker-bigquery](https://github.com/looker/dbt2looker-bigquery).

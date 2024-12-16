@@ -2,7 +2,7 @@
 
 from typing import List, Optional
 
-from dbt2lookml.models.dbt import DbtManifest, DbtExposure
+from dbt2lookml.models.dbt import DbtExposure, DbtManifest
 
 
 class ExposureParser:

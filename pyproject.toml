@@ -11,7 +11,7 @@ repository = "https://github.com/magnus-ffcg/dbt2lookml"
 lkml = ">=1.1"
 pydantic = ">=2.9"
 PyYAML = ">=5.0"
-python = ">=3.12.0,<4.0"
+python = ">=3.9.0,<4.0"
 typing-extensions = ">=4.0"
 importlib-metadata = ">=4"
 rich = ">=13.9.4"
@@ -25,17 +25,56 @@ pytest-mock = "^3.14.0"
 pytest-cov = "^6.0.0"
 datamodel-code-generator = "^0.26.3"
 
-[tool.uv]
-
-[tool.uv.workspace]
-members = ["dist"]
-
-[tool.poetry.scripts]
-dbt2lookml = "dbt2lookml.cli:main"
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "dbt2lookml"
+version = "0.2.1"
+description = "Convert dbt models to LookML"
+requires-python = ">=3.9.0,<4.0"
+dependencies = [
+    "lkml>=1.1",
+    "pydantic>=2.9",
+    "PyYAML>=5.0",
+    "typing-extensions>=4.0",
+    "importlib-metadata>=4",
+    "rich>=13.9.4",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "isort>=5.0",
+    "flake8>=6.0",
+    "mypy>=1.0",
+    "types-PyYAML>=6.0",
+    "tox>=4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["dbt2lookml"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+]
 
 [tool.bumpversion]
 current_version = "0.2.1"
@@ -60,6 +99,8 @@ mock_use_standalone_module = true
 [tool.black]
 skip-string-normalization = true
 line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
 
 [tool.isort]
 multi_line_output = 3
@@ -68,9 +109,18 @@ force_grid_wrap = 0
 use_parentheses = true
 line_length = 100
 known_first_party = "kelvin"
+profile = "black"
 
 [tool.datamodel-codegen]
 field-constraints = true
 snake-case-field = true
 strip-default-none = false
 target-python-version = "3.12"
+
+[tool.uv]
+
+[tool.uv.workspace]
+members = ["dist"]
+
+[tool.poetry.scripts]
+dbt2lookml = "dbt2lookml.cli:main"

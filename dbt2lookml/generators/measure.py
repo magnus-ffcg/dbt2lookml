@@ -1,8 +1,9 @@
+from typing import Any, Dict, List, Optional
+
+from dbt2lookml.enums import LookerMeasureType, LookerScalarTypes
+from dbt2lookml.generators.utils import get_column_name, map_bigquery_to_looker
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
 from dbt2lookml.models.looker import DbtMetaLookerMeasure
-from dbt2lookml.generators.utils import map_bigquery_to_looker
-from dbt2lookml.enums import LookerMeasureType, LookerScalarTypes
-from dbt2lookml.generators.utils import get_column_name
 
 
 class LookmlMeasureGenerator:
@@ -11,7 +12,9 @@ class LookmlMeasureGenerator:
     def __init__(self, args):
         self._cli_args = args
 
-    def _apply_measure_attributes(self, measure_dict: dict, measure: DbtMetaLookerMeasure) -> None:
+    def _apply_measure_attributes(
+        self, measure_dict: Dict[str, Any], measure: DbtMetaLookerMeasure
+    ) -> None:
         """Apply measure attributes to the measure dictionary."""
         direct_attributes = [
             'approximate',
@@ -47,10 +50,10 @@ class LookmlMeasureGenerator:
         measure: DbtMetaLookerMeasure,
         table_format_sql: bool,
         model: DbtModel,
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """Create a LookML measure from a DBT model column and measure."""
-        if measure.type.value not in [t.value for t in LookerMeasureType]:
-            return None
+        if measure.type.value not in LookerMeasureType.values():
+            return {}  # Return empty dict instead of None
 
         m = {
             'name': f'm_{measure.type.value}_{column.name}',
@@ -75,12 +78,15 @@ class LookmlMeasureGenerator:
         return m
 
     def lookml_measures_from_model(
-        self, model: DbtModel, include_names: list = None, exclude_names: list = None
-    ) -> list:
+        self,
+        model: DbtModel,
+        include_names: Optional[List[str]] = None,
+        exclude_names: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
         """Generate measures from model."""
         if exclude_names is None:
             exclude_names = []
-        lookml_measures = []
+        lookml_measures: List[Dict[str, Any]] = []
         table_format_sql = True
 
         for column in model.columns.values():

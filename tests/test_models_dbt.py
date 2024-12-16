@@ -1,19 +1,14 @@
 import pytest
+
 from dbt2lookml.models.dbt import (
-    DbtModel,
-    DbtModelColumn,
-    DbtModelMeta,
     DbtCatalogNode,
     DbtCatalogNodeColumn,
+    DbtModel,
+    DbtModelColumn,
     DbtModelColumnMeta,
+    DbtModelMeta,
 )
-from dbt2lookml.models.looker import (
-    DbtMetaLooker,
-    DbtMetaLookerDimension,
-    DbtMetaLookerMeasure,
-    DbtMetaLookerJoin,
-    DbtMetaLookerBase
-)
+from dbt2lookml.models.looker import DbtMetaLooker, DbtMetaLookerBase, DbtMetaLookerDimension
 
 
 class TestDbtModels:
@@ -41,7 +36,7 @@ class TestDbtModels:
                     "view": {
                         "hidden": False,
                         "label": "Test View",
-                    }
+                    },
                 }
             },
             "path": "models/test_model.sql",
@@ -58,6 +53,7 @@ class TestDbtModels:
         assert isinstance(model.meta.looker.view, DbtMetaLookerBase)
         assert len(model.columns) == 1
         assert isinstance(model.columns["id"], DbtModelColumn)
+        assert isinstance(model.columns["id"].meta, DbtModelColumnMeta)
         assert isinstance(model.columns["id"].meta.looker, DbtMetaLooker)
         assert isinstance(model.columns["id"].meta.looker.dimension, DbtMetaLookerDimension)
 

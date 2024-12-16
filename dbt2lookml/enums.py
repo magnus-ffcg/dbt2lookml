@@ -119,6 +119,7 @@ class LookerBigQueryDataType(str, ExtendedEnum):
     FLOAT = "number"
     FLOAT64 = "number"
     NUMERIC = "number"
+    DECIMAL = "number"
     BIGNUMERIC = "number"
     BOOLEAN = "yesno"
     STRING = "string"
@@ -187,3 +188,26 @@ class LookerJoinType(str, ExtendedEnum):
     FULL_OUTER = "full_outer"
     INNER = "inner"
     CROSS = "cross"
+
+
+class DbtResourceType(str, ExtendedEnum):
+    """Type of dbt resource."""
+
+    MODEL = 'model'
+    SEED = 'seed'
+    SNAPSHOT = 'snapshot'
+    TEST = 'test'
+    ANALYSIS = 'analysis'
+    OPERATION = 'operation'
+    EXPOSURE = 'exposure'
+    MACRO = 'macro'
+    RPC = 'rpc'
+    SQL_OPERATION = 'sql_operation'
+    SOURCE = 'source'
+    DOC = 'doc'
+    GROUP = 'group'
+    METRIC = 'metric'
+    SAVED_QUERY = 'saved_query'
+    SEMANTIC_MODEL = 'semantic_model'
+    UNIT_TEST = 'unit_test'
+    FIXTURE = 'fixture'

@@ -1,12 +1,11 @@
 """Base DBT parser functionality."""
 
-import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
-from dbt2lookml.models.dbt import DbtModel, DbtCatalog, DbtManifest, DbtModelColumn
-from dbt2lookml.parsers.model import ModelParser
+from dbt2lookml.models.dbt import DbtCatalog, DbtManifest, DbtModel
 from dbt2lookml.parsers.catalog import CatalogParser
 from dbt2lookml.parsers.exposure import ExposureParser
+from dbt2lookml.parsers.model import ModelParser
 
 
 class DbtParser:
@@ -34,9 +33,7 @@ class DbtParser:
             or hasattr(self._cli_args, 'exposures_tag')
             and self._cli_args.exposures_tag
         ):
-            exposed_names = self._exposure_parser.get_exposures(
-                self._cli_args.exposures_tag
-            )
+            exposed_names = self._exposure_parser.get_exposures(self._cli_args.exposures_tag)
 
         # Filter models based on criteria
         filtered_models = self._model_parser.filter_models(

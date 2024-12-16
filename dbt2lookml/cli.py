@@ -1,46 +1,51 @@
 import argparse
+import logging
 import os
-import lkml
 
 try:
     from importlib.metadata import version
 except ImportError:
     from importlib_metadata import version
 
-from dbt2lookml.generators import LookmlGenerator
-from dbt2lookml.enums import LookerScalarTypes
-from dbt2lookml.exceptions import CliError
-from dbt2lookml.utils import FileHandler
-from dbt2lookml.parsers import DbtParser
-
-import logging
+import lkml
 from rich.logging import RichHandler
 
+from dbt2lookml.exceptions import CliError
+from dbt2lookml.generators import LookmlGenerator
+from dbt2lookml.parsers import DbtParser
+from dbt2lookml.utils import FileHandler
+
 logging.basicConfig(
-    level=logging.INFO, format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler()],
 )
 
 
 class Cli:
-    DEFAULT_LOOKML_OUTPUT_DIR = '.'
+    """Command line interface for dbt2lookml."""
+
+    DEFAULT_LOOKML_OUTPUT_DIR = "."
     HEADER = """
-    _ _   ___ _         _         _ 
+    _ _   ___ _         _         _
   _| | |_|_  | |___ ___| |_ _____| |
  | . | . |  _| | . | . | '_|     | |
  |___|___|___|_|___|___|_,_|_|_|_|_|
 
-    Convert your dbt models to LookML views   
-                                                                               
+    Convert your dbt models to LookML views
     """
 
     def __init__(self):
+        """Initialize CLI with argument parser and file handler."""
         self._args_parser = self._init_argparser()
         self._file_handler = FileHandler()
 
-    def _init_argparser(self):
-        """Create and configure the argument parser"""
+    def _init_argparser(self) -> argparse.ArgumentParser:
+        """Create and configure the argument parser."""
         parser = argparse.ArgumentParser(
-            description=self.HEADER, formatter_class=argparse.RawDescriptionHelpFormatter
+            description=self.HEADER,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
         )
         parser.add_argument(
             '--version',
@@ -48,9 +53,21 @@ class Cli:
             version=f'dbt2lookml {version("dbt2lookml")}',
         )
         parser.add_argument(
+            '--manifest-path',
+            help='Path to dbt manifest.json file',
+            default=None,
+            type=str,
+        )
+        parser.add_argument(
+            '--catalog-path',
+            help='Path to dbt catalog.json file',
+            default=None,
+            type=str,
+        )
+        parser.add_argument(
             '--target-dir',
-            help='Path to dbt target directory containing manifest.json and catalog.json. Default is "./target"',
-            default='./target',
+            help='Directory to output LookML files',
+            default=self.DEFAULT_LOOKML_OUTPUT_DIR,
             type=str,
         )
         parser.add_argument(
@@ -88,7 +105,8 @@ class Cli:
         )
         parser.add_argument(
             '--skip-explore',
-            help='add this flag to skip generating an sample "explore" in views for nested structures',
+            help='add this flag to skip generating an sample "explore" in views for "'
+            'nested structures',
             action='store_false',
             dest="build_explore",
         )
@@ -109,6 +127,20 @@ class Cli:
             '--continue-on-error',
             help='Continue generating views even if an error occurs',
             action='store_true',
+        )
+        parser.add_argument(
+            "--include-models",
+            help="List of models to include",
+            nargs="+",
+            default=None,
+            type=str,
+        )
+        parser.add_argument(
+            "--exclude-models",
+            help="List of models to exclude",
+            nargs="+",
+            default=None,
+            type=str,
         )
         parser.set_defaults(build_explore=True)
         return parser
@@ -134,10 +166,10 @@ class Cli:
             return file_path
         except OSError as e:
             logging.error(f"Failed to write file {file_path}: {str(e)}")
-            raise CliError(f"Failed to write file {file_path}: {str(e)}")
+            raise CliError(f"Failed to write file {file_path}: {str(e)}") from e
         except Exception as e:
             logging.error(f"Unexpected error writing file {file_path}: {str(e)}")
-            raise CliError(f"Unexpected error writing file {file_path}: {str(e)}")
+            raise CliError(f"Unexpected error writing file {file_path}: {str(e)}") from e
 
     def generate(self, args, models):
         """Generate LookML views from dbt models"""
@@ -170,21 +202,21 @@ class Cli:
 
         logging.info(f'Generated {len(views)} views')
         logging.info('Success')
-        
+
         return views
 
     def parse(self, args):
         """parse dbt models"""
         try:
-            raw_manifest = self._file_handler.read(os.path.join(args.target_dir, 'manifest.json'))
-            raw_catalog = self._file_handler.read(os.path.join(args.target_dir, 'catalog.json'))
+            manifest: dict = self._file_handler.read(os.path.join(args.target_dir, 'manifest.json'))
+            catalog: dict = self._file_handler.read(os.path.join(args.target_dir, 'catalog.json'))
 
-            parser = DbtParser(args, raw_manifest, raw_catalog)
+            parser = DbtParser(args, manifest, catalog)
             return parser.get_models()
         except FileNotFoundError as e:
-            raise CliError(f"Failed to read file: {str(e)}")
+            raise CliError(f"Failed to read file: {str(e)}") from e
         except Exception as e:
-            raise CliError(f"Unexpected error parsing dbt models: {str(e)}")
+            raise CliError(f"Unexpected error parsing dbt models: {str(e)}") from e
 
     def run(self):
         """Run the CLI"""

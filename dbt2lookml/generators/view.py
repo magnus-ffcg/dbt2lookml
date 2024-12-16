@@ -1,6 +1,6 @@
 """LookML view generator module."""
 
-from typing import Dict, List, Optional
+from typing import Any, Dict
 
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
 
@@ -49,25 +49,27 @@ class LookmlViewGenerator:
             model, exclude_names=exclude_names
         ).get('dimension_group_sets'):
             view['sets'] = sets
-        
+
         if hidden := model._get_meta_looker('view', 'hidden'):
             view['hidden'] = 'yes' if hidden else 'no'
 
         return view
 
-    def _is_yes_no(self, model: DbtModel) -> Optional[bool]:
-        # Check if model.meta.looker exists and has hidden attribute
+    def _is_yes_no(self, model: DbtModel) -> str:
+        """Check if model should be hidden."""
         hidden = 'no'
+
         if (
-            hasattr(model, 'meta')
-            and hasattr(model.meta, 'looker')
+            model.meta is not None
+            and model.meta.looker is not None
             and hasattr(model.meta.looker, 'view')
+            and model.meta.looker.view is not None
             and hasattr(model.meta.looker.view, 'hidden')
         ):
-            hidden = 'yes' if model.meta and model.meta.looker and model.meta.looker.view.hidden else 'no'
+            hidden = 'yes' if model.meta.looker.view.hidden else 'no'
 
         return hidden
-    
+
     def _create_nested_view(
         self,
         model: DbtModel,
@@ -76,11 +78,13 @@ class LookmlViewGenerator:
         view_label: str,
         dimension_generator,
         measure_generator,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Create a nested view definition for an array field."""
         # Use table name if flag is set
         if self._cli_args.use_table_name:
-            nested_view_name = f"{model.relation_name.split('.')[-1].strip('`')}__{array_model.name.replace('.', '__')}"
+            array_model_name = array_model.name.replace('.', '__')
+            relationship_name = model.relation_name.split('.')[-1].strip('`')
+            nested_view_name = f"{relationship_name}__{array_model_name}"
         else:
             nested_view_name = f"{base_name}__{array_model.name.replace('.', '__')}"
 

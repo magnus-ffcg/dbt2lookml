@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, List, Optional
 
-from dbt2lookml.models.dbt import DbtModel, DbtManifest
+from dbt2lookml.models.dbt import DbtManifest, DbtModel
 
 
 class ModelParser:

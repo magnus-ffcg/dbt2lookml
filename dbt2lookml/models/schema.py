@@ -5,11 +5,10 @@ field definitions. It handles nested structures (STRUCT) and complex types (ARRA
 while maintaining the hierarchical relationships between fields.
 """
 
-from dataclasses import dataclass
-from typing import List
-
-from contextlib import contextmanager
 import re
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from typing import Generator, List
 
 
 @dataclass
@@ -19,7 +18,7 @@ class SchemaField:
     name: str
     type_str: str
     path: List[str]
-    inner_types: List[str] = None
+    inner_types: List[str] = field(default_factory=list)
 
     def __str__(self) -> str:
         """Returns the complete field representation as it would appear in a schema."""
@@ -30,13 +29,13 @@ class SchemaField:
 class SchemaParser:
     """Parser for BigQuery schema strings that handles nested structures and complex types."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._fields: List[SchemaField] = []
         self._current_path: List[str] = []
 
     def _parse_inner_content(self, text: str) -> str:
         """Extracts content within angle brackets."""
-        current = []
+        current: List[str] = []
         level = 0
 
         for char in text:
@@ -52,11 +51,11 @@ class SchemaParser:
 
     def _split_fields(self, text: str) -> List[str]:
         """Splits content on top-level commas."""
-        result = []
-        current = []
+        result: List[str] = []
+        current: List[str] = []
         level = 0
 
-        for char in text + ',':
+        for char in f'{text},':
             if char == '<':
                 level += 1
             elif char == '>':
@@ -90,7 +89,7 @@ class SchemaParser:
         return type_str, type_str, False
 
     @contextmanager
-    def _path_context(self, name: str):
+    def _path_context(self, name: str) -> Generator[None, None, None]:
         """Context manager for tracking field paths."""
         if name:
             self._current_path.append(name)
@@ -100,7 +99,9 @@ class SchemaParser:
             if name:
                 self._current_path.pop()
 
-    def _add_field(self, name: str, type_str: str, inner_types: List[str] = None):
+    def _add_field(
+        self, name: str, type_str: str, inner_types: List[str] = field(default_factory=list)
+    ) -> None:
         """Adds a field to the result list."""
         type_str = self._normalize_type(type_str)
         self._fields.append(
@@ -112,10 +113,10 @@ class SchemaParser:
             )
         )
 
-    def _process_fields(self, content: str):
+    def _process_fields(self, content: str) -> None:
         """Processes multiple field definitions."""
-        for field in self._split_fields(content):
-            name, type_str = field.split(' ', 1)
+        for content_field in self._split_fields(content):
+            name, type_str = content_field.split(' ', 1)
             inner, type_prefix, has_struct = self._process_type(type_str.strip())
 
             if has_struct:

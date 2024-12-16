@@ -1,22 +1,20 @@
+from __future__ import annotations
+
 import logging
-from typing import Union, Dict, List, Optional
-from pydantic import field_validator, model_validator, BaseModel, Field
-from dbt2lookml import enums
-from dbt2lookml.schema import SchemaParser
+from typing import Dict, List, Optional, Union
+
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from dbt2lookml.enums import DbtResourceType, SupportedDbtAdapters
+from dbt2lookml.exceptions import UnsupportedDbtAdapterError
+from dbt2lookml.models.looker import DbtMetaLooker
+from dbt2lookml.models.schema import SchemaParser
 
 schema_parser = SchemaParser()
 
-try:
-    from typing import Literal
-except ImportError:
-    from typing_extensions import Literal
 
-from dbt2lookml.exceptions import UnsupportedDbtAdapterError
-from dbt2lookml.models.looker import DbtMetaLooker
-
-
-def yes_no_validator(value: Union[bool, str]):
-    '''Convert booleans or strings to lookml yes/no syntax'''
+def yes_no_validator(value: Union[bool, str]) -> Optional[str]:
+    """Convert booleans or strings to lookml yes/no syntax."""
     if isinstance(value, bool):
         return 'yes' if value else 'no'
     elif value.lower() in ['yes', 'no']:
@@ -27,43 +25,28 @@ def yes_no_validator(value: Union[bool, str]):
         logging.warning(f'Value must be "yes", "no", or a boolean. Got {value}')
         return None
 
+
 class DbtBaseModel(BaseModel):
-    
+    """Base model for dbt objects."""
+
     def _get_meta_looker(self, parent_attr, attr) -> Optional[dict]:
         if meta := getattr(self, 'meta'):
             if looker := getattr(meta, 'looker'):
                 if parent := getattr(looker, parent_attr):
                     return getattr(parent, attr)
-
         return None
 
+
 class DbtNode(DbtBaseModel):
-    '''A dbt node. extensible to models, seeds, etc.'''
+    """A dbt node. extensible to models, seeds, etc."""
 
     name: str
     unique_id: str
-    resource_type: Literal[
-        'model',
-        'seed',
-        'snapshot',
-        'analysis',
-        'test',
-        'operation',
-        'sql_operation',
-        'source',
-        'macro',
-        'exposure',
-        'metric',
-        'group',
-        'saved_query',
-        'semantic_model',
-        'unit_test',
-        'fixture',
-    ]
+    resource_type: DbtResourceType
 
 
 class DbtExposureRef(BaseModel):
-    '''A reference in a dbt exposure'''
+    """A reference in a dbt exposure."""
 
     name: str
     package: Optional[str] = None
@@ -81,7 +64,7 @@ class DbtDependsOn(BaseModel):
 
 
 class DbtExposure(DbtNode):
-    '''A dbt exposure'''
+    """A dbt exposure."""
 
     name: str
     description: Optional[str] = None
@@ -92,7 +75,7 @@ class DbtExposure(DbtNode):
 
 
 class DbtCatalogNodeMetadata(BaseModel):
-    '''Metadata about a dbt catalog node'''
+    """Metadata about a dbt catalog node."""
 
     type: str
     db_schema: str = Field(..., alias='schema')
@@ -102,7 +85,7 @@ class DbtCatalogNodeMetadata(BaseModel):
 
 
 class DbtCatalogNodeColumn(BaseModel):
-    '''A column in a dbt catalog node'''
+    """A column in a dbt catalog node."""
 
     type: str
     data_type: Optional[str] = 'MISSING'
@@ -137,7 +120,7 @@ class DbtCatalogNodeColumn(BaseModel):
 
 
 class DbtCatalogNodeRelationship(BaseModel):
-    '''A model for nodes containing relationships'''
+    """A model for nodes containing relationships."""
 
     type: str
     columns: List[DbtCatalogNodeColumn]
@@ -145,7 +128,7 @@ class DbtCatalogNodeRelationship(BaseModel):
 
 
 class DbtCatalogNode(BaseModel):
-    '''A dbt catalog node'''
+    """A dbt catalog node."""
 
     metadata: DbtCatalogNodeMetadata
     columns: Dict[str, DbtCatalogNodeColumn]
@@ -160,19 +143,19 @@ class DbtCatalogNode(BaseModel):
 
 
 class DbtCatalog(BaseModel):
-    '''A dbt catalog'''
+    """A dbt catalog."""
 
     nodes: Dict[str, DbtCatalogNode]
 
 
 class DbtModelColumnMeta(BaseModel):
-    '''Metadata about a column in a dbt model'''
+    """Metadata about a column in a dbt model."""
 
     looker: Optional[DbtMetaLooker] = DbtMetaLooker()
 
 
 class DbtModelColumn(DbtBaseModel):
-    '''A column in a dbt model'''
+    """A column in a dbt model."""
 
     name: str
     lookml_long_name: Optional[str] = ''
@@ -214,7 +197,8 @@ class DbtModelColumn(DbtBaseModel):
 
 
 class DbtModelMeta(BaseModel):
-    '''Metadata about a dbt model'''
+    """Metadata about a dbt model."""
+
     looker: Optional[DbtMetaLooker] = DbtMetaLooker()
 
 
@@ -224,14 +208,14 @@ class DbtModel(DbtNode):
     Contains information about the model's structure, columns, and metadata.
     """
 
-    resource_type: Literal['model']
+    resource_type: DbtResourceType = DbtResourceType.MODEL
     relation_name: str
     db_schema: str = Field(..., alias='schema')
     name: str
     description: str
     columns: Dict[str, DbtModelColumn]
     tags: List[str]
-    meta: DbtModelMeta
+    meta: DbtModelMeta = DbtModelMeta()
     path: str
 
     @field_validator('columns')
@@ -253,6 +237,7 @@ class DbtModel(DbtNode):
                 raise TypeError(f"The value for key {name} is not a DbtModelColumn instance.")
         return new_columns
 
+
 class DbtManifestMetadata(BaseModel):
     """Metadata about a dbt manifest.
 
@@ -263,12 +248,12 @@ class DbtManifestMetadata(BaseModel):
 
     @field_validator('adapter_type')
     @classmethod
-    def adapter_must_be_supported(cls, v):
+    def adapter_must_be_supported(cls, v: str) -> str:
         """Validate that the adapter type is supported."""
-        if v not in enums.SupportedDbtAdapters:
+        if v not in SupportedDbtAdapters.values():
             raise UnsupportedDbtAdapterError(
                 f'Adapter type {v} is not supported. '
-                f'Supported adapters are: {[e.value for e in enums.SupportedDbtAdapters]}'
+                f'Supported adapters are: {SupportedDbtAdapters.values()}'
             )
         return v
 

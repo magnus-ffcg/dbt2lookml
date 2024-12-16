@@ -1,8 +1,8 @@
 """LookML explore generator module."""
 
 import logging
+from typing import Any
 
-from typing import Dict, List, Optional
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
 
 
@@ -61,12 +61,12 @@ class LookmlExploreGenerator:
 
         return nested_columns
 
-    def recurse_joins(self, structure, model):
+    def recurse_joins(self, structure: dict, model: DbtModel) -> list[dict[str, Any]]:
         """Recursively build joins for nested structures."""
         if not structure:
             return []
 
-        join_list = []
+        join_list: list[dict[str, Any]] = []
         for parent, children in structure.items():
             # Use table name from relation_name if use_table_name is True
             base_name = (
@@ -74,7 +74,7 @@ class LookmlExploreGenerator:
                 if self._cli_args.use_table_name
                 else model.name
             )
-            view_name = f"{base_name}__{parent.replace('.','__')}"
+            view_name = f"{base_name}__{parent.replace('.', '__')}"
 
             # Create SQL join for array unnesting
             join_sql = f'LEFT JOIN UNNEST(${{{base_name}.{parent}}}) AS {view_name}'
@@ -94,14 +94,15 @@ class LookmlExploreGenerator:
             for child_structure in children['children']:
                 for child_name, child_dict in child_structure.items():
                     if len(child_dict['children']) > 0:
-                        child_view_name = f"{base_name}__{child_name.replace('.','__')}"
-                        child_join_sql = f'LEFT JOIN UNNEST(${{{view_name}.{child_name.split(".")[-1]}}}) AS {child_view_name}'
+                        child_view_name = f"{base_name}__{child_name.replace('.', '__')}"
+                        join_name = f"${{{view_name}.{child_name.split('.')[-1]}}}"
+                        join_sql = f'LEFT JOIN UNNEST({join_name}) AS {child_view_name}'
 
                         join_list.append(
                             {
                                 'name': child_view_name,
                                 'relationship': 'one_to_many',
-                                'sql': child_join_sql,
+                                'sql': join_sql,
                                 'type': 'left_outer',
                                 'required_joins': [view_name],  # This join requires the parent view
                             }
@@ -113,14 +114,14 @@ class LookmlExploreGenerator:
         return join_list
 
     def generate(
-        self, model: DbtModel, view_name: str, view_label: str, array_models: list
-    ) -> dict:
+        self, model: DbtModel, view_name: str, view_label: str, array_models: list[DbtModelColumn]
+    ) -> dict[str, Any]:
         """Create the explore definition."""
         # Get nested structure for joins
         structure = self._group_strings(list(model.columns.values()), array_models)
 
         # Create explore
-        explore = {
+        explore: dict[str, Any] = {
             'name': view_name,
             'label': view_label,
             'from': view_name,
