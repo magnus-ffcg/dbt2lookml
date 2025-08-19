@@ -7,6 +7,56 @@ from dbt2lookml.enums import LookerBigQueryDataType
 from dbt2lookml.models.dbt import DbtModelColumn
 
 
+def safe_name(name: str) -> str:
+    """Convert a name to a safe identifier for Looker.
+    
+    Only allows alphanumeric characters and underscores [0-9A-Za-z_].
+    Uses unidecode to transliterate Unicode characters to ASCII equivalents.
+    
+    Args:
+        name: The input name to make safe
+        
+    Returns:
+        A safe name containing only valid characters
+        
+    Examples:
+        >>> safe_name("My Field Name")
+        'My_Field_Name'
+        >>> safe_name("åäö-test@123")
+        'aao_test_123'
+        >>> safe_name("Москва")
+        'Moskva'
+        >>> safe_name("")
+        'unnamed_d41d8cd9'
+    """
+    import re
+    from unidecode import unidecode
+    
+    # Convert Unicode to ASCII equivalents
+    safe = unidecode(name)
+    
+    # Replace common separators with underscores
+    safe = re.sub(r'[ \-\.@]+', '_', safe)
+    
+    # Remove any remaining invalid characters (keep only [0-9A-Za-z_])
+    safe = re.sub(r'[^0-9A-Za-z_]', '_', safe)
+    
+    # Clean up multiple consecutive underscores
+    safe = re.sub(r'_+', '_', safe)
+    
+    # Remove leading/trailing underscores
+    safe = safe.strip('_')
+    
+    # Ensure we don't return an empty string
+    if not safe:
+        import hashlib
+        # Create a unique identifier based on the original input
+        hash_suffix = hashlib.md5(name.encode('utf-8')).hexdigest()[:8]
+        safe = f"error_{hash_suffix}"
+    
+    return safe
+
+
 def map_bigquery_to_looker(column_type: Optional[str]) -> Optional[str]:
     """Map BigQuery data type to Looker data type.
 

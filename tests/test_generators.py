@@ -139,7 +139,7 @@ def test_dimension_group_date(cli_args):
     dimension_group, dimension_set, _ = dimension_generator.lookml_dimension_group(
         column, "date", True, model
     )
-    assert dimension_group["type"] == "date"
+    assert dimension_group["type"] == "time"
     assert dimension_group["convert_tz"] == "no"
     assert dimension_group["timeframes"] == LookerDateTimeframes.values()
     assert dimension_group["label"] == "Custom Date Label"

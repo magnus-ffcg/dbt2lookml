@@ -8,6 +8,7 @@ except ImportError:
     from importlib_metadata import version
 
 import lkml
+from typing import Dict
 from rich.logging import RichHandler
 
 from dbt2lookml.exceptions import CliError
@@ -208,8 +209,10 @@ class Cli:
     def parse(self, args):
         """parse dbt models"""
         try:
-            manifest: dict = self._file_handler.read(os.path.join(args.target_dir, 'manifest.json'))
-            catalog: dict = self._file_handler.read(os.path.join(args.target_dir, 'catalog.json'))
+            manifest: Dict = self._file_handler.read(
+                os.path.join(args.target_dir, 'manifest.json'))
+            catalog: Dict = self._file_handler.read(
+                os.path.join(args.target_dir, 'catalog.json'))
 
             parser = DbtParser(args, manifest, catalog)
             return parser.get_models()

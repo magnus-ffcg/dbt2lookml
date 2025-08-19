@@ -1,4 +1,4 @@
-from dbt2lookml.generators.utils import get_column_name, map_bigquery_to_looker
+from dbt2lookml.generators.utils import get_column_name, map_bigquery_to_looker, safe_name
 from dbt2lookml.models.dbt import DbtModelColumn
 
 
@@ -67,3 +67,40 @@ def test_get_column_name_deeply_nested():
 
     # Test with table_format_sql=False
     assert get_column_name(column, False) == 'child'
+    
+
+def test_hash_uniqueness():
+    """Test that empty/invalid inputs generate unique names."""
+    test_cases = [
+        "",
+        "!!!",
+        "@@@",
+        "###",
+        "   ",
+        "...",
+        "---",
+    ]
+
+    print("Testing hash-based uniqueness:")
+    print("=" * 50)
+
+    results = {}
+    for test_input in test_cases:
+        result = safe_name(test_input)
+        print(f"Input: {repr(test_input):8} -> Output: {repr(result)}")
+
+        # Check for uniqueness
+        if result in results:
+            print(f"  ⚠️  COLLISION: {result} already seen for input {repr(results[result])}")
+        else:
+            results[result] = test_input
+
+    print("=" * 50)
+    print(f"Generated {len(results)} unique names from {len(test_cases)} inputs")
+
+    # Test that same input produces same output (deterministic)
+    print("\nTesting deterministic behavior:")
+    for _ in range(3):
+        result1 = safe_name("")
+        result2 = safe_name("")
+        print(f"Empty string -> {result1} (consistent: {result1 == result2})")

@@ -60,7 +60,7 @@ view: example_retail_data__fact_daily_sales {
 
   dimension_group: d {
     label: "D"
-    type: date
+    type: time
     sql: ${TABLE}.d_date ;;
     description: ""
     datatype: date

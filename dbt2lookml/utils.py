@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Dict, Union
 
 from dbt2lookml.exceptions import CliError
 
@@ -11,7 +11,7 @@ from dbt2lookml.exceptions import CliError
 class FileHandler:
     """Handles file operations for reading and writing files."""
 
-    def read(self, file_path: Union[str, Path], is_json: bool = True) -> Union[dict, str]:
+    def read(self, file_path: Union[str, Path], is_json: bool = True) -> Dict:
         """Load file from disk.
 
         Args:

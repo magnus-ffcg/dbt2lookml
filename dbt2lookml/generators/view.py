@@ -32,12 +32,25 @@ class LookmlViewGenerator:
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
             model, exclude_names=exclude_names
         )
+        
+        # Get dimension groups
+        dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(
+            model, exclude_names=exclude_names
+        )
+        dimension_groups = dimension_groups_result.get('dimension_groups', [])
+        
+        # Comment out conflicting timeframes in dimension groups
+        if dimensions and dimension_groups:
+            dimension_groups = dimension_generator._comment_conflicting_timeframes(dimensions, dimension_groups)
+        
+        # Clean dimension groups for output (remove internal fields)
+        if dimension_groups:
+            dimension_groups = dimension_generator._clean_dimension_groups_for_output(dimension_groups)
+        
         if dimensions:
             view['dimensions'] = dimensions
 
-        if dimension_groups := dimension_generator.lookml_dimension_groups_from_model(
-            model, exclude_names=exclude_names
-        ).get('dimension_groups'):
+        if dimension_groups:
             view['dimension_groups'] = dimension_groups
 
         if measures := measure_generator.lookml_measures_from_model(
@@ -128,6 +141,7 @@ class LookmlViewGenerator:
         measure_generator,
     ) -> Dict:
         """Generate a view for a model."""
+        
         main_view = self._create_main_view(
             model, view_name, view_label, exclude_names, dimension_generator, measure_generator
         )
