@@ -192,7 +192,6 @@ class LookerJoinType(str, ExtendedEnum):
 
 class DbtResourceType(str, ExtendedEnum):
     """Type of dbt resource."""
-
     MODEL = 'model'
     SEED = 'seed'
     SNAPSHOT = 'snapshot'
