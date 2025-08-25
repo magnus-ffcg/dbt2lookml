@@ -67,9 +67,6 @@ view: fact_daily_sales_v1 {
     timeframes: [
       raw,
       date,
-      day_of_month,
-      day_of_week,
-      day_of_week_index,
       week,
       week_of_year,
       month,
@@ -92,11 +89,14 @@ view: fact_daily_sales_v1 {
     timeframes: [
       raw,
       time,
-      time_of_day,
       date,
       week,
+      week_of_year,
       month,
+      month_num,
+      month_name,
       quarter,
+      quarter_of_year,
       year,
     ]
     group_label: "Md Insert Dttm"
@@ -107,9 +107,6 @@ view: fact_daily_sales_v1 {
     fields: [
       d_raw,
       d_date,
-      d_day_of_month,
-      d_day_of_week,
-      d_day_of_week_index,
       d_week,
       d_week_of_year,
       d_month,
@@ -127,11 +124,14 @@ view: fact_daily_sales_v1 {
     fields: [
       md_insert_dttm_raw,
       md_insert_dttm_time,
-      md_insert_dttm_time_of_day,
       md_insert_dttm_date,
       md_insert_dttm_week,
+      md_insert_dttm_week_of_year,
       md_insert_dttm_month,
+      md_insert_dttm_month_num,
+      md_insert_dttm_month_name,
       md_insert_dttm_quarter,
+      md_insert_dttm_quarter_of_year,
       md_insert_dttm_year,
     ]
   }

@@ -152,9 +152,6 @@ class LookerScalarTypes(str, ExtendedEnum):
 class LookerDateTimeframes(str, ExtendedEnum):
     RAW = "raw"
     DATE = "date"
-    DAY_OF_MONTH = "day_of_month"
-    DAY_OF_WEEK = "day_of_week"
-    DAY_OF_WEEK_INDEX = "day_of_week_index"
     WEEK = "week"
     WEEK_OF_YEAR = "week_of_year"
     MONTH = "month"
@@ -168,12 +165,19 @@ class LookerDateTimeframes(str, ExtendedEnum):
 class LookerTimeTimeframes(str, ExtendedEnum):
     RAW = "raw"
     TIME = "time"
-    TIME_OF_DAY = "time_of_day"
     DATE = "date"
     WEEK = "week"
+    WEEK_OF_YEAR = "week_of_year"
     MONTH = "month"
+    MONTH_NUM = "month_num"
+    MONTH_NAME = "month_name"
     QUARTER = "quarter"
+    QUARTER_OF_YEAR = "quarter_of_year"
     YEAR = "year"
+
+
+class LookerExtendedTimeFrames(str, ExtendedEnum):
+    pass
 
 
 class LookerRelationshipType(str, ExtendedEnum):
