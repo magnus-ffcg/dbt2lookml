@@ -31,7 +31,6 @@ class DbtMetaLookerBase(BaseModel):
 
 class DbtMetaLookerDimension(DbtMetaLookerBase):
     """Looker-specific metadata for a dimension on a dbt model column.
-
     Example:
         meta:
             looker:
@@ -62,13 +61,11 @@ class DbtMetaLookerMeasure(DbtMetaLookerBase):
 
     # Required fields
     type: LookerMeasureType
-
     # Common optional fields
     name: Optional[str] = None
     group_label: Optional[str] = None
     value_format_name: Optional[LookerValueFormatName] = None
     filters: Optional[List[DbtMetaLookerMeasureFilter]] = None
-
     # Fields specific to certain measure types
     approximate: Optional[bool] = None  # For count_distinct
     approximate_threshold: Optional[int] = None  # For count_distinct
@@ -80,7 +77,6 @@ class DbtMetaLookerMeasure(DbtMetaLookerBase):
     def validate_measure_attributes(self) -> "DbtMetaLookerMeasure":
         """Validate that measure attributes are compatible with the measure type."""
         measure_type = self.type
-
         # Validate type-specific attributes
         if (
             any(
@@ -93,22 +89,18 @@ class DbtMetaLookerMeasure(DbtMetaLookerBase):
                 "approximate, approximate_threshold, and sql_distinct_key can only be used with "
                 "count_distinct measures"
             )
-
         if self.percentile is not None and not measure_type.value.startswith("percentile"):
             raise ValueError("percentile can only be used with percentile measures")
-
         if self.precision is not None and measure_type not in [
             LookerMeasureType.AVERAGE,
             LookerMeasureType.SUM,
         ]:
             raise ValueError("precision can only be used with average or sum measures")
-
         return self
 
 
 class DbtMetaLookerJoin(BaseModel):
     """Looker-specific metadata for joins on a dbt model.
-
     Example:
         meta:
           looker:

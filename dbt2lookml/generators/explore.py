@@ -26,7 +26,6 @@ class LookmlExploreGenerator:
 
         def recurse(parent: DbtModelColumn, all_columns: list[DbtModelColumn], level=0):
             structure = {'column': parent, 'children': []}
-
             for column in all_columns:
                 if column.data_type in ('ARRAY', 'STRUCT'):
                     # If ARRAY<INT64> or likeworthy
@@ -51,21 +50,18 @@ class LookmlExploreGenerator:
                         )
                 else:
                     structure['children'].append({column.name: {'column': column, 'children': []}})
-
             return structure
 
         for parent in array_columns:
             nested_columns[parent.name] = recurse(
                 parent, [d for d in all_columns if remove_parts(d.name) == parent.name]
             )
-
         return nested_columns
 
     def recurse_joins(self, structure: dict, model: DbtModel) -> list[dict[str, Any]]:
         """Recursively build joins for nested structures."""
         if not structure:
             return []
-
         join_list: list[dict[str, Any]] = []
         for parent, children in structure.items():
             # Use table name from relation_name if use_table_name is True
@@ -75,10 +71,8 @@ class LookmlExploreGenerator:
                 else model.name
             )
             view_name = f"{base_name}__{parent.replace('.', '__')}"
-
             # Create SQL join for array unnesting
             join_sql = f'LEFT JOIN UNNEST(${{{base_name}.{parent}}}) AS {view_name}'
-
             # Add to list
             join_list.append(
                 {
@@ -89,7 +83,6 @@ class LookmlExploreGenerator:
                     'required_joins': [],  # No required joins for top-level arrays
                 }
             )
-
             # Process nested arrays within this array
             for child_structure in children['children']:
                 for child_name, child_dict in child_structure.items():
@@ -97,7 +90,6 @@ class LookmlExploreGenerator:
                         child_view_name = f"{base_name}__{child_name.replace('.', '__')}"
                         join_name = f"${{{view_name}.{child_name.split('.')[-1]}}}"
                         join_sql = f'LEFT JOIN UNNEST({join_name}) AS {child_view_name}'
-
                         join_list.append(
                             {
                                 'name': child_view_name,
@@ -107,10 +99,8 @@ class LookmlExploreGenerator:
                                 'required_joins': [view_name],  # This join requires the parent view
                             }
                         )
-
                         # Recursively process any deeper nested arrays
                         join_list.extend(self.recurse_joins(child_structure, model))
-
         return join_list
 
     def generate(
@@ -119,7 +109,6 @@ class LookmlExploreGenerator:
         """Create the explore definition."""
         # Get nested structure for joins
         structure = self._group_strings(list(model.columns.values()), array_models)
-
         # Create explore
         explore: dict[str, Any] = {
             'name': view_name,
@@ -127,10 +116,8 @@ class LookmlExploreGenerator:
             'from': view_name,
             'hidden': 'no',
         }
-
         # Add joins if present
         if joins := self.recurse_joins(structure, model):
             logging.debug(f"Adding {len(joins)} joins to explore")
             explore['joins'] = joins
-
         return explore

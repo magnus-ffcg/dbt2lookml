@@ -17,3 +17,8 @@ Recent and upcoming changes to dbt2lookml
 ## v0.2.4
 
 - Introduced a conflict check for dimension groups that might create conflicts with regular dimensions names. Those timeframes will then be commented out.
+
+## v0.2.5
+
+- Introduced a config file.
+- Added possibility to override timeseries.

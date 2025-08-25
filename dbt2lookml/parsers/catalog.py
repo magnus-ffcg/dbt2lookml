@@ -38,7 +38,6 @@ class CatalogParser:
                     processed_columns[column_name] = self._create_missing_array_column(
                         column_name, column.data_type, column.inner_types or []
                     )
-
         # Always return the model, even if no columns were processed
         return (
             model.model_copy(update={'columns': processed_columns}) if processed_columns else model
@@ -63,11 +62,9 @@ class CatalogParser:
         """Get column type information from catalog."""
         if model_id not in self._catalog.nodes:
             return None, []
-
         catalog_node = self._catalog.nodes[model_id]
         if column_name not in catalog_node.columns:
             return None, []
-
         column = catalog_node.columns[column_name]
         return column.data_type, column.inner_types or []
 

@@ -22,6 +22,14 @@ Generate Looker view files automatically from dbt models in BigQuery. Tested wit
 - 🔗 Automatic join detection and generation
 - 📝 Custom measure definition support
 - 🌐 Locale file generation support
+- ⚙️ YAML configuration file support
+- 🎯 Advanced model filtering (include/exclude lists)
+- 📅 Customizable timeframes for date/time dimensions
+- 🏛️ ISO week and year fields support
+- 🔧 Conflict resolution for dimension names
+- 🏗️ Nested structure support for complex data types
+- 📊 Enhanced measure types and precision settings
+- 🛡️ Error handling with continue-on-error mode
 
 ## Installation
 
@@ -51,6 +59,15 @@ poetry install
 
 ## Usage Examples
 
+### Basic Usage
+```bash
+# Generate all views
+dbt2lookml --target-dir target --output-dir output
+
+# Using configuration file
+dbt2lookml --config config.yaml
+```
+
 ### Filter by Tags
 ```bash
 # Generate views for models tagged 'prod'
@@ -63,6 +80,18 @@ dbt2lookml --target-dir target --output-dir output --tag prod
 dbt2lookml --target-dir target --output-dir output --select test
 ```
 
+### Advanced Model Filtering
+```bash
+# Include specific models
+dbt2lookml --target-dir target --output-dir output --include-models customer_model order_model
+
+# Exclude specific models
+dbt2lookml --target-dir target --output-dir output --exclude-models test_model dev_model
+
+# Combine filters
+dbt2lookml --target-dir target --output-dir output --tag analytics --exclude-models legacy_*
+```
+
 ### Work with Exposures
 ```bash
 # Generate views for exposed models only
@@ -72,16 +101,22 @@ dbt2lookml --target-dir target --output-dir output --exposures-only
 dbt2lookml --target-dir target --output-dir output --exposures-only --exposures-tag looker
 ```
 
-### Additional Options
+### Date/Time Configuration
 ```bash
-# Skip explore generation
+# Include ISO week and year fields
+dbt2lookml --target-dir target --output-dir output --include-iso-fields
+
+# Skip explore generation for nested structures
 dbt2lookml --target-dir target --output-dir output --skip-explore
 
 # Use table names instead of model names
 dbt2lookml --target-dir target --output-dir output --use-table-name
 
-# Generate locale file
+# Generate locale files
 dbt2lookml --target-dir target --output-dir output --generate-locale
+
+# Continue on error
+dbt2lookml --target-dir target --output-dir output --continue-on-error
 ```
 
 ## Integration Example
@@ -96,6 +131,56 @@ Here's how you might integrate dbt2lookml in a production workflow:
 6. Import views in main Looker project
 
 ## Configuration
+
+### YAML Configuration File
+
+Use a YAML configuration file to manage complex settings:
+
+```yaml
+# config.yaml
+target_dir: "./target"
+output_dir: "./lookml"
+log_level: "INFO"
+
+# Model filtering
+tag: "analytics"
+include_models:
+  - "customer_model"
+  - "order_model"
+exclude_models:
+  - "test_model"
+  - "dev_model"
+
+# LookML generation options
+use_table_name: false
+skip_explore: false
+generate_locale: false
+continue_on_error: true
+
+# Custom timeframes
+timeframes:
+  date:
+    - "raw"
+    - "date"
+    - "week"
+    - "month"
+    - "quarter"
+    - "year"
+  time:
+    - "raw"
+    - "time"
+    - "date"
+    - "week"
+    - "month"
+    - "year"
+
+# Advanced options
+remove_schema_string: "my_project_"
+exposures_only: false
+exposures_tag: "production"
+```
+
+Use with: `dbt2lookml --config config.yaml`
 
 ### Defining Looker Metadata
 
@@ -113,15 +198,35 @@ models:
               hidden: true
               label: "Page URL"
               group_label: "Page Info"
+              value_format_name: decimal_0
+              convert_tz: true
+              can_filter: true
             measures:
               - type: count_distinct
                 sql_distinct_key: ${url}
                 label: "Unique Pages"
+                approximate: true
+                approximate_threshold: 1000
               - type: count
                 value_format_name: decimal_1
                 label: "Total Page Views"
+                filters:
+                  - filter_dimension: status
+                    filter_expression: "completed"
+      - name: revenue
+        meta:
+          looker:
+            measures:
+              - type: sum
+                precision: 2
+                label: "Total Revenue"
+              - type: average
+                precision: 2
+                label: "Average Revenue"
     meta:
       looker:
+        label: "Page Analytics"
+        description: "Page view analytics with user data"
         joins:
           - join: users
             sql_on: "${users.id} = ${model-name.user_id}"
@@ -132,21 +237,33 @@ models:
 #### Supported Metadata Options
 
 ##### Dimension Options
-- `hidden`: Boolean
-- `label`: String
-- `group_label`: String
-- `value_format_name`: String
+- `hidden`: Boolean - Hide dimension from field picker
+- `label`: String - Custom label for the dimension
+- `group_label`: String - Group dimensions under this label
+- `value_format_name`: String - Format for displaying values
+- `convert_tz`: Boolean - Convert timezone for datetime fields
+- `can_filter`: Boolean/String - Control filtering capabilities
+- `timeframes`: Array - Custom timeframes for dimension groups
 
 ##### Measure Options
-- `type`: String (count, sum, average, etc.)
-- `sql_distinct_key`: String
-- `value_format_name`: String
-- `filters`: Array of filter objects
+- `type`: String - Measure type (count, sum, average, count_distinct, etc.)
+- `sql_distinct_key`: String - Key for distinct counts
+- `value_format_name`: String - Format for displaying values
+- `filters`: Array - Filter objects with `filter_dimension` and `filter_expression`
+- `approximate`: Boolean - Use approximate algorithms for count_distinct
+- `approximate_threshold`: Integer - Threshold for approximate algorithms
+- `precision`: Integer - Decimal precision for average/sum measures
+- `percentile`: Integer - Percentile value for percentile measures
 
 ##### Join Options
-- `sql_on`: String (join condition)
-- `type`: String (left_outer, inner, etc.)
-- `relationship`: String (many_to_one, one_to_many, etc.)
+- `sql_on`: String - SQL condition for the join
+- `type`: String - Join type (left_outer, inner, right_outer, full_outer)
+- `relationship`: String - Relationship type (many_to_one, one_to_many, one_to_one)
+
+##### View Options
+- `hidden`: Boolean - Hide entire view from field picker
+- `label`: String - Custom label for the view
+- `description`: String - Description for the view
 
 ## Contributing
 

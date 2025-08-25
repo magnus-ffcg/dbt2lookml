@@ -27,51 +27,44 @@ class LookmlViewGenerator:
             'label': view_label,
             'sql_table_name': model.relation_name,
         }
-
         # Add dimensions
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
             model, exclude_names=exclude_names
         )
-        
         # Get dimension groups
         dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(
             model, exclude_names=exclude_names
         )
         dimension_groups = dimension_groups_result.get('dimension_groups', [])
-        
         # Comment out conflicting timeframes in dimension groups
         if dimensions and dimension_groups:
-            dimension_groups = dimension_generator._comment_conflicting_timeframes(dimensions, dimension_groups)
-        
+            dimension_groups = dimension_generator._comment_conflicting_timeframes(
+                dimensions, dimension_groups
+            )
         # Clean dimension groups for output (remove internal fields)
         if dimension_groups:
-            dimension_groups = dimension_generator._clean_dimension_groups_for_output(dimension_groups)
-        
+            dimension_groups = dimension_generator._clean_dimension_groups_for_output(
+                dimension_groups
+            )
         if dimensions:
             view['dimensions'] = dimensions
-
         if dimension_groups:
             view['dimension_groups'] = dimension_groups
-
         if measures := measure_generator.lookml_measures_from_model(
             model, exclude_names=exclude_names
         ):
             view['measures'] = measures
-
         if sets := dimension_generator.lookml_dimension_groups_from_model(
             model, exclude_names=exclude_names
         ).get('dimension_group_sets'):
             view['sets'] = sets
-
         if hidden := model._get_meta_looker('view', 'hidden'):
             view['hidden'] = 'yes' if hidden else 'no'
-
         return view
 
     def _is_yes_no(self, model: DbtModel) -> str:
         """Check if model should be hidden."""
         hidden = 'no'
-
         if (
             model.meta is not None
             and model.meta.looker is not None
@@ -80,7 +73,6 @@ class LookmlViewGenerator:
             and hasattr(model.meta.looker.view, 'hidden')
         ):
             hidden = 'yes' if model.meta.looker.view.hidden else 'no'
-
         return hidden
 
     def _create_nested_view(
@@ -100,34 +92,28 @@ class LookmlViewGenerator:
             nested_view_name = f"{relationship_name}__{array_model_name}"
         else:
             nested_view_name = f"{base_name}__{array_model.name.replace('.', '__')}"
-
         include_names = [array_model.name]
         for col in model.columns.values():
             if col.name.startswith(f"{array_model.name}."):
                 include_names.append(col.name)
-
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
             model, include_names=include_names
         )
         nested_view = {'name': nested_view_name, 'label': view_label}
         if dimensions:
             nested_view['dimensions'] = dimensions
-
         if dimension_groups := dimension_generator.lookml_dimension_groups_from_model(
             model, include_names=include_names
         ).get('dimension_groups'):
             nested_view['dimension_groups'] = dimension_groups
-
         if measures := measure_generator.lookml_measures_from_model(
             model, include_names=include_names
         ):
             nested_view['measures'] = measures
-
         if sets := dimension_generator.lookml_dimension_groups_from_model(
             model, include_names=include_names
         ).get('dimension_group_sets'):
             nested_view['sets'] = sets
-
         return nested_view
 
     def generate(
@@ -141,17 +127,13 @@ class LookmlViewGenerator:
         measure_generator,
     ) -> Dict:
         """Generate a view for a model."""
-        
         main_view = self._create_main_view(
             model, view_name, view_label, exclude_names, dimension_generator, measure_generator
         )
-
         views = [main_view]
-
         for array_model in array_models:
             nested_view = self._create_nested_view(
                 model, view_name, array_model, view_label, dimension_generator, measure_generator
             )
             views.append(nested_view)
-
         return views

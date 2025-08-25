@@ -24,7 +24,6 @@ class DbtParser:
         """Parse dbt models from manifest and filter by criteria."""
         # Get all models
         all_models = self._model_parser.get_all_models()
-
         # Get exposed models if needed
         exposed_names = None
         if (
@@ -34,19 +33,18 @@ class DbtParser:
             and self._cli_args.exposures_tag
         ):
             exposed_names = self._exposure_parser.get_exposures(self._cli_args.exposures_tag)
-
         # Filter models based on criteria
         filtered_models = self._model_parser.filter_models(
             all_models,
             select_model=self._cli_args.select if hasattr(self._cli_args, 'select') else None,
             tag=self._cli_args.tag if hasattr(self._cli_args, 'tag') else None,
             exposed_names=exposed_names,
+            include_models=getattr(self._cli_args, 'include_models', None),
+            exclude_models=getattr(self._cli_args, 'exclude_models', None),
         )
-
         # Process models (update with catalog info)
         processed_models = []
         for model in filtered_models:
             if processed_model := self._catalog_parser.process_model_columns(model):
                 processed_models.append(processed_model)
-
         return processed_models

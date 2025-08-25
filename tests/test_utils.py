@@ -15,11 +15,9 @@ class TestFileHandler:
         """Test reading a JSON file."""
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
             json.dump({'test': 'data'}, f)
-
         handler = FileHandler()
         result = handler.read(f.name)
         os.unlink(f.name)
-
         assert result == {'test': 'data'}
 
     def test_read_text_file(self):
@@ -27,11 +25,9 @@ class TestFileHandler:
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
             f.write('test data')
             f.flush()
-
         handler = FileHandler()
         result = handler.read(f.name, is_json=False)
         os.unlink(f.name)
-
         assert result == 'test data'
 
     def test_read_nonexistent_file(self):
@@ -48,7 +44,6 @@ class TestFileHandler:
             with open(f.name, 'r') as f2:
                 content = f2.read()
         os.unlink(f.name)
-
         assert content == 'test content'
 
 

@@ -1,5 +1,4 @@
 """Schema parsing functionality for BigQuery schema strings.
-
 This module provides tools for parsing BigQuery schema strings into structured
 field definitions. It handles nested structures (STRUCT) and complex types (ARRAY)
 while maintaining the hierarchical relationships between fields.
@@ -37,7 +36,6 @@ class SchemaParser:
         """Extracts content within angle brackets."""
         current: List[str] = []
         level = 0
-
         for char in text:
             if char == '<':
                 level += 1
@@ -46,7 +44,6 @@ class SchemaParser:
                 if level < 0:
                     break
             current.append(char)
-
         return ''.join(current).strip()
 
     def _split_fields(self, text: str) -> List[str]:
@@ -54,7 +51,6 @@ class SchemaParser:
         result: List[str] = []
         current: List[str] = []
         level = 0
-
         for char in f'{text},':
             if char == '<':
                 level += 1
@@ -66,7 +62,6 @@ class SchemaParser:
                 current = []
                 continue
             current.append(char)
-
         return [f for f in result if f]
 
     def _normalize_type(self, type_str: str) -> str:
@@ -118,7 +113,6 @@ class SchemaParser:
         for content_field in self._split_fields(content):
             name, type_str = content_field.split(' ', 1)
             inner, type_prefix, has_struct = self._process_type(type_str.strip())
-
             if has_struct:
                 self._add_field(name, type_prefix)
                 with self._path_context(name):
@@ -130,11 +124,9 @@ class SchemaParser:
         """Parses a BigQuery schema string into a list of field definitions."""
         self._fields = []
         self._current_path = []
-
         inner, type_prefix, has_struct = self._process_type(schema_str)
         if has_struct:
             self._process_fields(inner)
         else:
             self._fields.append(SchemaField(name="", type_str=type_prefix, path=[]))
-
         return sorted(str(field) for field in self._fields)

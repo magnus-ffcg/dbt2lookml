@@ -55,7 +55,6 @@ class DbtExposureRef(BaseModel):
 
 class DbtDependsOn(BaseModel):
     """A model for dependencies between dbt objects.
-
     Contains lists of macros and nodes that an object depends on.
     """
 
@@ -105,17 +104,14 @@ class DbtCatalogNodeColumn(BaseModel):
         def truncate_before_character(string, character):
             # Find the position of the character in the string.
             pos = string.find(character)
-
             # If found, return everything up to that point.
             return string[:pos] if pos != -1 else string
 
         data_type = truncate_before_character(column_type, '<')
         values['data_type'] = truncate_before_character(data_type, '(')
-
         inner_types = schema_parser.parse(column_type)
         if inner_types and inner_types != column_type:
             values['inner_types'] = inner_types
-
         return values
 
 
@@ -172,7 +168,6 @@ class DbtModelColumn(DbtBaseModel):
     @classmethod
     def set_nested_and_parent_name(cls, values):
         name = values.get('name', '')
-
         # If there's a dot in the name, it's a nested field
         if '.' in name:
             values['nested'] = True
@@ -187,12 +182,10 @@ class DbtModelColumn(DbtBaseModel):
     @classmethod
     def set_primary_key(cls, values):
         constraints = values.get('constraints', [])
-
         # if there is a primary key in constraints
         if {'type': 'primary_key'} in constraints:
             logging.debug('Found primary key on %s model', values['name'])
             values['is_primary_key'] = True
-
         return values
 
 
@@ -204,7 +197,6 @@ class DbtModelMeta(BaseModel):
 
 class DbtModel(DbtNode):
     """A dbt model representing a SQL transformation.
-
     Contains information about the model's structure, columns, and metadata.
     """
 
@@ -240,7 +232,6 @@ class DbtModel(DbtNode):
 
 class DbtManifestMetadata(BaseModel):
     """Metadata about a dbt manifest.
-
     Contains information about the dbt adapter type and ensures it's supported.
     """
 
@@ -260,7 +251,6 @@ class DbtManifestMetadata(BaseModel):
 
 class DbtManifest(BaseModel):
     """A dbt manifest containing nodes, metadata, and exposures.
-
     The manifest is the main entry point for accessing dbt project information.
     """
 

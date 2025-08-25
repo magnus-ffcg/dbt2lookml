@@ -7,7 +7,6 @@ from dbt2lookml.cli import Cli
 class TestIntegration:
     def test_integration_skip_explore_joins_and_use_table_name(self):
         expected_content = Path('tests/expected/test1.view.lkml').read_text()
-
         # Initialize and run CLI
         cli = Cli()
         parser = cli._init_argparser()
@@ -21,6 +20,7 @@ class TestIntegration:
                 'example_retail_data__fact_daily_sales',
                 "--use-table-name",
                 "--skip-explore",
+                "--include-iso-fields",
             ]
         )
         assert not args.build_explore
@@ -33,7 +33,6 @@ class TestIntegration:
 
     def test_integration_skip_explore_joins(self):
         expected_content = Path('tests/expected/test2.view.lkml').read_text()
-
         # Initialize and run CLI
         cli = Cli()
         parser = cli._init_argparser()
@@ -46,6 +45,7 @@ class TestIntegration:
                 "--select",
                 'example_retail_data__fact_daily_sales',
                 "--skip-explore",
+                "--include-iso-fields",
             ]
         )
         assert not args.build_explore
@@ -58,7 +58,6 @@ class TestIntegration:
 
     def test_integration_with_an_explore(self):
         expected_content = Path('tests/expected/test3.view.lkml').read_text()
-
         # Initialize and run CLI
         cli = Cli()
         parser = cli._init_argparser()
@@ -70,9 +69,9 @@ class TestIntegration:
                 'output/tests/',
                 "--select",
                 'example_retail_data__fact_daily_sales',
+                "--include-iso-fields",
             ]
         )
-
         assert args.build_explore
         self._assert_integration_test(
             cli,

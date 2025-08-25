@@ -89,7 +89,6 @@ def test_dimension_group_time(cli_args):
         description="Test model",
         tags=[],
     )
-
     column = DbtModelColumn(
         name="created_at",
         lookml_name="created_at",
@@ -97,7 +96,6 @@ def test_dimension_group_time(cli_args):
         data_type="TIMESTAMP",
         meta=DbtModelColumnMeta(),
     )
-
     dimension_generator = LookmlDimensionGenerator(cli_args)
     result = dimension_generator.lookml_dimension_group(column, "time", True, model)
     assert isinstance(result[0], dict)
@@ -121,7 +119,6 @@ def test_dimension_group_date(cli_args):
         description="Test model",
         tags=[],
     )
-
     column = DbtModelColumn(
         name="created_date",
         lookml_name="created_date",
@@ -135,7 +132,6 @@ def test_dimension_group_date(cli_args):
             )
         ),
     )
-
     dimension_group, dimension_set, _ = dimension_generator.lookml_dimension_group(
         column, "date", True, model
     )
@@ -145,7 +141,6 @@ def test_dimension_group_date(cli_args):
     assert dimension_group["label"] == "Custom Date Label"
     assert dimension_group["group_label"] == "Custom Group"
     assert dimension_group["name"] == "created"  # _date removed
-
     assert dimension_set["name"] == "s_created"
     assert all(
         tf in dimension_set["fields"]
@@ -186,7 +181,6 @@ def test_lookml_dimensions_with_metadata(cli_args):
         description="Test model",
         tags=[],
     )
-
     dimensions, _ = dimension_generator.lookml_dimensions_from_model(model)
     assert len(dimensions) == 1
     dimension = dimensions[0]
@@ -231,7 +225,6 @@ def test_lookml_measures_from_model(cli_args):
         description="Test model",
         tags=[],
     )
-
     measures = measure_generator.lookml_measures_from_model(model)
     assert len(measures) == 1
     measure = measures[0]
@@ -279,7 +272,6 @@ def test_lookml_measures_with_filters(cli_args):
         description="Test model",
         tags=[],
     )
-
     measures = measure_generator.lookml_measures_from_model(model)
     assert len(measures) == 1
     measure = measures[0]

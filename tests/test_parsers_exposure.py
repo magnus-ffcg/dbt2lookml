@@ -37,12 +37,10 @@ class TestExposureParser:
         exposed_names = parser.get_exposures()
         assert len(exposed_names) == 1
         assert exposed_names == ["model1"]
-
         # Test with matching tag
         exposed_names = parser.get_exposures(exposures_tag="analytics_dashboard")
         assert len(exposed_names) == 1
         assert exposed_names == ["model1"]
-
         # Test with non-matching tag
         exposed_names = parser.get_exposures(exposures_tag="non_existent_tag")
         assert len(exposed_names) == 0

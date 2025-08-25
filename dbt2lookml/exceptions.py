@@ -3,10 +3,8 @@ from typing import Optional
 
 class CliError(Exception):
     """Base exception for CLI errors.
-
     This exception is raised when there are errors during CLI operations,
     such as file I/O errors or parsing errors.
-
     Attributes:
         message: The error message
         details: Optional additional error details

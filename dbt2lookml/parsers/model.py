@@ -16,14 +16,12 @@ class ModelParser:
     def get_all_models(self) -> List[DbtModel]:
         """Get all models from manifest."""
         all_models = self._filter_nodes_by_type(self._manifest.nodes, 'model')
-
         for model in all_models:
             if not hasattr(model, 'name'):
                 logging.error(
                     'Cannot parse model with id: "%s" - is the model file empty?', model.unique_id
                 )
                 continue
-
         return all_models
 
     def filter_models(
@@ -32,19 +30,21 @@ class ModelParser:
         select_model: Optional[str] = None,
         tag: Optional[str] = None,
         exposed_names: Optional[List[str]] = None,
+        include_models: Optional[List[str]] = None,
+        exclude_models: Optional[List[str]] = None,
     ) -> List[DbtModel]:
         """Filter models based on multiple criteria."""
         filtered = models_list
-
         if select_model:
             return [model for model in filtered if model.name == select_model]
-
         if tag:
             filtered = [model for model in filtered if self._tags_match(tag, model)]
-
         if exposed_names and len(exposed_names) > 0:
             filtered = [model for model in filtered if model.name in exposed_names]
-
+        if include_models and len(include_models) > 0:
+            filtered = [model for model in filtered if model.name in include_models]
+        if exclude_models and len(exclude_models) > 0:
+            filtered = [model for model in filtered if model.name not in exclude_models]
         return filtered
 
     def _filter_nodes_by_type(self, nodes: Dict, resource_type: str) -> List[DbtModel]:

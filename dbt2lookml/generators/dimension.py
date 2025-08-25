@@ -1,7 +1,8 @@
 """LookML dimension generator module."""
 
-from typing import Any, Dict, List, Optional, Tuple
 import logging
+from typing import Any, Dict, List, Optional, Tuple
+
 from dbt2lookml.enums import (
     LookerDateTimeframes,
     LookerDateTimeTypes,
@@ -11,6 +12,7 @@ from dbt2lookml.enums import (
 )
 from dbt2lookml.generators.utils import get_column_name, map_bigquery_to_looker
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
+
 from . import utils
 
 
@@ -20,6 +22,8 @@ class LookmlDimensionGenerator:
     def __init__(self, args):
         """Initialize the generator with CLI arguments."""
         self._cli_args = args
+        self._custom_timeframes = getattr(args, 'timeframes', {})
+        self._include_iso_fields = getattr(args, 'include_iso_fields', False)
 
     def _get_conflicting_timeframes(
         self,
@@ -28,36 +32,30 @@ class LookmlDimensionGenerator:
         original_column_name: str = None,
     ) -> List[str]:
         """Get timeframes that would conflict with existing dimensions.
-
         Args:
             dimension_group: The dimension group to check
             existing_dimension_names: Set of existing dimension names
             original_column_name: Original column name before _date removal
-
         Returns:
             List of timeframes that would create conflicts
         """
         group_name = dimension_group.get("name")
         group_type = dimension_group.get("type")
-
         if not (group_name and group_type == "time"):
             return []
-
         # Determine if this is a date or time dimension group
         looker_type = "date" if dimension_group.get("datatype") == "date" else "time"
-
+        # Allow any timeframe from extended set or use custom timeframes
         if looker_type == "date":
-            timeframes = LookerDateTimeframes.values()
+            timeframes = self._custom_timeframes.get('date', LookerDateTimeframes.values())
         elif looker_type == "time":
-            timeframes = LookerTimeTimeframes.values()
+            timeframes = self._custom_timeframes.get('time', LookerTimeTimeframes.values())
         else:
             return []
-
         # Find conflicting timeframes
         conflicting_timeframes = []
         for timeframe in timeframes:
             generated_name = f"{group_name}_{timeframe}"
-
             # Check for direct conflicts with the generated name
             if generated_name in existing_dimension_names:
                 conflicting_timeframes.append(timeframe)
@@ -69,36 +67,29 @@ class LookmlDimensionGenerator:
             ):
                 # Only conflict if the original column name exactly matches what would be generated
                 conflicting_timeframes.append(timeframe)
-
         return conflicting_timeframes
 
     def _comment_conflicting_timeframes(
         self, dimensions: List[Dict[str, Any]], dimension_groups: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Comment out conflicting timeframes in dimension groups.
-
         Args:
             dimensions: List of existing dimensions
             dimension_groups: List of dimension groups to process
-
         Returns:
             List of dimension groups with conflicting timeframes commented out
         """
         existing_dimension_names = {dim.get("name") for dim in dimensions if dim.get("name")}
-
         processed_groups = []
-
         for dim_group in dimension_groups:
             original_column_name = dim_group.get("_original_column_name")
             conflicting_timeframes = self._get_conflicting_timeframes(
                 dim_group, existing_dimension_names, original_column_name
             )
-
             if conflicting_timeframes:
                 # Create a copy of the dimension group
                 processed_group = dim_group.copy()
                 current_timeframes = processed_group.get("timeframes", [])
-
                 # Create new timeframes list with commented conflicts
                 new_timeframes = []
                 for tf in current_timeframes:
@@ -107,10 +98,8 @@ class LookmlDimensionGenerator:
                         new_timeframes.append(f"# {tf}  # skipped due to conflicting dimension")
                     else:
                         new_timeframes.append(tf)
-
                 processed_group["timeframes"] = new_timeframes
                 processed_groups.append(processed_group)
-
                 # Log the commented timeframes for debugging
                 logging.debug(
                     f"Dimension group '{dim_group.get('name')}': "
@@ -119,17 +108,14 @@ class LookmlDimensionGenerator:
             else:
                 # No conflicts, keep the dimension group as-is
                 processed_groups.append(dim_group)
-
         return processed_groups
 
     def _clean_dimension_groups_for_output(
         self, dimension_groups: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Remove internal fields from dimension groups before LookML output.
-
         Args:
             dimension_groups: List of dimension groups to clean
-
         Returns:
             List of dimension groups with internal fields removed
         """
@@ -143,11 +129,9 @@ class LookmlDimensionGenerator:
 
     def _format_label(self, name: Optional[str] = None, remove_date: bool = True) -> str:
         """Format a name into a human-readable label.
-
         Args:
             name: The name to format
             remove_date: Whether to remove '_date' from the name
-
         Returns:
             Formatted label string
         """
@@ -161,7 +145,6 @@ class LookmlDimensionGenerator:
         self, target_dict: Dict[str, Any], column: DbtModelColumn, attributes: List[str]
     ) -> None:
         """Apply meta attributes from column to target dictionary if they exist.
-
         Args:
             target_dict: Dictionary to update with meta attributes
             column: Column containing meta attributes
@@ -183,12 +166,10 @@ class LookmlDimensionGenerator:
         self, field_type: str, column: DbtModelColumn, sql: str
     ) -> Dict[str, Any]:
         """Create an ISO year or week field.
-
         Args:
             field_type: Type of ISO field (year or week)
             column: Column to create field from
             sql: SQL expression for the field
-
         Returns:
             Dictionary containing ISO field definition
         """
@@ -209,10 +190,8 @@ class LookmlDimensionGenerator:
 
     def _get_looker_type(self, column: DbtModelColumn) -> str:
         """Get the category of a column's type.
-
         Args:
             column: Column to get type for
-
         Returns:
             Type category (scalar, date, time)
         """
@@ -227,27 +206,21 @@ class LookmlDimensionGenerator:
         self, column: DbtModelColumn, sql: str, is_hidden: bool = False
     ) -> Optional[Dict[str, Any]]:
         """Create a basic dimension dictionary.
-
         Args:
             column: Column to create dimension from
             sql: SQL expression for the dimension
             is_hidden: Whether the dimension is hidden
-
         Returns:
             Dictionary containing dimension definition
         """
         data_type = map_bigquery_to_looker(column.data_type)
         if data_type is None:
             return None
-
         dimension: Dict[str, Any] = {"name": utils.safe_name(column.lookml_name)}
-
         # Add type for scalar types (should come before sql)
         if data_type in LookerScalarTypes.values():
             dimension["type"] = data_type
-
         dimension |= {"sql": sql, "description": column.description or ""}
-
         # Add primary key attributes
         if column.is_primary_key:
             dimension["primary_key"] = "yes"
@@ -255,7 +228,6 @@ class LookmlDimensionGenerator:
             dimension["value_format_name"] = "id"
         elif is_hidden:
             dimension["hidden"] = "yes"
-
         # Handle array and struct types
         if "ARRAY" in f"{column.data_type}":
             dimension["hidden"] = "yes"
@@ -264,46 +236,39 @@ class LookmlDimensionGenerator:
         elif "STRUCT" in f"{column.data_type}":
             dimension["hidden"] = "no"
             dimension["tags"] = ["struct"]
-
         # Apply meta looker attributes
         self._apply_meta_looker_attributes(
             dimension,
             column,
             ["description", "group_label", "value_format_name", "label", "hidden"],
         )
-
         return dimension
 
     def lookml_dimension_group(
         self, column: DbtModelColumn, looker_type: str, table_format_sql: bool, model: DbtModel
     ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], List[Dict[str, Any]]]:
         """Create dimension group for date/time fields.
-
         Args:
             column: Column to create dimension group from
             looker_type: Type of dimension group (date, time)
             table_format_sql: Whether to format SQL for table
             model: Model containing column
-
         Returns:
             Tuple containing dimension group, dimension group set, and dimensions
         """
         if map_bigquery_to_looker(column.data_type) is None:
             return None, None, None
-
         if looker_type == "date":
             convert_tz = "no"
-            timeframes = LookerDateTimeframes.values()
+            timeframes = self._custom_timeframes.get('date', LookerDateTimeframes.values())
             column_name_adjusted = column.name.replace("_date", "")
         elif looker_type == "time":
             convert_tz = "yes"
-            timeframes = LookerTimeTimeframes.values()
+            timeframes = self._custom_timeframes.get('time', LookerTimeTimeframes.values())
             column_name_adjusted = column.name.replace("_date", "")
         else:
             return None, None, None
-
         sql = get_column_name(column, table_format_sql)
-
         dimensions = []
         dimension_group = {
             "name": column_name_adjusted,
@@ -320,10 +285,9 @@ class LookmlDimensionGenerator:
             ),
             "convert_tz": convert_tz,
             # Track original column name for conflict detection
-            "_original_column_name": column.name
+            "_original_column_name": column.name,
         }
         self._apply_meta_looker_attributes(dimension_group, column, ["group_label", "label"])
-
         dimension_group_set = {
             "name": f"s_{column_name_adjusted}",
             "fields": [
@@ -331,42 +295,35 @@ class LookmlDimensionGenerator:
                 for looker_time_timeframe in timeframes
             ],
         }
-
-        if looker_type == "date":
+        if looker_type == "date" and self._include_iso_fields:
             iso_year = self._create_iso_field("year", column, sql)
             iso_week_of_year = self._create_iso_field("week_of_year", column, sql)
             dimensions = [iso_year, iso_week_of_year]
             dimension_group_set["fields"].extend(
                 [f"{column.name}_iso_year", f"{column.name}_iso_week_of_year"]
             )
-
         return dimension_group, dimension_group_set, dimensions
 
     def _get_dimension_group_generated_names(self, column_name: str, looker_type: str) -> List[str]:
         """Get all dimension names that would be generated by a dimension group.
-
         Args:
             column_name: Base name of the column (with _date suffix removed)
             looker_type: Type of dimension group (date or time)
-
         Returns:
             List of dimension names that would be generated
         """
         if looker_type == "date":
-            timeframes = LookerDateTimeframes.values()
+            timeframes = self._custom_timeframes.get('date', LookerDateTimeframes.values())
         elif looker_type == "time":
-            timeframes = LookerTimeTimeframes.values()
+            timeframes = self._custom_timeframes.get('time', LookerTimeTimeframes.values())
         else:
             return []
-
         return [f"{column_name}_{timeframe}" for timeframe in timeframes]
 
     def _create_single_array_dimension(self, column: DbtModelColumn) -> Dict[str, Any]:
         """Create a dimension for a simple array type.
-
         Args:
             column: Column to create dimension from
-
         Returns:
             Dictionary containing dimension definition
         """
@@ -380,10 +337,8 @@ class LookmlDimensionGenerator:
 
     def _is_single_type_array(self, column: DbtModelColumn) -> bool:
         """Check if column is a simple array type.
-
         Args:
             column: Column to check
-
         Returns:
             Whether column is a simple array type
         """
@@ -395,7 +350,6 @@ class LookmlDimensionGenerator:
         self, model: DbtModel, dimensions: List[Dict[str, Any]], table_format_sql: bool = True
     ):
         """Add dimensions to dimension groups.
-
         Args:
             model: Model containing dimensions
             dimensions: List of dimensions to add
@@ -416,12 +370,10 @@ class LookmlDimensionGenerator:
         exclude_names: Optional[List[str]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Generate dimensions from model.
-
         Args:
             model: Model to generate dimensions from
             include_names: List of names to include
             exclude_names: List of names to exclude
-
         Returns:
             Tuple containing dimensions and nested dimensions
         """
@@ -430,16 +382,13 @@ class LookmlDimensionGenerator:
         dimensions: List[Dict[str, Any]] = []
         table_format_sql = True
         nested_dimensions: List[Dict[str, Any]] = []
-
         # First add ISO date dimensions for main view only
         if not include_names:  # Only for main view
             self._add_dimension_to_dimension_group(model, dimensions, table_format_sql)
-
         # Then add regular dimensions
         for column in model.columns.values():
             if include_names:
                 table_format_sql = False
-
                 # For nested views, only include fields that are children of the parent
                 # or the parent itself if it's a simple array
                 parent = include_names[0] if include_names else None
@@ -451,23 +400,17 @@ class LookmlDimensionGenerator:
                     continue
                 elif not column.name.startswith(f"{parent}."):
                     continue
-
             if column.name in exclude_names or column.data_type == "DATETIME":
                 continue
-
             # Skip date dimensions since we handled them above
             if column.data_type == "DATE" and not include_names:
                 continue
-
             if column.data_type is None:
                 continue
-
             column_name = get_column_name(column, table_format_sql)
             dimension = self._create_dimension(column, column_name)
-
             if dimension is not None:
                 dimensions.append(dimension)
-
         return dimensions, nested_dimensions
 
     def lookml_dimension_groups_from_model(
@@ -477,12 +420,10 @@ class LookmlDimensionGenerator:
         exclude_names: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Generate dimension groups from model.
-
         Args:
             model: Model to generate dimension groups from
             include_names: List of names to include
             exclude_names: List of names to exclude
-
         Returns:
             Dictionary containing dimension groups and dimension group sets
         """
@@ -491,14 +432,11 @@ class LookmlDimensionGenerator:
         dimension_groups = []
         dimension_group_sets = []
         table_format_sql = not include_names
-
         for column in model.columns.values():
             if include_names and column.name not in include_names:
                 continue
-
             if exclude_names and column.name in exclude_names:
                 continue
-
             looker_type = self._get_looker_type(column)
             if looker_type in ("time", "date"):
                 dimension_group, dimension_group_set, dimensions = self.lookml_dimension_group(
@@ -511,7 +449,6 @@ class LookmlDimensionGenerator:
                     dimension_groups.append(dimension_group)
                 if dimension_group_set:
                     dimension_group_sets.append(dimension_group_set)
-
         return {
             "dimension_groups": dimension_groups or None,
             "dimension_group_sets": dimension_group_sets or None,

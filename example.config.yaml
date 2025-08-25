@@ -1,0 +1,62 @@
+# Example dbt2lookml configuration file
+# This file can be used with the --config parameter to override CLI arguments
+# All CLI parameters are supported here
+
+# File paths (override default target directory)
+target_dir: "./target"
+output_dir: "./lookml"
+
+# Logging
+log_level: "INFO"
+
+# Model filtering
+tag: "analytics"
+select: "specific_model_name"
+include_models:
+  - "customer_model"
+  - "order_model"
+  - "user_model"
+exclude_models:
+  - "test_model"
+  - "dev_model"
+
+# LookML generation options
+use_table_name: false
+skip_explore: false
+generate_locale: false
+continue_on_error: true
+
+# Timeframes configuration
+# You can specify any combination of Looker timeframes
+# Both basic and extended timeframes are supported
+
+# Default timeframes (complete set from enums)
+timeframes:
+  date:
+    - "raw"
+    - "date"
+    - "week"
+    - "week_of_year"
+    - "month"
+    - "month_num"
+    - "month_name"
+    - "quarter"
+    - "quarter_of_year"
+    - "year"
+  time:
+    - "raw"
+    - "time"
+    - "date"
+    - "week"
+    - "week_of_year"
+    - "month"
+    - "month_num"
+    - "month_name"
+    - "quarter"
+    - "quarter_of_year"
+    - "year"
+
+# Advanced options
+remove_schema_string: "my_project_"
+exposures_only: false
+exposures_tag: "production"

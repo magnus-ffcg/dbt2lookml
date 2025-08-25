@@ -70,17 +70,14 @@ class TestModelParser:
     def test_filter_models(self, parser):
         """Test filtering models with various criteria."""
         all_models = parser.get_all_models()
-
         # Test filtering by select_model
         filtered = parser.filter_models(all_models, select_model="model1")
         assert len(filtered) == 1
         assert filtered[0].name == "model1"
-
         # Test filtering by tag
         filtered = parser.filter_models(all_models, tag="analytics")
         assert len(filtered) == 1
         assert filtered[0].name == "model1"
-
         # Test filtering by exposed_names
         filtered = parser.filter_models(all_models, exposed_names=["model1"])
         assert len(filtered) == 1

@@ -45,7 +45,6 @@ class TestCatalogParser:
         data_type, inner_types = parser._get_catalog_column_info("model.test.model1", "id")
         assert data_type == "INT64"
         assert inner_types == ["INT64"]
-
         # Test non-existent model/column
         data_type, inner_types = parser._get_catalog_column_info("non.existent.model", "id")
         assert data_type is None
@@ -56,7 +55,6 @@ class TestCatalogParser:
         column = parser._create_missing_array_column(
             column_name="test_array", data_type="ARRAY<STRING>", inner_types=["STRING"]
         )
-
         assert column.name == "test_array"
         assert column.data_type == "ARRAY<STRING>"
         assert column.inner_types == ["STRING"]
@@ -90,7 +88,6 @@ class TestCatalogParser:
             path="models/test.sql",
             tags=[],  # Add empty tags list
         )
-
         processed_model = parser.process_model_columns(model)
         assert processed_model is not None
         assert processed_model.columns["id"].data_type == "INT64"

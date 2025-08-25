@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dbt2lookml"
-version = "0.2.4"
+version = "0.2.5"
 description = "Generate lookml views from bigquery via dbt models"
 authors = []
 readme = "README.md"
