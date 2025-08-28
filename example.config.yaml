@@ -21,7 +21,7 @@ exclude_models:
   - "dev_model"
 
 # LookML generation options
-use_table_name: false
+use_table_name: true
 skip_explore: false
 generate_locale: false
 continue_on_error: true

@@ -62,17 +62,36 @@ class LookmlExploreGenerator:
         """Recursively build joins for nested structures."""
         if not structure:
             return []
+
+        # Import centralized camel_to_snake function
+        from dbt2lookml.utils import camel_to_snake
+
         join_list: list[dict[str, Any]] = []
         for parent, children in structure.items():
             # Use table name from relation_name if use_table_name is True
+            # Make sure to use lowercase to match view naming convention
             base_name = (
-                model.relation_name.split('.')[-1].strip('`')
+                model.relation_name.split('.')[-1].strip('`').lower()
                 if self._cli_args.use_table_name
-                else model.name
+                else model.name.lower()
             )
-            view_name = f"{base_name}__{parent.replace('.', '__')}"
+
+            # Find the original column to get the CamelCase name
+            parent_column = model.columns.get(parent)
+            if parent_column and parent_column.original_name:
+                original_parent_name = parent_column.original_name
+            else:
+                original_parent_name = parent
+
+            # Convert parent to snake_case using original CamelCase name
+            snake_parent = '__'.join([camel_to_snake(part) for part in original_parent_name.split('.')])
+            view_name = f"{base_name}__{snake_parent}"
+
+            # Use the same snake_case conversion for dimension name using original name
+            dimension_name = camel_to_snake(original_parent_name.split('.')[-1])
+
             # Create SQL join for array unnesting
-            join_sql = f'LEFT JOIN UNNEST(${{{base_name}.{parent}}}) AS {view_name}'
+            join_sql = f'LEFT JOIN UNNEST(${{{base_name}.{dimension_name}}}) AS {view_name}'
             # Add to list
             join_list.append(
                 {

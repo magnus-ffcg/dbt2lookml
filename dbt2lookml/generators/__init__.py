@@ -22,9 +22,11 @@ class LookmlGenerator:
 
     def _get_view_label(self, model: DbtModel) -> str:
         """Get the view label from the model metadata or name."""
-        # Check looker meta label first
-        if hasattr(model.meta.looker, 'label') and model.meta.looker.label is not None:
-            return model.meta.looker.label
+        # Check looker meta view label first
+        if (hasattr(model.meta, 'looker') and model.meta.looker is not None and
+            hasattr(model.meta.looker, 'view') and model.meta.looker.view is not None and
+            hasattr(model.meta.looker.view, 'label') and model.meta.looker.view.label is not None):
+            return model.meta.looker.view.label
         # Fall back to model name if available
         return model.name.replace("_", " ").title() if hasattr(model, 'name') else None
 
@@ -33,7 +35,7 @@ class LookmlGenerator:
         return [
             column
             for column in columns
-            if column.data_type is not None and column.data_type == 'ARRAY'
+            if column.data_type is not None and 'ARRAY' in str(column.data_type).upper()
         ]
 
     def _get_excluded_array_names(self, model: DbtModel, array_models: list) -> list:
@@ -46,6 +48,18 @@ class LookmlGenerator:
                 for col in model.columns.values()
                 if col.name.startswith(f"{array_model.name}.")
             )
+
+        # Only exclude STRUCT parent fields that are arrays (not regular nested fields)
+        for col in model.columns.values():
+            if "ARRAY" in str(col.data_type) and col.data_type == "STRUCT":
+                # Check if this STRUCT has nested children
+                has_children = any(
+                    other_col.name.startswith(f"{col.name}.")
+                    for other_col in model.columns.values()
+                )
+                if has_children:
+                    exclude_names.append(col.name)
+
         return exclude_names
 
     def _get_file_path(self, model: DbtModel, view_name: str) -> str:
@@ -64,7 +78,7 @@ class LookmlGenerator:
             # When using table names, use the directory structure from the model path
             # but don't include the model name in the path
             directory = os.path.dirname(model.path)
-            file_name = model.relation_name.split('.')[-1].strip('`')
+            file_name = model.relation_name.split('.')[-1].strip('`').lower()
             return os.path.join(directory, f'{file_name}.view.lkml')
         else:
             # Original behavior for model names
@@ -84,11 +98,11 @@ class LookmlGenerator:
         """
         # Get view name
         view_name = (
-            model.relation_name.split('.')[-1].strip('`')
+            model.relation_name.split('.')[-1].strip('`').lower()
             if self._cli_args.use_table_name
-            else model.name
+            else model.name.lower()
         )
-        # Get view label
+        # Get view label - use the helper method to get proper label
         view_label = self._get_view_label(model)
         # Get array models and structure
         array_models = self._extract_array_models(list(model.columns.values()))
@@ -105,7 +119,7 @@ class LookmlGenerator:
         )
         # Create LookML base
         lookml = {
-            'view': [views],
+            'view': views,
         }
         # Create explore if needed
         if (

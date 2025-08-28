@@ -288,8 +288,12 @@ class Cli:
     def parse(self, args):
         """parse dbt models"""
         try:
-            manifest: Dict = self._file_handler.read(os.path.join(args.target_dir, 'manifest.json'))
-            catalog: Dict = self._file_handler.read(os.path.join(args.target_dir, 'catalog.json'))
+            # Use custom paths if provided, otherwise fall back to target_dir
+            manifest_path = args.manifest_path if args.manifest_path else os.path.join(args.target_dir, 'manifest.json')
+            catalog_path = args.catalog_path if args.catalog_path else os.path.join(args.target_dir, 'catalog.json')
+            
+            manifest: Dict = self._file_handler.read(manifest_path)
+            catalog: Dict = self._file_handler.read(catalog_path)
             parser = DbtParser(args, manifest, catalog)
             return parser.get_models()
         except FileNotFoundError as e:

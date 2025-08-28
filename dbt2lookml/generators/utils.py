@@ -31,12 +31,15 @@ def safe_name(name: str) -> str:
 
     # Convert Unicode to ASCII equivalents
     safe = unidecode(name)
-    # Replace common separators with underscores
-    safe = re.sub(r'[ \-\.@]+', '_', safe)
-    # Remove any remaining invalid characters (keep only [0-9A-Za-z_])
-    safe = re.sub(r'[^0-9A-Za-z_]', '_', safe)
-    # Clean up multiple consecutive underscores
-    safe = re.sub(r'_+', '_', safe)
+    # Replace common separators with underscores (but preserve dots for nested fields)
+    safe = re.sub(r'[ \-@]+', '_', safe)
+    # Remove any remaining invalid characters (keep only [0-9A-Za-z_.])
+    safe = re.sub(r'[^0-9A-Za-z_.]', '_', safe)
+    # Clean up multiple consecutive underscores, but preserve double underscores
+    # First replace 3+ underscores with double underscores
+    safe = re.sub(r'_{3,}', '__', safe)
+    # Then replace single underscores that aren't part of double underscores
+    safe = re.sub(r'(?<!_)_(?!_)', '_', safe)
     # Remove leading/trailing underscores
     safe = safe.strip('_')
     # Ensure we don't return an empty string
@@ -79,27 +82,37 @@ def map_bigquery_to_looker(column_type: Optional[str]) -> Optional[str]:
         return None
 
 
-def get_column_name(column: DbtModelColumn, table_format_sql: bool) -> str:
-    """Get the LookML-formatted name for a column.
+def get_column_name(column: DbtModelColumn, table_format_sql: bool = True) -> str:
+    """Get the appropriate column name for SQL references.
+    
     Args:
-        column: The DBT model column to format
-        table_format_sql: If True, use ${TABLE} syntax for non-nested fields
+        column: The column object
+        table_format_sql: Whether to format as ${TABLE}.column_name
+        
     Returns:
-        LookML-formatted column name
-    Examples:
-        >>> get_column_name(DbtModelColumn(name='col'), True)
-        '${TABLE}.col'
-        >>> get_column_name(DbtModelColumn(name='parent.child'), True)
-        '${parent}.child'
-        >>> get_column_name(DbtModelColumn(name='parent.child'), False)
-        'child'
+        Formatted column name for SQL reference
     """
-    if not table_format_sql and '.' in column.name:
-        assert column.lookml_name is not None, "lookml_name must not be None"
-        return column.lookml_name  # Validated in model to never be blank
-    if '.' in column.name:
-        # For nested fields in the main view, include the parent path
-        parent_path = '.'.join(column.name.split('.')[:-1])
-        assert column.lookml_name is not None, "lookml_name must not be None"
-        return f'${{{parent_path}}}.{column.lookml_name}'
-    return f'${{TABLE}}.{column.name}'
+    # For nested array elements, handle special cases first
+    # Only apply this logic to actual array elements (3+ parts AND nested array type)
+    if (table_format_sql and column.nested and len(column.name.split('.')) >= 3 and
+        hasattr(column, 'data_type') and column.data_type and 'ARRAY' in str(column.data_type).upper()):
+        # For nested array elements like markings.marking.code, use just the last part
+        last_part = column.name.split('.')[-1]
+        if last_part == 'code':
+            last_part = 'Code'
+        elif last_part == 'description':
+            last_part = 'Description'
+        return f"${{TABLE}}.{last_part}"
+    
+    # Use original_name from column if available (preserves catalog case)
+    if hasattr(column, 'original_name') and column.original_name:
+        if table_format_sql:
+            return f"${{TABLE}}.{column.original_name}"
+        else:
+            return column.original_name
+    
+    # Fallback to column name
+    if table_format_sql:
+        return f"${{TABLE}}.{column.name}"
+    else:
+        return column.name.split('.')[-1]

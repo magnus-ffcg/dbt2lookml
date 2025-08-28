@@ -17,7 +17,7 @@ class DbtParser:
         self._catalog = DbtCatalog(**raw_catalog)
         self._manifest = DbtManifest(**raw_manifest)
         self._model_parser = ModelParser(self._manifest)
-        self._catalog_parser = CatalogParser(self._catalog)
+        self._catalog_parser = CatalogParser(self._catalog, raw_catalog)
         self._exposure_parser = ExposureParser(self._manifest)
 
     def get_models(self) -> List[DbtModel]:

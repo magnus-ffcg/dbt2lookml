@@ -2,10 +2,46 @@
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Optional, Union
 
 from dbt2lookml.exceptions import CliError
+
+
+
+
+
+def camel_to_snake(name: str) -> str:
+    """Convert CamelCase to snake_case.
+    
+    Args:
+        name: The name to convert (can be CamelCase or already lowercase)
+        
+    Returns:
+        The name converted to snake_case
+        
+    Examples:
+        >>> camel_to_snake('SupplierInformation')
+        'supplier_information'
+        >>> camel_to_snake('ItemGroup')
+        'item_group'
+        >>> camel_to_snake('SimpleField')
+        'simple_field'
+    """
+    if not name:
+        return name
+    
+    # Standard CamelCase to snake_case conversion
+    # Insert underscore before uppercase letters that follow lowercase letters or digits
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    # Insert underscore before uppercase letters that follow lowercase letters or digits
+    s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
+    # Handle consecutive uppercase letters (e.g., SOI -> soi, not s_o_i)
+    s3 = re.sub('([A-Z])([A-Z][a-z])', r'\1_\2', s2)
+    # Clean up multiple consecutive underscores
+    s4 = re.sub('_+', '_', s3)
+    return s4.lower()
 
 
 class FileHandler:

@@ -153,12 +153,8 @@ class LookerDateTimeframes(str, ExtendedEnum):
     RAW = "raw"
     DATE = "date"
     WEEK = "week"
-    WEEK_OF_YEAR = "week_of_year"
     MONTH = "month"
-    MONTH_NUM = "month_num"
-    MONTH_NAME = "month_name"
     QUARTER = "quarter"
-    QUARTER_OF_YEAR = "quarter_of_year"
     YEAR = "year"
 
 
@@ -167,12 +163,8 @@ class LookerTimeTimeframes(str, ExtendedEnum):
     TIME = "time"
     DATE = "date"
     WEEK = "week"
-    WEEK_OF_YEAR = "week_of_year"
     MONTH = "month"
-    MONTH_NUM = "month_num"
-    MONTH_NAME = "month_name"
     QUARTER = "quarter"
-    QUARTER_OF_YEAR = "quarter_of_year"
     YEAR = "year"
 
 
