@@ -28,17 +28,21 @@ def camel_to_snake(name: str) -> str:
         'item_group'
         >>> camel_to_snake('SimpleField')
         'simple_field'
+        >>> camel_to_snake('GTINId')
+        'gtin_id'
+        >>> camel_to_snake('GTINType')
+        'gtin_type'
     """
     if not name:
         return name
     
-    # Standard CamelCase to snake_case conversion
-    # Insert underscore before uppercase letters that follow lowercase letters or digits
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    # Handle acronym-word combinations like GTINId, GTINType
+    # Insert underscore between consecutive uppercase letters followed by lowercase
+    s1 = re.sub('([A-Z]+)([A-Z][a-z])', r'\1_\2', name)
     # Insert underscore before uppercase letters that follow lowercase letters or digits
     s2 = re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1)
-    # Handle consecutive uppercase letters (e.g., SOI -> soi, not s_o_i)
-    s3 = re.sub('([A-Z])([A-Z][a-z])', r'\1_\2', s2)
+    # Handle remaining CamelCase patterns
+    s3 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', s2)
     # Clean up multiple consecutive underscores
     s4 = re.sub('_+', '_', s3)
     return s4.lower()

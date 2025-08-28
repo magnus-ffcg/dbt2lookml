@@ -232,7 +232,7 @@ class TestNestedLkmlGeneration:
                 assert generated_rel == expected_rel, f"Join relationship mismatch for {expected_join['name']}"
                 assert 'UNNEST' in generated_join.get('sql', ''), f"Join SQL should contain UNNEST for {expected_join['name']}"
 
-    def test_generate_sales_waste_lkml_from_real_samples(self):
+    def test_generate_sales_waste_lkml(self):
         """Test generating LKML for sales waste model from real samples without explore"""
 
         # Initialize and run CLI
@@ -241,7 +241,7 @@ class TestNestedLkmlGeneration:
         args = parser.parse_args(
             [
                 "--target-dir",
-                "real_samples",
+                "tests/fixtures/data",
                 "--output-dir",
                 "output/tests/",
                 "--select",
@@ -277,7 +277,7 @@ class TestNestedLkmlGeneration:
         args = parser.parse_args(
             [
                 "--target-dir",
-                "real_samples",
+                "tests/fixtures/data",
                 "--output-dir",
                 "output/tests/",
                 "--select",

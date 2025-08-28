@@ -278,7 +278,7 @@ class TestLookmlDimensionGeneratorExtended:
         dimension = self.generator._create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
         
         assert dimension["name"] == "classification__item_group__code"
-        assert dimension["group_label"] == "Classification Item Group"
+        assert dimension["group_label"] == "Classification Item group"
         assert dimension["group_item_label"] == "Code"
 
     def test_create_dimension_with_primary_key(self):
@@ -436,7 +436,7 @@ class TestLookmlDimensionGeneratorExtended:
         """Test _create_item_label with edge cases."""
         assert self.generator._create_item_label("") == ""
         assert self.generator._create_item_label("simple") == "Simple"
-        assert self.generator._create_item_label("camelCase") == "Camel Case"
+        assert self.generator._create_item_label("camelCase") == "Camel case"
 
     def test_is_single_type_array(self):
         """Test _is_single_type_array method."""

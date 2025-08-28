@@ -106,7 +106,7 @@ def test_create_dimension_nested_fields(generator):
     dimension = generator._create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
     
     assert dimension["name"] == "classification__item_group__code"
-    assert dimension["group_label"] == "Classification Item Group"
+    assert dimension["group_label"] == "Classification Item group"
     assert dimension["group_item_label"] == "Code"
 
 

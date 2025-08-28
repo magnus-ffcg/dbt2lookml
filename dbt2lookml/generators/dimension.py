@@ -226,7 +226,15 @@ class LookmlDimensionGenerator:
                 dimension["group_label"] = group_label
 
                 # Add group item label from the last part
-                last_part = parts[-1]
+                # Use original_name if available to preserve CamelCase, otherwise fall back to name
+                if column.original_name and '.' in column.original_name:
+                    original_parts = column.original_name.split('.')
+                    if len(original_parts) == len(parts):
+                        last_part = original_parts[-1]
+                    else:
+                        last_part = parts[-1]
+                else:
+                    last_part = parts[-1]
                 dimension["group_item_label"] = self._create_item_label(last_part)
 
         # Add primary key attributes
@@ -294,6 +302,7 @@ class LookmlDimensionGenerator:
             "timeframes": timeframes,
             "group_label": ("D Date" if column_name_adjusted == "d" else f"{self._format_label(column.lookml_name)}"),
             "convert_tz": convert_tz,
+            "_original_column_name": column.name,  # Store original column name for conflict detection
         }
         # Only add description if it's not None
         if column.description is not None:
@@ -349,23 +358,44 @@ class LookmlDimensionGenerator:
             result = '__'.join(snake_parts)
         else:
             # Single field - remove date suffix first, then segment and convert
-            if column_name.endswith('Date'):
+            # Special case: if column name is exactly "Date", don't remove the suffix
+            if column_name == 'Date':
+                result = 'date'  # Keep as 'date' for dimension_group name
+            elif column_name == 'date':
+                result = 'date'  # Keep as 'date' for dimension_group name
+            elif column_name.endswith('Date'):
                 base_name = column_name[:-4]  # Remove 'Date'
+                # Clean up trailing underscores from base_name first
+                base_name = base_name.rstrip('_')
+                
+                # Only convert what we can reliably handle
+                if base_name.islower() and '_' not in base_name:
+                    # Pure lowercase concatenated words - keep as-is
+                    result = base_name
+                else:
+                    # CamelCase or snake_case - can convert reliably
+                    result = camel_to_snake(base_name)
             elif column_name.lower().endswith('date'):
                 base_name = column_name[:-4]  # Remove 'date' or '_date'
+                # Clean up trailing underscores from base_name first
+                base_name = base_name.rstrip('_')
+                
+                # Only convert what we can reliably handle
+                if base_name.islower() and '_' not in base_name:
+                    # Pure lowercase concatenated words - keep as-is
+                    result = base_name
+                else:
+                    # CamelCase or snake_case - can convert reliably
+                    result = camel_to_snake(base_name)
             else:
                 base_name = column_name
-
-            # Clean up trailing underscores from base_name first
-            base_name = base_name.rstrip('_')
-
-            # Only convert what we can reliably handle
-            if base_name.islower() and '_' not in base_name:
-                # Pure lowercase concatenated words - keep as-is
-                result = base_name
-            else:
-                # CamelCase or snake_case - can convert reliably
-                result = camel_to_snake(base_name)
+                # Only convert what we can reliably handle
+                if base_name.islower() and '_' not in base_name:
+                    # Pure lowercase concatenated words - keep as-is
+                    result = base_name
+                else:
+                    # CamelCase or snake_case - can convert reliably
+                    result = camel_to_snake(base_name)
 
         # Clean up any trailing underscores
         result = result.rstrip('_')
@@ -402,7 +432,7 @@ class LookmlDimensionGenerator:
             from dbt2lookml.utils import camel_to_snake
 
             snake_case = camel_to_snake(part)
-            title_case = snake_case.replace('_', ' ').title()
+            title_case = snake_case.replace('_', ' ').capitalize()
             formatted_parts.append(title_case)
 
         return ' '.join(formatted_parts)
@@ -411,7 +441,7 @@ class LookmlDimensionGenerator:
         from dbt2lookml.utils import camel_to_snake
 
         snake_case = camel_to_snake(item)
-        return snake_case.replace('_', ' ').title()
+        return snake_case.replace('_', ' ').capitalize()
 
     def _create_single_array_dimension(self, column: DbtModelColumn) -> Dict[str, Any]:
         """Create a dimension for a simple array type.
