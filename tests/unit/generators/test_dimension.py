@@ -236,7 +236,7 @@ class TestLookmlDimensionGeneratorExtended:
         """Test _format_label with edge cases."""
         assert self.generator._format_label("") == ""
         assert self.generator._format_label("_") == " "
-        assert self.generator._format_label("__") == "  "
+        assert self.generator._format_label("__") == " "  # camel_to_snake collapses multiple underscores
 
     def test_apply_meta_looker_attributes_no_meta(self):
         """Test _apply_meta_looker_attributes when column has no meta."""

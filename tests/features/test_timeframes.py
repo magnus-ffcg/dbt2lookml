@@ -8,7 +8,7 @@ import yaml
 
 sys.path.insert(0, os.path.dirname(__file__))
 from dbt2lookml.cli import Cli
-from dbt2lookml.enums import LookerExtendedTimeFrames
+from dbt2lookml.enums import LookerTimeFrames
 
 
 class MockArgs:
@@ -20,7 +20,7 @@ def test_extended_timeframes_in_config():
     """Test that all LookerExtendedTimeFrames can be used in config file."""
     cli = Cli()
     # Create a temporary config file with all extended timeframes
-    extended_timeframes = list(LookerExtendedTimeFrames.values())
+    extended_timeframes = list(LookerTimeFrames.values())
     config_data = {'timeframes': {'date': extended_timeframes, 'time': extended_timeframes}}
     # Write to temporary file
     with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:

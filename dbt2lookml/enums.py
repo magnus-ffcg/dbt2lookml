@@ -168,61 +168,6 @@ class LookerTimeTimeframes(str, ExtendedEnum):
     YEAR = "year"
 
 
-class LookerExtendedTimeFrames(str, ExtendedEnum):
-    """Extended timeframes for date/time dimensions in Looker."""
-
-    # Basic timeframes
-    RAW = "raw"
-    TIME = "time"
-    DATE = "date"
-    # Hour-based timeframes
-    HOUR = "hour"
-    HOUR_OF_DAY = "hour_of_day"
-    HOUR2 = "hour2"
-    HOUR3 = "hour3"
-    HOUR4 = "hour4"
-    HOUR6 = "hour6"
-    HOUR8 = "hour8"
-    HOUR12 = "hour12"
-    # Minute-based timeframes
-    MINUTE = "minute"
-    MINUTE2 = "minute2"
-    MINUTE5 = "minute5"
-    MINUTE10 = "minute10"
-    MINUTE15 = "minute15"
-    MINUTE30 = "minute30"
-    # Second-based timeframes
-    SECOND = "second"
-    # Day-based timeframes
-    DAY_OF_WEEK = "day_of_week"
-    DAY_OF_WEEK_INDEX = "day_of_week_index"
-    DAY_OF_MONTH = "day_of_month"
-    DAY_OF_YEAR = "day_of_year"
-    # Week-based timeframes
-    WEEK = "week"
-    WEEK_OF_YEAR = "week_of_year"
-    # Month-based timeframes
-    MONTH = "month"
-    MONTH_NUM = "month_num"
-    MONTH_NAME = "month_name"
-    # Quarter-based timeframes
-    QUARTER = "quarter"
-    QUARTER_OF_YEAR = "quarter_of_year"
-    # Year-based timeframes
-    YEAR = "year"
-    # Fiscal timeframes
-    FISCAL_QUARTER = "fiscal_quarter"
-    FISCAL_QUARTER_OF_YEAR = "fiscal_quarter_of_year"
-    FISCAL_YEAR = "fiscal_year"
-    # Relative timeframes
-    YES_NO = "yes_no"
-    AGO = "ago"
-    FROM_NOW = "from_now"
-    # Additional combinations
-    WEEK_OF_YEAR_ISO = "week_of_year_iso"
-    DAY_OF_WEEK_ISO = "day_of_week_iso"
-
-
 class LookerRelationshipType(str, ExtendedEnum):
     MANY_TO_ONE = "many_to_one"
     MANY_TO_MANY = "many_to_many"

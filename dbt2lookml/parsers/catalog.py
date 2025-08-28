@@ -99,13 +99,14 @@ class CatalogParser:
         self, column_name: str, data_type: str, inner_types: List[str]
     ) -> DbtModelColumn:
         """Create a new column model for array columns missing from manifest."""
+        from dbt2lookml.utils import camel_to_snake
         return DbtModelColumn(
             name=column_name,
             data_type=data_type,
             inner_types=inner_types,
             description=None,
             meta=DbtModelColumnMeta(),
-            lookml_name=column_name,
+            lookml_name=camel_to_snake(column_name.split('.')[-1]),
             original_name=column_name,
         )
 
@@ -113,13 +114,14 @@ class CatalogParser:
         self, column_name: str, data_type: str, comment: str, original_column_name: str = None
     ) -> DbtModelColumn:
         """Create a new column model for nested struct fields missing from manifest."""
+        from dbt2lookml.utils import camel_to_snake
         return DbtModelColumn(
             name=column_name,
             data_type=data_type,
             inner_types=[],
             description=comment,
             meta=DbtModelColumnMeta(),
-            lookml_name=column_name,
+            lookml_name=camel_to_snake(column_name.split('.')[-1]),
             original_name=original_column_name or column_name,
         )
 

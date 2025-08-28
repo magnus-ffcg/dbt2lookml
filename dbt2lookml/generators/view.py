@@ -35,10 +35,11 @@ class LookmlViewGenerator:
         dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(
             model, exclude_names=exclude_names
         )
+        conflicting_dimensons = []
         dimension_groups = dimension_groups_result.get('dimension_groups', [])
-        # Comment out conflicting timeframes in dimension groups
+        # Comment out conflicting regular dimensions instead of timeframes
         if dimensions and dimension_groups:
-            dimension_groups = dimension_generator._comment_conflicting_timeframes(
+            dimensions, conflicting_dimensons = dimension_generator._comment_conflicting_dimensions(
                 dimensions, dimension_groups
             )
         # Clean dimension groups for output (remove internal fields)
@@ -57,6 +58,11 @@ class LookmlViewGenerator:
             view['measures'] = measures
         if hidden := model._get_meta_looker('view', 'hidden'):
             view['hidden'] = 'yes' if hidden else 'no'
+
+        if len(conflicting_dimensons) > 0:
+            view['# Removed conflicting dimensions: ' + ','.join(conflicting_dimensons)] = ""
+            
+        
         return view
 
     def _is_yes_no(self, model: DbtModel) -> str:
