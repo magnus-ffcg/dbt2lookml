@@ -92,6 +92,7 @@ class DbtCatalogNodeColumn(BaseModel):
     comment: Optional[str] = None
     index: int
     name: str
+    original_name: Optional[str] = None
     # child_name: Optional[str]
     # parent: Optional[str]  # Added field to store the parent node
     parent: Optional['DbtCatalogNodeColumn'] = None
@@ -133,7 +134,7 @@ class DbtCatalogNode(BaseModel):
     @classmethod
     def case_insensitive_column_names(cls, v: Dict[str, DbtCatalogNodeColumn]):
         return {
-            name.lower(): column.model_copy(update={'name': column.name.lower()})
+            name.lower(): column.model_copy(update={'name': column.name.lower(), 'original_name': name})
             for name, column in v.items()
         }
 
@@ -154,9 +155,10 @@ class DbtModelColumn(DbtBaseModel):
     """A column in a dbt model."""
 
     name: str
-    lookml_long_name: Optional[str] = ''
-    lookml_name: Optional[str] = ''
     description: Optional[str] = None
+    lookml_long_name: Optional[str] = None
+    lookml_name: Optional[str] = None
+    original_name: Optional[str] = None
     data_type: Optional[str] = None
     inner_types: list[str] = []
     meta: Optional[DbtModelColumnMeta] = DbtModelColumnMeta()
@@ -167,15 +169,42 @@ class DbtModelColumn(DbtBaseModel):
     @model_validator(mode="before")
     @classmethod
     def set_nested_and_parent_name(cls, values):
+        import re
+        
         name = values.get('name', '')
+        # Preserve original name before any transformations, but don't override if already set
+        if 'original_name' not in values or not values.get('original_name'):
+            values['original_name'] = name
+        # Don't override original_name if it was already set by catalog parser with proper case
+        elif values.get('original_name') == name.lower() and name != name.lower():
+            # If original_name was set to lowercase but we have proper case, use proper case
+            values['original_name'] = name
         # If there's a dot in the name, it's a nested field
         if '.' in name:
             values['nested'] = True
+        # Lowercase the name for processing, but preserve original case in original_name
         values['name'] = name.lower()
-        values['lookml_long_name'] = name.replace('.', '__').lower()
-        values['lookml_name'] = name.split('.')[-1].lower()
+        
+        # Import centralized camel_to_snake function
+        from dbt2lookml.utils import camel_to_snake
+        
+        # Use realistic transformation logic for long name with double underscores
+        # Use original_name to preserve CamelCase for proper conversion
+        original_parts = values.get('original_name', name).split('.')
+        snake_parts = []
+        for part in original_parts:
+            # Apply the same realistic conversion logic as dimension generator
+            if part.islower() and '_' not in part:
+                # Pure lowercase - keep as-is
+                snake_parts.append(part)
+            else:
+                # CamelCase or snake_case - convert
+                snake_parts.append(camel_to_snake(part))
+        values['lookml_long_name'] = '__'.join(snake_parts)
+        
+        # Use snake_case for the last part as lookml_name
+        values['lookml_name'] = camel_to_snake(name.split('.')[-1])
         values['description'] = values.get('description', "This field is missing a description.")
-        # If the field is an array, it's a nested field
         return values
 
     @model_validator(mode="before")

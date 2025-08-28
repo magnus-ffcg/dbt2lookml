@@ -3,13 +3,7 @@
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from dbt2lookml.enums import (
-    LookerDateTimeframes,
-    LookerDateTimeTypes,
-    LookerDateTypes,
-    LookerScalarTypes,
-    LookerTimeTimeframes,
-)
+from dbt2lookml.enums import LookerDateTimeframes, LookerDateTimeTypes, LookerDateTypes, LookerScalarTypes, LookerTimeTimeframes
 from dbt2lookml.generators.utils import get_column_name, map_bigquery_to_looker
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
 
@@ -45,7 +39,7 @@ class LookmlDimensionGenerator:
             return []
         # Determine if this is a date or time dimension group
         looker_type = "date" if dimension_group.get("datatype") == "date" else "time"
-        # Allow any timeframe from extended set or use custom timeframes
+        # Use enum values for timeframes
         if looker_type == "date":
             timeframes = self._custom_timeframes.get('date', LookerDateTimeframes.values())
         elif looker_type == "time":
@@ -83,9 +77,7 @@ class LookmlDimensionGenerator:
         processed_groups = []
         for dim_group in dimension_groups:
             original_column_name = dim_group.get("_original_column_name")
-            conflicting_timeframes = self._get_conflicting_timeframes(
-                dim_group, existing_dimension_names, original_column_name
-            )
+            conflicting_timeframes = self._get_conflicting_timeframes(dim_group, existing_dimension_names, original_column_name)
             if conflicting_timeframes:
                 # Create a copy of the dimension group
                 processed_group = dim_group.copy()
@@ -110,9 +102,7 @@ class LookmlDimensionGenerator:
                 processed_groups.append(dim_group)
         return processed_groups
 
-    def _clean_dimension_groups_for_output(
-        self, dimension_groups: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _clean_dimension_groups_for_output(self, dimension_groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Remove internal fields from dimension groups before LookML output.
         Args:
             dimension_groups: List of dimension groups to clean
@@ -141,9 +131,7 @@ class LookmlDimensionGenerator:
             name = name.replace("_date", "")
         return name.replace("_", " ").title()
 
-    def _apply_meta_looker_attributes(
-        self, target_dict: Dict[str, Any], column: DbtModelColumn, attributes: List[str]
-    ) -> None:
+    def _apply_meta_looker_attributes(self, target_dict: Dict[str, Any], column: DbtModelColumn, attributes: List[str]) -> None:
         """Apply meta attributes from column to target dictionary if they exist.
         Args:
             target_dict: Dictionary to update with meta attributes
@@ -162,9 +150,7 @@ class LookmlDimensionGenerator:
                         meta_value = value
                     target_dict[attr] = meta_value
 
-    def _create_iso_field(
-        self, field_type: str, column: DbtModelColumn, sql: str
-    ) -> Dict[str, Any]:
+    def _create_iso_field(self, field_type: str, column: DbtModelColumn, sql: str) -> Dict[str, Any]:
         """Create an ISO year or week field.
         Args:
             field_type: Type of ISO field (year or week)
@@ -202,9 +188,7 @@ class LookmlDimensionGenerator:
             return "date"
         return "scalar"
 
-    def _create_dimension(
-        self, column: DbtModelColumn, sql: str, is_hidden: bool = False
-    ) -> Optional[Dict[str, Any]]:
+    def _create_dimension(self, column: DbtModelColumn, sql: str, is_hidden: bool = False) -> Optional[Dict[str, Any]]:
         """Create a basic dimension dictionary.
         Args:
             column: Column to create dimension from
@@ -216,11 +200,35 @@ class LookmlDimensionGenerator:
         data_type = map_bigquery_to_looker(column.data_type)
         if data_type is None:
             return None
-        dimension: Dict[str, Any] = {"name": utils.safe_name(column.lookml_name)}
+        # Determine dimension name based on context
+        if column.nested:
+            # Always use lookml_long_name for nested fields in main view
+            # This handles both struct fields like "classification.assortment.code" -> "classification__assortment__code"
+            # and array elements that should be in main view
+            dimension_name = column.lookml_long_name
+        else:
+            # Use lookml_name for regular columns
+            dimension_name = column.lookml_name
+
+        dimension: Dict[str, Any] = {"name": utils.safe_name(dimension_name)}
         # Add type for scalar types (should come before sql)
         if data_type in LookerScalarTypes.values():
             dimension["type"] = data_type
-        dimension |= {"sql": sql, "description": column.description or ""}
+        dimension |= {"sql": sql}
+
+        # Add group labels for nested fields in main view
+        if column.nested and '.' in column.name:
+            parts = column.name.split('.')
+            if len(parts) >= 2:
+                # Create dynamic group label from all parts except the last one
+                group_parts = parts[:-1]
+                group_label = self._create_group_label(group_parts)
+                dimension["group_label"] = group_label
+
+                # Add group item label from the last part
+                last_part = parts[-1]
+                dimension["group_item_label"] = self._create_item_label(last_part)
+
         # Add primary key attributes
         if column.is_primary_key:
             dimension["primary_key"] = "yes"
@@ -228,13 +236,18 @@ class LookmlDimensionGenerator:
             dimension["value_format_name"] = "id"
         elif is_hidden:
             dimension["hidden"] = "yes"
+        # Mark nested struct fields as hidden, except for classification fields which should be visible
+        elif column.nested and len(column.name.split('.')) >= 3:
+            # Classification fields should be visible in main view
+            if not column.name.startswith('classification.'):
+                dimension["hidden"] = "yes"
         # Handle array and struct types
         if "ARRAY" in f"{column.data_type}":
             dimension["hidden"] = "yes"
             dimension["tags"] = ["array"]
             dimension.pop("type", None)
         elif "STRUCT" in f"{column.data_type}":
-            dimension["hidden"] = "no"
+            dimension["hidden"] = "yes"
             dimension["tags"] = ["struct"]
         # Apply meta looker attributes
         self._apply_meta_looker_attributes(
@@ -260,12 +273,14 @@ class LookmlDimensionGenerator:
             return None, None, None
         if looker_type == "date":
             convert_tz = "no"
+            # Use enum values for timeframes
             timeframes = self._custom_timeframes.get('date', LookerDateTimeframes.values())
-            column_name_adjusted = column.name.replace("_date", "")
+            column_name_adjusted = self._transform_date_column_name(column)
         elif looker_type == "time":
             convert_tz = "yes"
+            # Use enum values for timeframes
             timeframes = self._custom_timeframes.get('time', LookerTimeTimeframes.values())
-            column_name_adjusted = column.name.replace("_date", "")
+            column_name_adjusted = self._transform_date_column_name(column)
         else:
             return None, None, None
         sql = get_column_name(column, table_format_sql)
@@ -275,34 +290,86 @@ class LookmlDimensionGenerator:
             "label": self._format_label(column.lookml_name),
             "type": 'time',
             "sql": sql,
-            "description": column.description,
             "datatype": map_bigquery_to_looker(column.data_type),
             "timeframes": timeframes,
-            "group_label": (
-                "D Date"
-                if column_name_adjusted == "d"
-                else f"{self._format_label(column.lookml_name)}"
-            ),
+            "group_label": ("D Date" if column_name_adjusted == "d" else f"{self._format_label(column.lookml_name)}"),
             "convert_tz": convert_tz,
-            # Track original column name for conflict detection
-            "_original_column_name": column.name,
         }
+        # Only add description if it's not None
+        if column.description is not None:
+            dimension_group["description"] = column.description
         self._apply_meta_looker_attributes(dimension_group, column, ["group_label", "label"])
         dimension_group_set = {
             "name": f"s_{column_name_adjusted}",
-            "fields": [
-                f"{column_name_adjusted}_{looker_time_timeframe}"
-                for looker_time_timeframe in timeframes
-            ],
+            "fields": [f"{column_name_adjusted}_{looker_time_timeframe}" for looker_time_timeframe in timeframes],
         }
         if looker_type == "date" and self._include_iso_fields:
             iso_year = self._create_iso_field("year", column, sql)
             iso_week_of_year = self._create_iso_field("week_of_year", column, sql)
             dimensions = [iso_year, iso_week_of_year]
-            dimension_group_set["fields"].extend(
-                [f"{column.name}_iso_year", f"{column.name}_iso_week_of_year"]
-            )
+            dimension_group_set["fields"].extend([f"{column.name}_iso_year", f"{column.name}_iso_week_of_year"])
         return dimension_group, dimension_group_set, dimensions
+
+    def _transform_date_column_name(self, column: DbtModelColumn) -> str:
+        """Transform date column names to dimension group names.
+
+        Removes 'Date' or 'date' suffix and converts to snake_case.
+        Handles nested fields by processing each part separately.
+        Only converts what can be reliably converted (CamelCase and nested fields).
+
+        Examples:
+            DeliveryStartDate -> delivery_start (CamelCase conversion)
+            deliverystartdate -> deliverystartdate (lowercase - keep as-is)
+            format.period.EndDate -> format__period__end (nested fields)
+        """
+        from dbt2lookml.utils import camel_to_snake
+
+        # Use original name to preserve CamelCase for proper conversion
+        column_name = column.original_name or column.name
+
+        # Handle nested fields first
+        if '.' in column_name:
+            parts = column_name.split('.')
+            snake_parts = []
+            for i, part in enumerate(parts):
+                # Only remove date suffix from the last part (actual column name)
+                if i == len(parts) - 1:  # Last part
+                    if part.endswith('Date'):
+                        part = part[:-4]  # Remove 'Date'
+                    elif part.lower().endswith('date') and not part.endswith('_date'):
+                        part = part[:-4]  # Remove 'date' but not '_date'
+
+                # Apply the same realistic conversion logic to each part
+                if part.islower() and '_' not in part:
+                    # Pure lowercase - keep as-is
+                    snake_parts.append(part)
+                else:
+                    # CamelCase or snake_case - convert
+                    snake_parts.append(camel_to_snake(part))
+            result = '__'.join(snake_parts)
+        else:
+            # Single field - remove date suffix first, then segment and convert
+            if column_name.endswith('Date'):
+                base_name = column_name[:-4]  # Remove 'Date'
+            elif column_name.lower().endswith('date'):
+                base_name = column_name[:-4]  # Remove 'date' or '_date'
+            else:
+                base_name = column_name
+
+            # Clean up trailing underscores from base_name first
+            base_name = base_name.rstrip('_')
+
+            # Only convert what we can reliably handle
+            if base_name.islower() and '_' not in base_name:
+                # Pure lowercase concatenated words - keep as-is
+                result = base_name
+            else:
+                # CamelCase or snake_case - can convert reliably
+                result = camel_to_snake(base_name)
+
+        # Clean up any trailing underscores
+        result = result.rstrip('_')
+        return result
 
     def _get_dimension_group_generated_names(self, column_name: str, looker_type: str) -> List[str]:
         """Get all dimension names that would be generated by a dimension group.
@@ -319,6 +386,32 @@ class LookmlDimensionGenerator:
         else:
             return []
         return [f"{column_name}_{timeframe}" for timeframe in timeframes]
+
+    def _create_group_label(self, parts: list[str]) -> str:
+        """Create a human-readable group label from nested field parts.
+
+        Args:
+            parts: List of field name parts (e.g., ['classification', 'assortment'])
+
+        Returns:
+            Formatted group label (e.g., 'Classification Assortment')
+        """
+        # Convert each part to title case, handling common patterns
+        formatted_parts = []
+        for part in parts:
+            from dbt2lookml.utils import camel_to_snake
+
+            snake_case = camel_to_snake(part)
+            title_case = snake_case.replace('_', ' ').title()
+            formatted_parts.append(title_case)
+
+        return ' '.join(formatted_parts)
+
+    def _create_item_label(self, item: str) -> str:
+        from dbt2lookml.utils import camel_to_snake
+
+        snake_case = camel_to_snake(item)
+        return snake_case.replace('_', ' ').title()
 
     def _create_single_array_dimension(self, column: DbtModelColumn) -> Dict[str, Any]:
         """Create a dimension for a simple array type.
@@ -342,13 +435,9 @@ class LookmlDimensionGenerator:
         Returns:
             Whether column is a simple array type
         """
-        return column.data_type == "ARRAY" and (
-            len(column.inner_types) == 1 and " " not in column.inner_types[0]
-        )
+        return column.data_type == "ARRAY" and (len(column.inner_types) == 1 and " " not in column.inner_types[0])
 
-    def _add_dimension_to_dimension_group(
-        self, model: DbtModel, dimensions: List[Dict[str, Any]], table_format_sql: bool = True
-    ):
+    def _add_dimension_to_dimension_group(self, model: DbtModel, dimensions: List[Dict[str, Any]], table_format_sql: bool = True):
         """Add dimensions to dimension groups.
         Args:
             model: Model containing dimensions
@@ -357,9 +446,7 @@ class LookmlDimensionGenerator:
         """
         for column in model.columns.values():
             if column.data_type == "DATE":
-                _, _, dimension_group_dimensions = self.lookml_dimension_group(
-                    column, "date", table_format_sql, model
-                )
+                _, _, dimension_group_dimensions = self.lookml_dimension_group(column, "date", table_format_sql, model)
                 if dimension_group_dimensions:
                     dimensions.extend(dimension_group_dimensions)
 
@@ -382,13 +469,59 @@ class LookmlDimensionGenerator:
         dimensions: List[Dict[str, Any]] = []
         table_format_sql = True
         nested_dimensions: List[Dict[str, Any]] = []
-        # First add ISO date dimensions for main view only
-        if not include_names:  # Only for main view
-            self._add_dimension_to_dimension_group(model, dimensions, table_format_sql)
-        # Then add regular dimensions
-        for column in model.columns.values():
-            if include_names:
-                table_format_sql = False
+        # First add ISO date dimensions for main view only if flag is enabled
+        if not include_names:
+            if self._include_iso_fields:  # Only for main view and if ISO fields are enabled
+                self._add_dimension_to_dimension_group(model, dimensions, table_format_sql)
+
+        # For main view, group nested classification fields with their parent struct
+        if not include_names:
+            processed_columns = set()
+            for column in model.columns.values():
+                if column.name in processed_columns:
+                    continue
+
+                # Process regular column
+                if column.name in exclude_names or column.data_type == "DATETIME":
+                    processed_columns.add(column.name)
+                    continue
+                # Skip date dimensions since we handled them above
+                if column.data_type == "DATE":
+                    processed_columns.add(column.name)
+                    continue
+                if column.data_type is None:
+                    processed_columns.add(column.name)
+                    continue
+
+                # If this is a classification struct, skip it and add its nested fields instead
+                if column.name == 'classification' and "STRUCT" in f"{column.data_type}":
+                    classification_fields = []
+                    for nested_col in model.columns.values():
+                        if (
+                            nested_col.name.startswith('classification.')
+                            and nested_col.name not in processed_columns
+                            and nested_col.name not in exclude_names
+                        ):
+                            nested_column_name = get_column_name(nested_col, table_format_sql)
+                            nested_dimension = self._create_dimension(nested_col, nested_column_name)
+                            if nested_dimension is not None:
+                                classification_fields.append(nested_dimension)
+                                processed_columns.add(nested_col.name)
+                    # Add classification fields in sorted order
+                    classification_fields.sort(key=lambda d: d.get('name', ''))
+                    dimensions.extend(classification_fields)
+                    processed_columns.add(column.name)
+                else:
+                    # Process regular column
+                    column_name = get_column_name(column, table_format_sql)
+                    dimension = self._create_dimension(column, column_name)
+                    if dimension is not None:
+                        dimensions.append(dimension)
+                    processed_columns.add(column.name)
+        else:
+            # For nested views, use original logic
+            for column in model.columns.values():
+                table_format_sql = True  # Always use ${TABLE} format for nested views
                 # For nested views, only include fields that are children of the parent
                 # or the parent itself if it's a simple array
                 parent = include_names[0] if include_names else None
@@ -400,17 +533,17 @@ class LookmlDimensionGenerator:
                     continue
                 elif not column.name.startswith(f"{parent}."):
                     continue
-            if column.name in exclude_names or column.data_type == "DATETIME":
-                continue
-            # Skip date dimensions since we handled them above
-            if column.data_type == "DATE" and not include_names:
-                continue
-            if column.data_type is None:
-                continue
-            column_name = get_column_name(column, table_format_sql)
-            dimension = self._create_dimension(column, column_name)
-            if dimension is not None:
-                dimensions.append(dimension)
+                if column.name in exclude_names or column.data_type == "DATETIME":
+                    continue
+                # Skip date dimensions since we handled them above
+                if column.data_type == "DATE":
+                    continue
+                if column.data_type is None:
+                    continue
+                column_name = get_column_name(column, table_format_sql)
+                dimension = self._create_dimension(column, column_name)
+                if dimension is not None:
+                    dimensions.append(dimension)
         return dimensions, nested_dimensions
 
     def lookml_dimension_groups_from_model(

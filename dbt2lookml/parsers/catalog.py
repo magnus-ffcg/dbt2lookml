@@ -8,36 +8,88 @@ from dbt2lookml.models.dbt import DbtCatalog, DbtModel, DbtModelColumn, DbtModel
 class CatalogParser:
     """Parser for DBT catalog information."""
 
-    def __init__(self, catalog: DbtCatalog):
+    def __init__(self, catalog: DbtCatalog, raw_catalog_data: dict = None):
         """Initialize with catalog data."""
         self._catalog = catalog
+        self._raw_catalog_data = raw_catalog_data
 
     def process_model_columns(self, model: DbtModel) -> Optional[DbtModel]:
         """Process a model by updating its columns with catalog information."""
-        processed_columns = {
-            column_name: (
-                processed_column
-                if (
-                    processed_column := self._update_column_with_inner_types(
-                        column, model.unique_id
-                    )
-                )
-                else column
-            )
-            for column_name, column in model.columns.items()
-        }
-        # Create missing array columns
-        if model.unique_id in self._catalog.nodes:
+        processed_columns = {}
+        # First, find the original case mapping from raw catalog data
+        original_case_mapping = {}
+        if self._raw_catalog_data and model.unique_id in self._raw_catalog_data.get('nodes', {}):
+            raw_catalog_node = self._raw_catalog_data['nodes'][model.unique_id]
+            for catalog_col_name in raw_catalog_node.get('columns', {}).keys():
+                original_case_mapping[catalog_col_name.lower()] = catalog_col_name
+        elif model.unique_id in self._catalog.nodes:
+            # Fallback to processed catalog if raw data not available
+            catalog_node = self._catalog.nodes[model.unique_id]
+            for catalog_col_name in catalog_node.columns.keys():
+                original_case_mapping[catalog_col_name.lower()] = catalog_col_name
+        
+        # Process existing columns and preserve original case
+        for column_name, column in model.columns.items():
+            processed_column = self._update_column_with_inner_types(column, model.unique_id)
+            if processed_column:
+                # Update original_name if we have the proper case from catalog
+                if column_name in original_case_mapping:
+                    processed_column.original_name = original_case_mapping[column_name]
+                processed_columns[column_name] = processed_column
+            else:
+                # Update original_name for existing column if we have proper case
+                if column_name in original_case_mapping:
+                    # Create new column with updated original_name
+                    updated_column = column.model_copy(update={'original_name': original_case_mapping[column_name]})
+                    processed_columns[column_name] = updated_column
+                else:
+                    processed_columns[column_name] = column
+        # Create missing array and nested struct columns using raw catalog data
+        if self._raw_catalog_data and model.unique_id in self._raw_catalog_data.get('nodes', {}):
+            raw_catalog_node = self._raw_catalog_data['nodes'][model.unique_id]
+            for column_name, column_data in raw_catalog_node.get('columns', {}).items():
+                # Check both original case and lowercase for existing columns
+                if (column_name.lower() not in processed_columns and 
+                    column_data.get('type') is not None):
+                    # Add missing array columns
+                    if 'ARRAY' in f'{column_data.get("type", "")}':
+                        array_column = self._create_missing_array_column(
+                            column_name.lower(), column_data.get('type'), []
+                        )
+                        array_column.original_name = column_name
+                        processed_columns[column_name.lower()] = array_column
+                    # Add nested struct fields (columns with dots in name)
+                    elif '.' in column_name:
+                        # Store with lowercase key but preserve original case in original_name
+                        nested_column = self._create_missing_nested_column(
+                            column_name.lower(), column_data.get('type'), 
+                            column_data.get('comment'), column_name
+                        )
+                        # Ensure original_name preserves the exact case from catalog
+                        nested_column.original_name = column_name
+                        processed_columns[column_name.lower()] = nested_column
+        elif model.unique_id in self._catalog.nodes:
+            # Fallback to processed catalog if raw data not available
             catalog_node = self._catalog.nodes[model.unique_id]
             for column_name, column in catalog_node.columns.items():
-                if (
-                    column_name not in processed_columns
-                    and 'ARRAY' in f'{column.data_type}'
-                    and column.data_type is not None
-                ):
-                    processed_columns[column_name] = self._create_missing_array_column(
-                        column_name, column.data_type, column.inner_types or []
-                    )
+                # Check both original case and lowercase for existing columns
+                if (column_name not in processed_columns and 
+                    column_name.lower() not in processed_columns and 
+                    column.data_type is not None):
+                    # Add missing array columns
+                    if 'ARRAY' in f'{column.data_type}':
+                        processed_columns[column_name] = self._create_missing_array_column(
+                            column_name, column.data_type, column.inner_types or []
+                        )
+                    # Add nested struct fields (columns with dots in name)
+                    elif '.' in column_name:
+                        # Store with lowercase key but preserve original case in original_name
+                        nested_column = self._create_missing_nested_column(
+                            column_name.lower(), column.data_type, column.comment, column_name
+                        )
+                        # Ensure original_name preserves the exact case from catalog
+                        nested_column.original_name = column_name
+                        processed_columns[column_name.lower()] = nested_column
         # Always return the model, even if no columns were processed
         return (
             model.model_copy(update={'columns': processed_columns}) if processed_columns else model
@@ -54,6 +106,21 @@ class CatalogParser:
             description=None,
             meta=DbtModelColumnMeta(),
             lookml_name=column_name,
+            original_name=column_name,
+        )
+
+    def _create_missing_nested_column(
+        self, column_name: str, data_type: str, comment: str, original_column_name: str = None
+    ) -> DbtModelColumn:
+        """Create a new column model for nested struct fields missing from manifest."""
+        return DbtModelColumn(
+            name=column_name,
+            data_type=data_type,
+            inner_types=[],
+            description=comment,
+            meta=DbtModelColumnMeta(),
+            lookml_name=column_name,
+            original_name=original_column_name or column_name,
         )
 
     def _get_catalog_column_info(

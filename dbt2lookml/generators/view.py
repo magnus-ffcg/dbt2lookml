@@ -1,5 +1,5 @@
 """LookML view generator module."""
-
+import logging
 from typing import Any, Dict
 
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
@@ -23,14 +23,14 @@ class LookmlViewGenerator:
         """Create the main view definition."""
         # Build view dict in specific order to match expected LookML output
         view = {
-            'name': view_name,
-            'label': view_label,
+            'name': view_name.lower(),
             'sql_table_name': model.relation_name,
         }
         # Add dimensions
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
             model, exclude_names=exclude_names
         )
+
         # Get dimension groups
         dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(
             model, exclude_names=exclude_names
@@ -46,6 +46,7 @@ class LookmlViewGenerator:
             dimension_groups = dimension_generator._clean_dimension_groups_for_output(
                 dimension_groups
             )
+        # Add dimensions and dimension_groups to view
         if dimensions:
             view['dimensions'] = dimensions
         if dimension_groups:
@@ -54,10 +55,6 @@ class LookmlViewGenerator:
             model, exclude_names=exclude_names
         ):
             view['measures'] = measures
-        if sets := dimension_generator.lookml_dimension_groups_from_model(
-            model, exclude_names=exclude_names
-        ).get('dimension_group_sets'):
-            view['sets'] = sets
         if hidden := model._get_meta_looker('view', 'hidden'):
             view['hidden'] = 'yes' if hidden else 'no'
         return view
@@ -87,11 +84,11 @@ class LookmlViewGenerator:
         """Create a nested view definition for an array field."""
         # Use table name if flag is set
         if self._cli_args.use_table_name:
-            array_model_name = array_model.name.replace('.', '__')
+            array_model_name = array_model.lookml_long_name
             relationship_name = model.relation_name.split('.')[-1].strip('`')
-            nested_view_name = f"{relationship_name}__{array_model_name}"
+            nested_view_name = f"{relationship_name}__{array_model_name}".lower()
         else:
-            nested_view_name = f"{base_name}__{array_model.name.replace('.', '__')}"
+            nested_view_name = f"{base_name}__{array_model.lookml_long_name}".lower()
         include_names = [array_model.name]
         for col in model.columns.values():
             if col.name.startswith(f"{array_model.name}."):
@@ -99,7 +96,7 @@ class LookmlViewGenerator:
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
             model, include_names=include_names
         )
-        nested_view = {'name': nested_view_name, 'label': view_label}
+        nested_view = {'name': nested_view_name}
         if dimensions:
             nested_view['dimensions'] = dimensions
         if dimension_groups := dimension_generator.lookml_dimension_groups_from_model(
@@ -110,10 +107,6 @@ class LookmlViewGenerator:
             model, include_names=include_names
         ):
             nested_view['measures'] = measures
-        if sets := dimension_generator.lookml_dimension_groups_from_model(
-            model, include_names=include_names
-        ).get('dimension_group_sets'):
-            nested_view['sets'] = sets
         return nested_view
 
     def generate(
