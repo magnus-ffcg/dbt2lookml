@@ -121,9 +121,11 @@ class LookmlDimensionGenerator:
         """
         cleaned_groups = []
         for dim_group in dimension_groups:
-            cleaned_group = dim_group.copy()
-            # Remove internal tracking fields
-            cleaned_group.pop("_original_column_name", None)
+            cleaned_group = {}
+            # Copy only valid LookML fields, excluding internal tracking fields
+            for key, value in dim_group.items():
+                if not key.startswith("_"):
+                    cleaned_group[key] = value
             cleaned_groups.append(cleaned_group)
         return cleaned_groups
 

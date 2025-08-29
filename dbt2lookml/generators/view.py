@@ -102,17 +102,40 @@ class LookmlViewGenerator:
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
             model, include_names=include_names
         )
+        
+        # Get dimension groups
+        dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(
+            model, include_names=include_names
+        )
+        conflicting_dimensions = []
+        dimension_groups = dimension_groups_result.get('dimension_groups', [])
+        
+        # Apply conflict detection for nested views too
+        if dimensions and dimension_groups:
+            dimensions, conflicting_dimensions = dimension_generator._comment_conflicting_dimensions(
+                dimensions, dimension_groups
+            )
+        
+        # Clean dimension groups for output (remove internal fields)
+        if dimension_groups:
+            dimension_groups = dimension_generator._clean_dimension_groups_for_output(
+                dimension_groups
+            )
+            
         nested_view = {'name': nested_view_name}
         if dimensions:
             nested_view['dimensions'] = dimensions
-        if dimension_groups := dimension_generator.lookml_dimension_groups_from_model(
-            model, include_names=include_names
-        ).get('dimension_groups'):
+        if dimension_groups:
             nested_view['dimension_groups'] = dimension_groups
         if measures := measure_generator.lookml_measures_from_model(
             model, include_names=include_names
         ):
             nested_view['measures'] = measures
+            
+        # Add dimension removal comment for nested views too
+        if len(conflicting_dimensions) > 0:
+            nested_view['# Removed conflicting dimensions: ' + ','.join(conflicting_dimensions)] = ""
+            
         return nested_view
 
     def generate(
