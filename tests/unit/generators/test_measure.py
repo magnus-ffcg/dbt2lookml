@@ -56,7 +56,7 @@ def test_lookml_measures_from_model(cli_args):
         description="Test model",
         tags=[],
     )
-    measures = measure_generator.lookml_measures_from_model(model)
+    measures = measure_generator.lookml_measures_from_model(model, columns_subset=model.columns)
     assert len(measures) == 1
     measure = measures[0]
     assert measure["type"] == LookerMeasureType.SUM.value
@@ -103,7 +103,7 @@ def test_lookml_measures_with_filters(cli_args):
         description="Test model",
         tags=[],
     )
-    measures = measure_generator.lookml_measures_from_model(model)
+    measures = measure_generator.lookml_measures_from_model(model, columns_subset=model.columns)
     assert len(measures) == 1
     measure = measures[0]
     assert measure["type"] == LookerMeasureType.SUM.value

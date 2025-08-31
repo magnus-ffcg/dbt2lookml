@@ -229,15 +229,16 @@ def test_add_dimension_to_dimension_group(generator, test_model):
 
 
 def test_lookml_dimensions_from_model_include_names(generator, test_model):
-    """Test lookml_dimensions_from_model with include_names - line 482."""
+    """Test lookml_dimensions_from_model with columns_subset - line 482."""
     column1 = DbtModelColumn(name="field1", data_type="STRING")
     column2 = DbtModelColumn(name="field2", data_type="STRING")
     test_model.columns = {"field1": column1, "field2": column2}
     
-    dimensions, _ = generator.lookml_dimensions_from_model(test_model, include_names=["field1"])
+    # Create subset with only field1
+    columns_subset = {"field1": column1}
+    dimensions, _ = generator.lookml_dimensions_from_model(test_model, columns_subset=columns_subset)
     
-    # The include_names logic may not work as expected due to internal filtering
-    # Just verify the method runs without error and returns some structure
+    # Verify the method runs without error and returns some structure
     assert isinstance(dimensions, list)
     assert isinstance(_, list)
 
@@ -247,7 +248,7 @@ def test_lookml_dimensions_from_model_exclude_datetime(generator, test_model):
     datetime_col = DbtModelColumn(name="updated_at", data_type="DATETIME")
     test_model.columns["updated_at"] = datetime_col
     
-    dimensions, _ = generator.lookml_dimensions_from_model(test_model)
+    dimensions, _ = generator.lookml_dimensions_from_model(test_model, columns_subset=test_model.columns)
     
     dimension_names = [d["name"] for d in dimensions]
     assert "updated_at" not in dimension_names
@@ -258,7 +259,7 @@ def test_lookml_dimensions_from_model_none_data_type(generator, test_model):
     null_col = DbtModelColumn(name="null_field", data_type=None)
     test_model.columns["null_field"] = null_col
     
-    dimensions, _ = generator.lookml_dimensions_from_model(test_model)
+    dimensions, _ = generator.lookml_dimensions_from_model(test_model, columns_subset=test_model.columns)
     
     dimension_names = [d["name"] for d in dimensions]
     assert "null_field" not in dimension_names
@@ -270,7 +271,7 @@ def test_lookml_dimensions_from_model_array_column(generator, test_model):
     array_col.inner_types = ["STRING"]
     test_model.columns["tags"] = array_col
     
-    dimensions, _ = generator.lookml_dimensions_from_model(test_model)
+    dimensions, _ = generator.lookml_dimensions_from_model(test_model, columns_subset=test_model.columns)
     
     # Should handle array columns appropriately
     dimension_names = [d["name"] for d in dimensions]

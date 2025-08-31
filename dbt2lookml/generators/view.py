@@ -2,6 +2,7 @@
 import logging
 from typing import Any, Dict
 
+from dbt2lookml.models.column_collections import ColumnCollections
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
 
 
@@ -19,6 +20,7 @@ class LookmlViewGenerator:
         exclude_names: list,
         dimension_generator,
         measure_generator,
+        array_models: list = None,
     ) -> dict:
         """Create the main view definition."""
         # Build view dict in specific order to match expected LookML output
@@ -26,9 +28,14 @@ class LookmlViewGenerator:
             'name': view_name.lower(),
             'sql_table_name': model.relation_name,
         }
-        # Add dimensions
+        
+        # Use provided array models or empty list if none provided
+        if array_models is None:
+            array_models = []
+        collections = ColumnCollections.from_model(model, array_models)
+        
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
-            model, exclude_names=exclude_names
+            model, columns_subset=collections.main_view_columns
         )
         
         # Add nested array dimensions to main view
@@ -39,7 +46,7 @@ class LookmlViewGenerator:
 
         # Get dimension groups
         dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(
-            model, exclude_names=exclude_names
+            model, columns_subset=collections.main_view_columns
         )
         conflicting_dimensons = []
         dimension_groups = dimension_groups_result.get('dimension_groups', [])
@@ -59,7 +66,7 @@ class LookmlViewGenerator:
         if dimension_groups:
             view['dimension_groups'] = dimension_groups
         if measures := measure_generator.lookml_measures_from_model(
-            model, exclude_names=exclude_names
+            model, columns_subset=collections.main_view_columns
         ):
             view['measures'] = measures
         if hidden := model._get_meta_looker('view', 'hidden'):
@@ -92,6 +99,7 @@ class LookmlViewGenerator:
         view_label: str,
         dimension_generator,
         measure_generator,
+        array_models: list = None,
     ) -> dict[str, Any]:
         """Create a nested view definition for an array field."""
         # Use table name if flag is set
@@ -153,8 +161,17 @@ class LookmlViewGenerator:
                 
                 if not should_exclude:
                     include_names.append(col.name)
+        # Get column collections for this nested view
+        # Use provided array models or empty list if none provided
+        if array_models is None:
+            array_models = []
+        collections = ColumnCollections.from_model(model, array_models)
+        
+        # Get columns for this specific nested view
+        nested_columns = collections.nested_view_columns.get(array_model.name, {})
+        
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
-            model, include_names=include_names
+            model, columns_subset=nested_columns, is_nested_view=True, array_model_name=array_model.name
         )
         
         # For simple arrays (like ARRAY<STRING>), only include the array parent dimension
@@ -215,14 +232,15 @@ class LookmlViewGenerator:
                         
                         # Handle specific naming conventions to match fixtures
                         # Convert gtin_id -> gtinid, gtin_type -> gtintype to match fixture expectations
-                        if shortened_name.endswith('__gtin_id'):
-                            shortened_name = shortened_name.replace('__gtin_id', '__gtinid')
-                        elif shortened_name.endswith('__gtin_type'):
-                            shortened_name = shortened_name.replace('__gtin_type', '__gtintype')
-                        elif shortened_name == 'soi_quantity':
-                            shortened_name = 'soiquantity'
-                        elif shortened_name == 'soi_quantity_per_pallet':
-                            shortened_name = 'soiquantity_per_pallet'
+                        # TODO: Remove hardcoding
+                        #if shortened_name.endswith('__gtin_id'):
+                        #    shortened_name = shortened_name.replace('__gtin_id', '__gtinid')
+                        #elif shortened_name.endswith('__gtin_type'):
+                        #    shortened_name = shortened_name.replace('__gtin_type', '__gtintype')
+                        #elif shortened_name == 'soi_quantity':
+                        #    shortened_name = 'soiquantity'
+                        #elif shortened_name == 'soi_quantity_per_pallet':
+                        #    shortened_name = 'soiquantity_per_pallet'
                         
                         dim['name'] = shortened_name
                         dim_name = shortened_name  # Use shortened name for further checks
@@ -259,7 +277,7 @@ class LookmlViewGenerator:
                     # Get dimension groups first to check for children
                     if 'dimension_groups' not in locals():
                         dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(
-                            model, include_names=include_names
+                            model, columns_subset=nested_columns, is_nested_view=True
                         )
                         dimension_groups = dimension_groups_result.get('dimension_groups', [])
                     
@@ -378,7 +396,7 @@ class LookmlViewGenerator:
         
         # Get dimension groups
         dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(
-            model, include_names=include_names
+            model, columns_subset=nested_columns, is_nested_view=True
         )
         conflicting_dimensions = []
         dimension_groups = dimension_groups_result.get('dimension_groups', [])
@@ -412,7 +430,7 @@ class LookmlViewGenerator:
         # Only create nested view if it has content
         if not dimensions and not dimension_groups:
             measures = measure_generator.lookml_measures_from_model(
-                model, include_names=include_names
+                model, columns_subset=nested_columns
             )
             if not measures:
                 return None  # Don't create empty nested views
@@ -423,7 +441,7 @@ class LookmlViewGenerator:
         if dimension_groups:
             nested_view['dimension_groups'] = dimension_groups
         if measures := measure_generator.lookml_measures_from_model(
-            model, include_names=include_names
+            model, columns_subset=nested_columns
         ):
             nested_view['measures'] = measures
             
@@ -445,12 +463,12 @@ class LookmlViewGenerator:
     ) -> Dict:
         """Generate a view for a model."""
         main_view = self._create_main_view(
-            model, view_name, view_label, exclude_names, dimension_generator, measure_generator
+            model, view_name, view_label, exclude_names, dimension_generator, measure_generator, array_models
         )
         views = [main_view]
         for array_model in array_models:
             nested_view = self._create_nested_view(
-                model, view_name, array_model, view_label, dimension_generator, measure_generator
+                model, view_name, array_model, view_label, dimension_generator, measure_generator, array_models
             )
             if nested_view is not None:  # Only add non-empty nested views
                 views.append(nested_view)

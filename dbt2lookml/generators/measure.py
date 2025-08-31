@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 
-from dbt2lookml.enums import LookerMeasureType, LookerScalarTypes
-from dbt2lookml.generators.utils import get_column_name, map_bigquery_to_looker
+from dbt2lookml.enums import LookerScalarTypes, LookerMeasureType
+from dbt2lookml.generators.utils import map_bigquery_to_looker, get_column_name
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
 from dbt2lookml.models.looker import DbtMetaLookerMeasure
 
@@ -72,26 +72,12 @@ class LookmlMeasureGenerator:
     def lookml_measures_from_model(
         self,
         model: DbtModel,
-        include_names: Optional[List[str]] = None,
-        exclude_names: Optional[List[str]] = None,
+        columns_subset: Dict[str, DbtModelColumn],
     ) -> List[Dict[str, Any]]:
-        """Generate measures from model."""
-        if exclude_names is None:
-            exclude_names = []
+        """Generate measures from model using pre-filtered columns."""
         lookml_measures: List[Dict[str, Any]] = []
         table_format_sql = True
-        for column in model.columns.values():
-            if include_names:
-                table_format_sql = False
-                # For nested fields, if any parent is in include_names, include this field
-                if column.name not in include_names and all(
-                    parent not in include_names for parent in column.name.split('.')
-                ):
-                    continue
-            # Convert column name to dimension name format for exclusion check
-            dimension_name = column.name.replace('.', '__')
-            if exclude_names and (column.name in exclude_names or dimension_name in exclude_names):
-                continue
+        for column in columns_subset.values():
             if (
                 map_bigquery_to_looker(column.data_type) in LookerScalarTypes.values()
                 and hasattr(column.meta, 'looker')
