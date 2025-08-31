@@ -22,7 +22,7 @@ exclude_models:
 
 # LookML generation options
 use_table_name: true
-skip_explore: false
+include_explore: false
 generate_locale: false
 continue_on_error: true
 

@@ -4,23 +4,10 @@ from argparse import Namespace
 
 import pytest
 
-from dbt2lookml.enums import (
-    LookerMeasureType,
-    LookerValueFormatName,
-)
+from dbt2lookml.enums import LookerMeasureType, LookerValueFormatName
 from dbt2lookml.generators.measure import LookmlMeasureGenerator
-from dbt2lookml.models.dbt import (
-    DbtModel,
-    DbtModelColumn,
-    DbtModelColumnMeta,
-    DbtModelMeta,
-    DbtResourceType,
-)
-from dbt2lookml.models.looker import (
-    DbtMetaLooker,
-    DbtMetaLookerMeasure,
-    DbtMetaLookerMeasureFilter,
-)
+from dbt2lookml.models.dbt import DbtModel, DbtModelColumn, DbtModelColumnMeta, DbtModelMeta, DbtResourceType
+from dbt2lookml.models.looker import DbtMetaLooker, DbtMetaLookerMeasure, DbtMetaLookerMeasureFilter
 
 
 @pytest.fixture
@@ -28,8 +15,7 @@ def cli_args():
     """Create CLI args fixture."""
     return Namespace(
         use_table_name=False,
-        build_explore=False,
-        skip_explore=False,
+        include_explore=False,
         include_models=[],
         exclude_models=[],
         target_dir='output',

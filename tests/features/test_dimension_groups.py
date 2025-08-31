@@ -38,56 +38,21 @@ class TestDimensionGroup:
                 "timeframes": list(LookerDateTimeframes.values()),
             },
         ]
-        # Test commenting approach
-        processed_groups = generator._comment_conflicting_timeframes(dimensions, dimension_groups)
-        # Assert all dimension groups are preserved
-        assert len(processed_groups) == len(dimension_groups)
-        # Test specific expected outcomes for each dimension group
-        created_group = next(dg for dg in processed_groups if dg["name"] == "created")
-        updated_group = next(dg for dg in processed_groups if dg["name"] == "updated")
-        processed_group = next(dg for dg in processed_groups if dg["name"] == "processed")
-        # "created" group should have "date" timeframe commented out (conflicts with created_date dimension)
-        created_timeframes = created_group["timeframes"]
-        commented_created = [tf for tf in created_timeframes if tf.startswith('#')]
-        active_created = [tf for tf in created_timeframes if not tf.startswith('#')]
-        assert (
-            len(commented_created) == 1
-        ), f"Expected exactly 1 commented timeframe for 'created', got {len(commented_created)}"
-        assert any(
-            "date" in tf for tf in commented_created
-        ), "Expected 'date' timeframe to be commented out for 'created' group"
-        assert (
-            "raw" in active_created
-        ), "Expected 'raw' timeframe to remain active for 'created' group"
-        assert (
-            "year" in active_created
-        ), "Expected 'year' timeframe to remain active for 'created' group"
-        # "updated" group should have "month" timeframe commented out (conflicts with updated_month dimension)
-        updated_timeframes = updated_group["timeframes"]
-        commented_updated = [tf for tf in updated_timeframes if tf.startswith('#')]
-        active_updated = [tf for tf in updated_timeframes if not tf.startswith('#')]
-        assert (
-            len(commented_updated) == 1
-        ), f"Expected exactly 1 commented timeframe for 'updated', got {len(commented_updated)}"
-        assert any(
-            "month" in tf for tf in commented_updated
-        ), "Expected 'month' timeframe to be commented out for 'updated' group"
-        assert (
-            "raw" in active_updated
-        ), "Expected 'raw' timeframe to remain active for 'updated' group"
-        assert (
-            "date" in active_updated
-        ), "Expected 'date' timeframe to remain active for 'updated' group"
-        # "processed" group should have no commented timeframes (no conflicts)
-        processed_timeframes = processed_group["timeframes"]
-        commented_processed = [tf for tf in processed_timeframes if tf.startswith('#')]
-        active_processed = [tf for tf in processed_timeframes if not tf.startswith('#')]
-        assert (
-            len(commented_processed) == 0
-        ), f"Expected no commented timeframes for 'processed', got {len(commented_processed)}"
-        assert len(active_processed) == len(
-            LookerDateTimeframes.values()
-        ), "Expected all timeframes to be active for 'processed' group"
+        # Test dimension removal approach
+        processed_dimensions, conflicting_names = generator._comment_conflicting_dimensions(dimensions, dimension_groups)
+        # Assert conflicting dimensions are removed
+        assert len(conflicting_names) == 2  # created_date and updated_month should be removed
+        assert 'created_date' in conflicting_names
+        assert 'updated_month' in conflicting_names
+        # Assert non-conflicting dimensions are preserved
+        remaining_names = {dim['name'] for dim in processed_dimensions}
+        assert 'id' in remaining_names
+        assert 'status' in remaining_names
+        assert 'created_date' not in remaining_names
+        assert 'updated_month' not in remaining_names
+        # Dimension groups should remain unchanged since we remove conflicting dimensions instead
+        # All dimension groups should be preserved with their original timeframes
+        assert len(dimension_groups) == 3  # All original dimension groups should remain
 
     def test_conflict_detection(self):
         """Test the dimension conflict detection and resolution."""
@@ -126,36 +91,17 @@ class TestDimensionGroup:
             set(conflicts) == expected_conflicts
         ), f"Expected conflicts {expected_conflicts}, got {set(conflicts)}"
         # Test conflict resolution produces expected results
-        processed_groups = generator._comment_conflicting_timeframes(dimensions, dimension_groups)
-        # Verify exactly one dimension group is returned
-        assert (
-            len(processed_groups) == 1
-        ), f"Expected 1 processed group, got {len(processed_groups)}"
-        processed_group = processed_groups[0]
-        assert (
-            processed_group["name"] == "created"
-        ), f"Expected group name 'created', got {processed_group['name']}"
-        # Test specific timeframes are commented out
-        timeframes = processed_group["timeframes"]
-        commented = [tf for tf in timeframes if tf.startswith("#")]
-        active = [tf for tf in timeframes if not tf.startswith("#")]
-        # Verify exactly 2 timeframes are commented (date and month)
-        assert len(commented) == 2, f"Expected exactly 2 commented timeframes, got {len(commented)}"
-        assert any(
-            "date" in tf for tf in commented
-        ), "Expected 'date' timeframe to be commented out"
-        assert any(
-            "month" in tf for tf in commented
-        ), "Expected 'month' timeframe to be commented out"
-        # Verify specific active timeframes remain
-        # The actual implementation uses 6 timeframes, minus 2 conflicting ones
-        expected_active_count = 6 - 2  # All except date and month
-        assert (
-            len(active) == expected_active_count
-        ), f"Expected {expected_active_count} active timeframes, got {len(active)}"
-        assert "raw" in active, "Expected 'raw' timeframe to remain active"
-        assert "year" in active, "Expected 'year' timeframe to remain active"
-        assert "quarter" in active, "Expected 'quarter' timeframe to remain active"
+        processed_dimensions, conflicting_names = generator._comment_conflicting_dimensions(dimensions, dimension_groups)
+        # Verify conflicting dimensions are removed
+        assert len(conflicting_names) == 2, f"Expected 2 conflicting dimensions, got {len(conflicting_names)}"
+        assert 'created_date' in conflicting_names, "Expected 'created_date' to be marked as conflicting"
+        assert 'created_month' in conflicting_names, "Expected 'created_month' to be marked as conflicting"
+        # Verify non-conflicting dimensions remain
+        remaining_names = {dim['name'] for dim in processed_dimensions}
+        assert 'id' in remaining_names, "Expected 'id' dimension to remain"
+        assert 'status' in remaining_names, "Expected 'status' dimension to remain"
+        assert 'created_date' not in remaining_names, "Expected 'created_date' dimension to be removed"
+        assert 'created_month' not in remaining_names, "Expected 'created_month' dimension to be removed"
         # Test generated names method returns expected names
         generated_names = generator._get_dimension_group_generated_names("created", "date")
         # The actual implementation uses a simplified subset of timeframes

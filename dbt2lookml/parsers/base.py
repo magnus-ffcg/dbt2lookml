@@ -44,7 +44,16 @@ class DbtParser:
         )
         # Process models (update with catalog info)
         processed_models = []
+        failed_models = []
         for model in filtered_models:
             if processed_model := self._catalog_parser.process_model_columns(model):
                 processed_models.append(processed_model)
+            else:
+                failed_models.append(model.name)
+        
+        # Log any models that failed processing
+        if failed_models:
+            import logging
+            logging.warning(f"Failed to process {len(failed_models)} models during catalog parsing: {', '.join(failed_models[:5])}{'...' if len(failed_models) > 5 else ''}")
+        
         return processed_models

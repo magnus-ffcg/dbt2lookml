@@ -106,8 +106,8 @@ dbt2lookml --target-dir target --output-dir output --exposures-only --exposures-
 # Include ISO week and year fields
 dbt2lookml --target-dir target --output-dir output --include-iso-fields
 
-# Skip explore generation for nested structures
-dbt2lookml --target-dir target --output-dir output --skip-explore
+# Generate explore joins in view files for nested views
+dbt2lookml --target-dir target --output-dir output --include-explore
 
 # Use table names instead of model names
 dbt2lookml --target-dir target --output-dir output --use-table-name
@@ -153,7 +153,7 @@ exclude_models:
 
 # LookML generation options
 use_table_name: false
-skip_explore: false
+include_explore: false
 generate_locale: false
 continue_on_error: true
 

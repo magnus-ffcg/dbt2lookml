@@ -11,7 +11,7 @@ def generator():
     """Create dimension generator with test args."""
     args = Namespace(
         use_table_name=False,
-        build_explore=False,
+        include_explore=False,
         table_format_sql=True,
     )
     return LookmlDimensionGenerator(args)

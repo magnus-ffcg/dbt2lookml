@@ -202,20 +202,20 @@ def test_get_column_name_with_original_name():
 
 
 def test_get_column_name_nested_array_special_cases():
-    """Test get_column_name for nested array elements with special handling."""
-    # Test nested array with 'code' field (should capitalize)
+    """Test get_column_name for nested array elements."""
+    # Test nested array with 'code' field
     column = DbtModelColumn(name='markings.marking.code', data_type='ARRAY<STRING>')
     column.nested = True
     result = get_column_name(column, True)
-    assert result == '${TABLE}.Code'
+    assert result == '${TABLE}.code'
     
-    # Test nested array with 'description' field (should capitalize)
+    # Test nested array with 'description' field
     column = DbtModelColumn(name='markings.marking.description', data_type='ARRAY<STRING>')
     column.nested = True
     result = get_column_name(column, True)
-    assert result == '${TABLE}.Description'
+    assert result == '${TABLE}.description'
     
-    # Test nested array with other field (should use as-is)
+    # Test nested array with other field
     column = DbtModelColumn(name='markings.marking.other', data_type='ARRAY<STRING>')
     column.nested = True
     result = get_column_name(column, True)
@@ -246,7 +246,7 @@ def test_get_column_name_array_without_nested_flag():
     column = DbtModelColumn(name='markings.marking.code', data_type='ARRAY<STRING>')
     # nested is False by default, but the function checks for ARRAY in data_type
     result = get_column_name(column, True)
-    assert result == '${TABLE}.Code'
+    assert result == '${TABLE}.code'
 
 
 def test_get_column_name_short_nested_array():

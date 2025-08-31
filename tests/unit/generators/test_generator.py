@@ -1,8 +1,10 @@
 """Tests for generators/__init__.py LookmlGenerator class."""
 
-import pytest
 from argparse import Namespace
 from unittest.mock import Mock, patch
+
+import pytest
+
 from dbt2lookml.generators import LookmlGenerator
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn, DbtModelMeta
 from dbt2lookml.models.looker import DbtMetaLooker, DbtMetaLookerBase
@@ -13,8 +15,7 @@ def cli_args():
     """Create CLI args fixture."""
     return Namespace(
         use_table_name=False,
-        build_explore=False,
-        skip_explore=False,
+        include_explore=False,
         include_models=[],
         exclude_models=[],
         target_dir='output',
@@ -239,9 +240,10 @@ class TestLookmlGenerator:
         array_models = generator._extract_array_models(list(array_model.columns.values()))
         excluded_names = generator._get_excluded_array_names(array_model, array_models)
         
-        # Should exclude nested fields from array models
-        assert 'tags.value' in excluded_names
-        assert 'nested_array.field' in excluded_names
+        # Should only exclude deeply nested children (2+ levels deep)
+        # tags.value and nested_array.field are only 1 level deep, so should not be excluded
+        assert 'tags.value' not in excluded_names
+        assert 'nested_array.field' not in excluded_names
         # metadata is just STRUCT (not ARRAY<STRUCT>), so metadata.key should not be excluded
     
     def test_get_excluded_array_names_no_arrays(self, cli_args, sample_model):
@@ -266,8 +268,82 @@ class TestLookmlGenerator:
         generator = LookmlGenerator(cli_args)
         
         result = generator._get_file_path(sample_model, 'test_view')
-        expected = 'models//test_view.view.lkml'
+        expected = 'models//sample_model.view.lkml'
         assert result == expected
+    
+    def test_get_file_path_versioned_model(self, cli_args):
+        """Test _get_file_path with versioned model to avoid duplicates."""
+        cli_args.use_table_name = False
+        generator = LookmlGenerator(cli_args)
+        
+        versioned_model = DbtModel(
+            unique_id='model.bica.my_model.v1',
+            name='my_model',
+            relation_name='`project.dataset.my_table_v1`',
+            schema='dataset',
+            description='Test versioned model',
+            tags=[],
+            path='models/my_model.sql',
+            columns={}
+        )
+        
+        result = generator._get_file_path(versioned_model, 'test_view')
+        expected = 'models//my_model_v1.view.lkml'
+        assert result == expected
+
+    @patch('dbt2lookml.generators.LookmlViewGenerator')
+    def test_generate_versioned_model_unique_names(self, mock_view_gen, cli_args):
+        """Test that versioned models generate unique view names and file paths."""
+        cli_args.use_table_name = False
+        cli_args.include_explore = False
+        
+        # Create two versions of the same model
+        model_v1 = DbtModel(
+            unique_id='model.bica.f_store_sales_waste_day.v1',
+            name='f_store_sales_waste_day',
+            relation_name='`project.dataset.f_store_sales_waste_day_v1`',
+            schema='dataset',
+            description='Test versioned model v1',
+            tags=[],
+            path='models/f_store_sales_waste_day.sql',
+            columns={}
+        )
+        
+        model_v3 = DbtModel(
+            unique_id='model.bica.f_store_sales_waste_day.v3',
+            name='f_store_sales_waste_day',
+            relation_name='`project.dataset.f_store_sales_waste_day_v3`',
+            schema='dataset',
+            description='Test versioned model v3',
+            tags=[],
+            path='models/f_store_sales_waste_day.sql',
+            columns={}
+        )
+        
+        mock_view_instance = Mock()
+        mock_view_instance.generate.return_value = [{'name': 'test_view'}]
+        mock_view_gen.return_value = mock_view_instance
+        
+        generator = LookmlGenerator(cli_args)
+        generator.view_generator = mock_view_instance
+        
+        # Generate for both models
+        file_path_v1, lookml_v1 = generator.generate(model_v1)
+        file_path_v3, lookml_v3 = generator.generate(model_v3)
+        
+        # Verify unique file paths
+        assert file_path_v1 == 'models//f_store_sales_waste_day_v1.view.lkml'
+        assert file_path_v3 == 'models//f_store_sales_waste_day_v3.view.lkml'
+        assert file_path_v1 != file_path_v3
+        
+        # Verify unique view names were passed to view generator
+        assert mock_view_instance.generate.call_count == 2
+        call_args_list = mock_view_instance.generate.call_args_list
+        
+        # First call should be for v1
+        assert call_args_list[0][1]['view_name'] == 'f_store_sales_waste_day_v1'
+        # Second call should be for v3  
+        assert call_args_list[1][1]['view_name'] == 'f_store_sales_waste_day_v3'
     
     def test_get_file_path_complex_relation_name(self, cli_args):
         """Test _get_file_path with complex relation name."""
@@ -294,7 +370,7 @@ class TestLookmlGenerator:
     @patch('dbt2lookml.generators.LookmlExploreGenerator')
     def test_generate_without_explore(self, mock_explore_gen, mock_view_gen, cli_args, sample_model):
         """Test generate method without explore generation."""
-        cli_args.build_explore = False
+        cli_args.include_explore = False
         
         # Mock the view generator
         mock_view_instance = Mock()
@@ -314,7 +390,7 @@ class TestLookmlGenerator:
     @patch('dbt2lookml.generators.LookmlExploreGenerator')
     def test_generate_with_explore(self, mock_explore_gen, mock_view_gen, cli_args, sample_model):
         """Test generate method with explore generation."""
-        cli_args.build_explore = True
+        cli_args.include_explore = True
         
         # Mock the generators
         mock_view_instance = Mock()
@@ -339,7 +415,7 @@ class TestLookmlGenerator:
     def test_generate_with_table_name(self, mock_view_gen, cli_args, sample_model):
         """Test generate method with use_table_name=True."""
         cli_args.use_table_name = True
-        cli_args.build_explore = False
+        cli_args.include_explore = False
         
         mock_view_instance = Mock()
         mock_view_instance.generate.return_value = [{'name': 'sample_table'}]
@@ -359,7 +435,7 @@ class TestLookmlGenerator:
     def test_generate_with_model_name(self, mock_view_gen, cli_args, sample_model):
         """Test generate method with use_table_name=False."""
         cli_args.use_table_name = False
-        cli_args.build_explore = False
+        cli_args.include_explore = False
         
         mock_view_instance = Mock()
         mock_view_instance.generate.return_value = [{'name': 'sample_model'}]
@@ -370,7 +446,7 @@ class TestLookmlGenerator:
         
         file_path, lookml = generator.generate(sample_model)
         
-        # Should use model name
+        # Should use unique view name (same as model name for non-versioned models)
         mock_view_instance.generate.assert_called_once()
         call_args = mock_view_instance.generate.call_args
         assert call_args[1]['view_name'] == 'sample_model'
@@ -378,7 +454,7 @@ class TestLookmlGenerator:
     @patch('dbt2lookml.generators.LookmlViewGenerator')
     def test_generate_with_array_models(self, mock_view_gen, cli_args, array_model):
         """Test generate method with array models."""
-        cli_args.build_explore = False
+        cli_args.include_explore = False
         
         mock_view_instance = Mock()
         mock_view_instance.generate.return_value = [{'name': 'array_model'}]
@@ -400,13 +476,13 @@ class TestLookmlGenerator:
         array_models = call_args[1]['array_models']
         assert len(array_models) > 0
         
-        # Should have exclude names for nested fields
+        # With corrected exclusion logic, some nested fields are excluded
         exclude_names = call_args[1]['exclude_names']
-        assert len(exclude_names) > 0
+        assert len(exclude_names) == 3
     
     def test_generate_view_label_with_meta(self, cli_args):
         """Test generate method uses custom view label from meta."""
-        cli_args.build_explore = False
+        cli_args.include_explore = False
         
         # Create model with custom label
         model = DbtModel(
@@ -440,17 +516,18 @@ class TestEdgeCases:
     """Test edge cases and error conditions."""
     
     def test_extract_array_models_with_none_data_type(self, cli_args):
-        """Test _extract_array_models with None data_type."""
+        """Test _extract_array_models with None data_type and ARRAY<PRIMITIVE> exclusion."""
         generator = LookmlGenerator(cli_args)
         
         columns = [
             DbtModelColumn(name='col1', data_type=None, description='Column with None type'),
-            DbtModelColumn(name='col2', data_type='ARRAY<STRING>', description='Array column'),
+            DbtModelColumn(name='col2', data_type='ARRAY', description='Array column with primitive type', inner_types=[]),
+            DbtModelColumn(name='col3', data_type='ARRAY', description='Array column with struct type', inner_types=['field1 STRING', 'field2 INT64']),
         ]
         
         result = generator._extract_array_models(columns)
         assert len(result) == 1
-        assert result[0].name == 'col2'
+        assert result[0].name == 'col3'
     
     def test_get_excluded_array_names_struct_without_children(self, cli_args):
         """Test _get_excluded_array_names with STRUCT that has no children."""

@@ -54,9 +54,9 @@ class CatalogParser:
                     # Add missing array columns
                     if 'ARRAY' in f'{column_data.get("type", "")}':
                         array_column = self._create_missing_array_column(
-                            column_name.lower(), column_data.get('type'), []
+                            column_name.lower(), column_data.get('type'), 
+                            column_data.get('inner_types', []), column_name
                         )
-                        array_column.original_name = column_name
                         processed_columns[column_name.lower()] = array_column
                     # Add nested struct fields (columns with dots in name)
                     elif '.' in column_name:
@@ -68,6 +68,14 @@ class CatalogParser:
                         # Ensure original_name preserves the exact case from catalog
                         nested_column.original_name = column_name
                         processed_columns[column_name.lower()] = nested_column
+                    # Add simple columns that exist in catalog but not in manifest
+                    else:
+                        simple_column = self._create_missing_nested_column(
+                            column_name.lower(), column_data.get('type'),
+                            column_data.get('comment'), column_name
+                        )
+                        simple_column.original_name = column_name
+                        processed_columns[column_name.lower()] = simple_column
         elif model.unique_id in self._catalog.nodes:
             # Fallback to processed catalog if raw data not available
             catalog_node = self._catalog.nodes[model.unique_id]
@@ -79,7 +87,7 @@ class CatalogParser:
                     # Add missing array columns
                     if 'ARRAY' in f'{column.data_type}':
                         processed_columns[column_name] = self._create_missing_array_column(
-                            column_name, column.data_type, column.inner_types or []
+                            column_name, column.data_type, column.inner_types or [], column_name
                         )
                     # Add nested struct fields (columns with dots in name)
                     elif '.' in column_name:
@@ -90,24 +98,31 @@ class CatalogParser:
                         # Ensure original_name preserves the exact case from catalog
                         nested_column.original_name = column_name
                         processed_columns[column_name.lower()] = nested_column
+                    # Add simple columns that exist in catalog but not in manifest
+                    else:
+                        simple_column = self._create_missing_simple_column(
+                            column_name.lower(), column.data_type, column.comment, column_name
+                        )
+                        processed_columns[column_name.lower()] = simple_column
         # Always return the model, even if no columns were processed
         return (
             model.model_copy(update={'columns': processed_columns}) if processed_columns else model
         )
 
     def _create_missing_array_column(
-        self, column_name: str, data_type: str, inner_types: List[str]
+        self, column_name: str, data_type: str, inner_types: List[str], original_column_name: str = None
     ) -> DbtModelColumn:
         """Create a new column model for array columns missing from manifest."""
         from dbt2lookml.utils import camel_to_snake
+        original_name = original_column_name or column_name
         return DbtModelColumn(
             name=column_name,
             data_type=data_type,
             inner_types=inner_types,
             description=None,
             meta=DbtModelColumnMeta(),
-            lookml_name=camel_to_snake(column_name.split('.')[-1]),
-            original_name=column_name,
+            lookml_name=camel_to_snake(original_name.split('.')[-1]),
+            original_name=original_name,
         )
 
     def _create_missing_nested_column(
@@ -123,6 +138,21 @@ class CatalogParser:
             meta=DbtModelColumnMeta(),
             lookml_name=camel_to_snake(column_name.split('.')[-1]),
             original_name=original_column_name or column_name,
+        )
+
+    def _create_missing_simple_column(
+        self, column_name: str, data_type: str, comment: str, original_column_name: str
+    ) -> DbtModelColumn:
+        """Create a new column model for simple fields missing from manifest."""
+        from dbt2lookml.utils import camel_to_snake
+        return DbtModelColumn(
+            name=column_name,
+            data_type=data_type,
+            inner_types=[],
+            description=comment,
+            meta=DbtModelColumnMeta(),
+            lookml_name=camel_to_snake(original_column_name),
+            original_name=original_column_name,
         )
 
     def _get_catalog_column_info(

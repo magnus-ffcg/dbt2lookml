@@ -88,7 +88,9 @@ class LookmlMeasureGenerator:
                     parent not in include_names for parent in column.name.split('.')
                 ):
                     continue
-            if exclude_names and column.name in exclude_names:
+            # Convert column name to dimension name format for exclusion check
+            dimension_name = column.name.replace('.', '__')
+            if exclude_names and (column.name in exclude_names or dimension_name in exclude_names):
                 continue
             if (
                 map_bigquery_to_looker(column.data_type) in LookerScalarTypes.values()

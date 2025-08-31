@@ -60,23 +60,23 @@ class TestConfigSupport:
     def test_merge_config_with_args_cli_precedence(self):
         """Test that CLI arguments take precedence over config file."""
         cli = Cli()
-        # Create mock args - build_explore=True is considered default
+        # Create mock args - include_explore=False is the new default
         args = Mock()
         args.output_dir = '/cli/output'
         args.tag = None
-        args.build_explore = True
+        args.include_explore = True  # CLI explicitly set to True
         config = {
             'output_dir': '/config/output',
             'tag': 'config_tag',
-            'skip_explore': True,  # This should set build_explore=False
+            'include_explore': False,  # Config wants False
         }
         merged_args = cli._merge_config_with_args(args, config)
         # CLI args should take precedence
         assert merged_args.output_dir == '/cli/output'
         # Config should fill in None values
         assert merged_args.tag == 'config_tag'
-        # Config should override default values when CLI uses default
-        assert merged_args.build_explore is False
+        # CLI explicit value should override config
+        assert merged_args.include_explore is True
 
     def test_merge_config_with_args_config_fallback(self):
         """Test config file values are used when CLI args are defaults."""
@@ -85,17 +85,17 @@ class TestConfigSupport:
         args = Mock()
         args.output_dir = '.'
         args.tag = None
-        args.build_explore = True
+        args.include_explore = False  # Using default value
         config = {
             'output_dir': '/config/output',
             'tag': 'config_tag',
-            'skip_explore': True,  # This should set build_explore=False
+            'include_explore': True,  # Config wants True
         }
         merged_args = cli._merge_config_with_args(args, config)
         # Config should override defaults
         assert merged_args.output_dir == '/config/output'
         assert merged_args.tag == 'config_tag'
-        assert merged_args.build_explore is False
+        assert merged_args.include_explore is True
 
     def test_merge_config_with_custom_timeframes(self):
         """Test custom timeframes are properly merged."""

@@ -202,8 +202,9 @@ class DbtModelColumn(DbtBaseModel):
                 snake_parts.append(camel_to_snake(part))
         values['lookml_long_name'] = '__'.join(snake_parts)
         
-        # Use snake_case for the last part as lookml_name
-        values['lookml_name'] = camel_to_snake(name.split('.')[-1])
+        # Use snake_case for the last part as lookml_name, using original_name to preserve case
+        original_name = values.get('original_name', name)
+        values['lookml_name'] = camel_to_snake(original_name.split('.')[-1])
         values['description'] = values.get('description', "This field is missing a description.")
         return values
 
