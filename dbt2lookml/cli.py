@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import yaml
 
@@ -252,6 +251,8 @@ class Cli:
             logging.error(f"Unexpected error writing file {file_path}: {str(e)}")
             raise CliError(f"Unexpected error writing file {file_path}: {str(e)}") from e
 
+    
+
     def generate(self, args, models):
         """Generate LookML views from dbt models using concurrent processing"""
         if not models:
@@ -262,43 +263,42 @@ class Cli:
         views = []
         failed_count = 0
         validation_failed_count = 0
-        written_files = {}     # Track file paths with counters
+        written_files = {}     # Track unique file paths in main thread
         duplicate_files = []   # Track duplicates
         failed_models = []     # Track which models failed
         
-        # Use concurrent processing with 4 workers for better performance
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            # Submit all generation tasks
-            future_to_model = {
-                executor.submit(self._generate_single_model, args, model, written_files if args.use_table_name else None): model 
-                for model in models
-            }
-            
-            # Collect results as they complete
-            for future in as_completed(future_to_model):
-                model = future_to_model[future]
-                try:
-                    result = future.result()
-                    if result and result != 'validation_failed':
-                        # Check for duplicate file paths
-                        if result in written_files:
-                            duplicate_files.append((model.name, result))
-                        else:
-                            written_files[result] = 1
-                        views.append(result)
-                    elif result == 'validation_failed':
-                        validation_failed_count += 1
-                        failed_models.append(f"{model.name} (validation)")
+        # Counter for table name duplicates (only used when --use-table-name is set)
+        table_name_counter = {} if args.use_table_name else None
+        
+        # Process models sequentially
+        for i, model in enumerate(models):
+            try:
+                result = self._generate_single_model(args, model, table_name_counter)
+                
+                if result and result != 'validation_failed':
+                    # Debug: Log what we're adding to written_files
+                    logging.debug(f"Model {model.name} returned result: {result}")
+                    # Check for duplicate file paths
+                    if result in written_files:
+                        duplicate_files.append((model.name, result))
+                        logging.debug(f"Duplicate file path detected: {result}")
                     else:
-                        failed_count += 1
-                        failed_models.append(f"{model.name} (generation)")
-                        
-                except Exception as e:
-                    logging.error(f"Failed to generate view for model {model.name}: {str(e)}")
+                        written_files[result] = 1
+                        logging.debug(f"Added to written_files: {result} (total: {len(written_files)})")
+                    views.append(result)
+                elif result == 'validation_failed':
+                    validation_failed_count += 1
+                    failed_models.append(f"{model.name} (validation)")
+                else:
                     failed_count += 1
-                    failed_models.append(f"{model.name} (exception: {str(e)[:50]}...)")
-                    if not args.continue_on_error:
-                        raise
+                    failed_models.append(f"{model.name} (generation)")
+                    
+            except Exception as e:
+                logging.error(f"Failed to generate view for model {model.name}: {str(e)}")
+                failed_count += 1
+                failed_models.append(f"{model.name} (exception: {str(e)[:50]}...)")
+                if not args.continue_on_error:
+                    raise
         
         total_attempted = len(models)
         files_written = len(views)
@@ -308,8 +308,8 @@ class Cli:
         # Report detailed results
         logging.info(f'Generation Results:')
         logging.info(f'  - Models to process: {total_attempted}')
-        logging.info(f'  - Generation attempts: {files_written}')
-        logging.info(f'  - Unique files written to disk: {unique_files_written}')
+        logging.info(f'  - Files written: {files_written}')
+        logging.info(f'  - Unique file paths: {unique_files_written}')
         
         if duplicate_files:
             logging.warning(f'  - Duplicate file paths detected: {len(duplicate_files)}')
@@ -338,7 +338,7 @@ class Cli:
             logging.error('Generation failed - no files were written')
         return views
     
-    def _generate_single_model(self, args, model, written_files_counter=None):
+    def _generate_single_model(self, args, model, table_name_counter=None):
         """Generate and validate LookML for a single model."""
         try:
             lookml_generator = LookmlGenerator(args)
@@ -346,23 +346,24 @@ class Cli:
             contents = lkml.dump(lookml)
             
             # Handle duplicate file paths when using table names
-            if args.use_table_name and written_files_counter is not None:
+            if args.use_table_name and table_name_counter is not None:
                 original_path = file_path
-                counter = written_files_counter.get(original_path, 0)
+                counter = table_name_counter.get(original_path, 0)
                 if counter > 0:
                     # Append number to file name
                     base_path, ext = os.path.splitext(file_path)
                     file_path = f"{base_path}_{counter}{ext}"
-                written_files_counter[original_path] = counter + 1
+                table_name_counter[original_path] = counter + 1
             
-            # Validate the generated content before writing
-            from dbt2lookml.validation import LookMLValidator
-            validator = LookMLValidator()
-            validation_result = validator.validate_lookml_string(contents, file_path)
-            
-            if not validation_result['valid']:
-                logging.error(f"Generated LookML for {model.name} failed validation: {validation_result['errors']}")
-                return 'validation_failed'
+            # Validate the generated content before writing (only if --validate flag is set)
+            if args.validate:
+                from dbt2lookml.validation import LookMLValidator
+                validator = LookMLValidator()
+                validation_result = validator.validate_lookml_string(contents, file_path)
+                
+                if not validation_result['valid']:
+                    logging.error(f"Generated LookML for {model.name} failed validation: {validation_result['errors']}")
+                    return 'validation_failed'
             
             written_file_path = self._write_lookml_file(
                 output_dir=args.output_dir,

@@ -7,10 +7,12 @@ from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
 
 
 class LookmlViewGenerator:
-    """LookML view generator."""
+    """Lookml view generator."""
 
     def __init__(self, args):
+        """Initialize the generator with CLI arguments."""
         self._cli_args = args
+        self._column_collections_cache = {}  # Cache column collections per model
 
     def _create_main_view(
         self,
@@ -32,7 +34,14 @@ class LookmlViewGenerator:
         # Use provided array models or empty list if none provided
         if array_models is None:
             array_models = []
-        collections = ColumnCollections.from_model(model, array_models)
+        
+        # Cache column collections to avoid repeated expensive processing
+        # Create hashable cache key from array model names
+        array_model_names = [getattr(am, 'name', str(am)) for am in array_models]
+        cache_key = (model.unique_id, tuple(sorted(array_model_names)))
+        if cache_key not in self._column_collections_cache:
+            self._column_collections_cache[cache_key] = ColumnCollections.from_model(model, array_models)
+        collections = self._column_collections_cache[cache_key]
         
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
             model, columns_subset=collections.main_view_columns
@@ -165,7 +174,14 @@ class LookmlViewGenerator:
         # Use provided array models or empty list if none provided
         if array_models is None:
             array_models = []
-        collections = ColumnCollections.from_model(model, array_models)
+        
+        # Cache column collections to avoid repeated expensive processing
+        # Create hashable cache key from array model names
+        array_model_names = [getattr(am, 'name', str(am)) for am in array_models]
+        cache_key = (model.unique_id, tuple(sorted(array_model_names)))
+        if cache_key not in self._column_collections_cache:
+            self._column_collections_cache[cache_key] = ColumnCollections.from_model(model, array_models)
+        collections = self._column_collections_cache[cache_key]
         
         # Get columns for this specific nested view
         nested_columns = collections.nested_view_columns.get(array_model.name, {})
