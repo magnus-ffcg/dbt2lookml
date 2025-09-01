@@ -2,62 +2,62 @@ explore: d_item_v3 {
   hidden: yes
     join: d_item_v3__accreditation {
       view_label: "D Item V3: Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.accreditation}) as d_item_v3__accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.accreditation}) AS d_item_v3__accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__country_of_origin {
       view_label: "D Item V3: Country Of Origin"
-      sql: LEFT JOIN UNNEST(${d_item_v3.country_of_origin}) as d_item_v3__country_of_origin ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.country_of_origin}) AS d_item_v3__country_of_origin ;;
       relationship: one_to_many
     }
     join: d_item_v3__central_department {
       view_label: "D Item V3: Central Department"
-      sql: LEFT JOIN UNNEST(${d_item_v3.central_department}) as d_item_v3__central_department ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.central_department}) AS d_item_v3__central_department ;;
       relationship: one_to_many
     }
     join: d_item_v3__load_carrier_deposit {
       view_label: "D Item V3: Load Carrier Deposit"
-      sql: LEFT JOIN UNNEST(${d_item_v3.load_carrier_deposit}) as d_item_v3__load_carrier_deposit ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.load_carrier_deposit}) AS d_item_v3__load_carrier_deposit ;;
       relationship: one_to_many
     }
     join: d_item_v3__ica_swedish_accreditation {
       view_label: "D Item V3: Ica Swedish Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.ica_swedish_accreditation}) as d_item_v3__ica_swedish_accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.ica_swedish_accreditation}) AS d_item_v3__ica_swedish_accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__ica_ethical_accreditation {
       view_label: "D Item V3: Ica Ethical Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.ica_ethical_accreditation}) as d_item_v3__ica_ethical_accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.ica_ethical_accreditation}) AS d_item_v3__ica_ethical_accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__ica_ecological_accreditation {
       view_label: "D Item V3: Ica Ecological Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.ica_ecological_accreditation}) as d_item_v3__ica_ecological_accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.ica_ecological_accreditation}) AS d_item_v3__ica_ecological_accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__item_information_claim_detail {
       view_label: "D Item V3: Item Information Claim Detail"
-      sql: LEFT JOIN UNNEST(${d_item_v3.item_information_claim_detail}) as d_item_v3__item_information_claim_detail ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.item_information_claim_detail}) AS d_item_v3__item_information_claim_detail ;;
       relationship: one_to_many
     }
     join: d_item_v3__ica_environmental_accreditation {
       view_label: "D Item V3: Ica Environmental Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.ica_environmental_accreditation}) as d_item_v3__ica_environmental_accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.ica_environmental_accreditation}) AS d_item_v3__ica_environmental_accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__ica_non_ecological_accreditation {
       view_label: "D Item V3: Ica Non Ecological Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.ica_non_ecological_accreditation}) as d_item_v3__ica_non_ecological_accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.ica_non_ecological_accreditation}) AS d_item_v3__ica_non_ecological_accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__packaging_information__packaging_material_composition {
       view_label: "D Item V3: Packaging Information Packaging Material Composition"
-      sql: LEFT JOIN UNNEST(${d_item_v3.packaging_information__packaging_material_composition}) as d_item_v3__packaging_information__packaging_material_composition ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.packaging_information__packaging_material_composition}) AS d_item_v3__packaging_information__packaging_material_composition ;;
       relationship: one_to_many
     }
     join: d_item_v3__packaging_information__packaging_material_composition__packaging_material_composition_quantity {
       view_label: "D Item V3: Packaging Information Packaging Material Composition Packaging Material Composition Quantity"
-      sql: LEFT JOIN UNNEST(${d_item_v3__packaging_information__packaging_material_composition.packaging_material_composition_quantity}) as d_item_v3__packaging_information__packaging_material_composition__packaging_material_composition_quantity ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3__packaging_information__packaging_material_composition.packaging_material_composition_quantity}) AS d_item_v3__packaging_information__packaging_material_composition__packaging_material_composition_quantity ;;
       relationship: one_to_many
     }
 }
@@ -1412,12 +1412,12 @@ view: d_item_v3__load_carrier_deposit {
   dimension: returnable_asset_deposit_name {
     type: string
     description: "(T0148) Depositname e.g. Engångs Pet över 1000 ml"
-    sql: ${TABLE}.returnable_asset_deposit_name ;;
+    sql: returnable_asset_deposit_name ;;
   }
   dimension: returnable_asset_deposit_type {
     type: string
     description: "(T0148) Type of deposit item (Container,Crate,LoadCarrier)"
-    sql: ${TABLE}.returnable_asset_deposit_type ;;
+    sql: returnable_asset_deposit_type ;;
   }
   dimension: returnable_package_deposit_amount {
     type: number

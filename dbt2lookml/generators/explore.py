@@ -91,15 +91,39 @@ class LookmlExploreGenerator:
             dimension_name = camel_to_snake(original_parent_name.split('.')[-1])
 
             # Create SQL join for array unnesting
-            join_sql = f'LEFT JOIN UNNEST(${{{base_name}.{dimension_name}}}) AS {view_name}'
-            # Add to list
+            # Pattern: UNNEST(${[parent].[dimension]}) AS [parent]__[view_name]
+            
+            # Check if this array has a parent view that already exists as a join
+            # This determines if we reference the parent view or the base model
+            has_parent_view = False
+            if '.' in original_parent_name:
+                parent_parts = original_parent_name.split('.')[:-1]
+                parent_view_name = f"{base_name}__{'__'.join([camel_to_snake(part) for part in parent_parts])}"
+                # Check if parent view exists in our join list
+                has_parent_view = any(join['name'] == parent_view_name for join in join_list)
+            
+            if has_parent_view:
+                # This is a nested array - reference the parent view
+                join_sql = f'LEFT JOIN UNNEST(${{{parent_view_name}.{dimension_name}}}) AS {view_name}'
+            else:
+                # This is a top-level array (including flattened) - reference the base model
+                flattened_field_name = snake_parent
+                join_sql = f'LEFT JOIN UNNEST(${{{base_name}.{flattened_field_name}}}) AS {view_name}'
+            
+            # Set required_joins for nested arrays
+            required_joins = []
+            if '.' in original_parent_name:
+                parent_parts = original_parent_name.split('.')[:-1]
+                parent_view_name = f"{base_name}__{'__'.join([camel_to_snake(part) for part in parent_parts])}"
+                required_joins = [parent_view_name]
+            
             join_list.append(
                 {
                     'name': view_name,
                     'relationship': 'one_to_many',
                     'sql': join_sql,
                     'type': 'left_outer',
-                    'required_joins': [],  # No required joins for top-level arrays
+                    'required_joins': required_joins,
                 }
             )
             # Process nested arrays within this array

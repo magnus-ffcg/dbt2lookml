@@ -54,7 +54,7 @@ class LookmlMeasureGenerator:
         m = {
             'name': f'm_{measure.type.value}_{column.name}',
             'type': measure.type.value,
-            'sql': get_column_name(column, table_format_sql),
+            'sql': get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id),
             'description': measure.description or f'{measure.type.value} of {column.name}',
         }
         # Apply all measure attributes

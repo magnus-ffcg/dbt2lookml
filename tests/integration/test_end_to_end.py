@@ -62,6 +62,22 @@ class TestNestedLkmlGeneration:
             if 'hidden' in exp_dim:
                 assert exp_dim['hidden'] == gen_dim.get('hidden'), \
                     f"{view_name}.{dim_name}: hidden mismatch {gen_dim.get('hidden')}/{exp_dim['hidden']}"
+            
+            # Check SQL syntax if specified
+            if 'sql' in exp_dim:
+                assert exp_dim['sql'] == gen_dim.get('sql'), \
+                    f"{view_name}.{dim_name}: sql mismatch\nExpected: {exp_dim['sql']}\nGenerated: {gen_dim.get('sql')}"
+            
+            # Validate SQL field syntax for non-hidden dimensions
+            if gen_dim.get('sql') and not gen_dim.get('hidden'):
+                sql = gen_dim['sql']
+                # For nested views, simple field names are acceptable
+                # For main views, should use ${TABLE}.field_name syntax
+                is_nested_view = '__' in view_name
+                if not is_nested_view:
+                    # Main views should use ${TABLE}.field_name syntax
+                    assert '${' in sql and '}' in sql, \
+                        f"{view_name}.{dim_name}: Main view SQL should use Looker reference syntax: {sql}"
 
         # Compare dimension groups
         expected_dgs = {dg['name']: dg for dg in expected_view.get('dimension_groups', [])}
@@ -91,8 +107,11 @@ class TestNestedLkmlGeneration:
                 assert exp_timeframes == gen_timeframes, \
                     f"{view_name}.{dg_name}: timeframes mismatch {gen_timeframes}/{exp_timeframes}"
 
-        # Skip measure comparison for now - measures depend on metadata configuration
-        # TODO: Add measure comparison when metadata handling is standardized
+        # Compare measures - skip for now since fixtures expect basic count measures
+        # but our generator only creates measures from metadata configuration
+        # TODO: Add default count measure generation or update fixtures
+        # expected_measures = {measure['name']: measure for measure in expected_view.get('measures', [])}
+        # generated_measures = {measure['name']: measure for measure in generated_view.get('measures', [])}
 
         # Compare sql_table_name (normalize backticks)
         if 'sql_table_name' in expected_view:
@@ -149,6 +168,14 @@ class TestNestedLkmlGeneration:
             if 'sql' in gen_join:
                 assert 'UNNEST' in gen_join['sql'], \
                     f"Join {join_name}: SQL should contain UNNEST"
+                
+                # Compare SQL if specified in expected join
+                if 'sql' in exp_join:
+                    # Normalize whitespace and case for comparison
+                    expected_sql = ' '.join(exp_join['sql'].split()).upper()
+                    generated_sql = ' '.join(gen_join['sql'].split()).upper()
+                    assert expected_sql == generated_sql, \
+                        f"Join {join_name}: SQL mismatch\nExpected: {exp_join['sql']}\nGenerated: {gen_join['sql']}"
 
     def test_generate_nested_lkml_with_explore(self):
         """Test LKML generation with explore functionality."""
@@ -240,6 +267,38 @@ class TestNestedLkmlGeneration:
         # Use the freshly generated file from this test run
         output_path = 'output/test_d_item_v3/conlaybi/item_versioned/d_item_v3.view.lkml'
         with open(output_path, 'r') as file2:
+            generated = lkml.load(file2)
+
+        # Compare key structural elements including explore
+        self._compare_lkml_structures(expected, generated)
+
+    def test_generate_f_store_sales_day_selling_entity_v1_with_explore(self):
+        """Test generating LKML for f_store_sales_day_selling_entity_v1 model with explore functionality"""
+        directory = 'output/tests/conlaybi/consumer_sales_looker'
+        name = 'f_store_sales_day_selling_entity_v1'
+
+        # Initialize and run CLI with fixture data
+        cli = Cli()
+        parser = cli._init_argparser()
+        args = parser.parse_args([
+            '--target-dir', 'tests/fixtures/data',
+            '--output-dir', 'output/tests/',
+            '--select', 'conlaybi_consumer_sales_looker__f_store_sales_day_selling_entity',
+            '--use-table-name',
+        ])
+
+        # Parse and generate models
+        models = cli.parse(args)
+        assert len(models) > 0, "No models found for f_store_sales_day_selling_entity_v1"
+        
+        # Generate LKML files fresh for this test
+        cli.generate(args, models)
+
+        # Load expected and generated files
+        with open('tests/fixtures/expected/f_store_sales_day_selling_entity_v1.view.lkml', 'r') as file1:
+            expected = lkml.load(file1)
+            
+        with open(f'{directory}/{name}.view.lkml', 'r') as file2:
             generated = lkml.load(file2)
 
         # Compare key structural elements including explore

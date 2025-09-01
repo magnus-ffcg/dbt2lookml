@@ -47,8 +47,8 @@ def test_get_column_name_nested():
     column = DbtModelColumn(name='parent.child', data_type='STRING')
     # Test with table_format_sql=True
     assert get_column_name(column, True) == '${TABLE}.parent.child'
-    # Test with table_format_sql=False
-    assert get_column_name(column, False) == 'parent.child'
+    # Test with table_format_sql=False - returns last part for nested fields
+    assert get_column_name(column, False) == 'child'
 
 
 def test_get_column_name_deeply_nested():
@@ -56,8 +56,8 @@ def test_get_column_name_deeply_nested():
     column = DbtModelColumn(name='grandparent.parent.child', data_type='STRING')
     # Test with table_format_sql=True
     assert get_column_name(column, True) == '${TABLE}.grandparent.parent.child'
-    # Test with table_format_sql=False
-    assert get_column_name(column, False) == 'grandparent.parent.child'
+    # Test with table_format_sql=False - returns last part for nested fields
+    assert get_column_name(column, False) == 'child'
 
 
 def test_hash_uniqueness():
@@ -207,19 +207,19 @@ def test_get_column_name_nested_array_special_cases():
     column = DbtModelColumn(name='markings.marking.code', data_type='ARRAY<STRING>')
     column.nested = True
     result = get_column_name(column, True)
-    assert result == '${TABLE}.code'
+    assert result == '${TABLE}.markings.marking.code'
     
     # Test nested array with 'description' field
     column = DbtModelColumn(name='markings.marking.description', data_type='ARRAY<STRING>')
     column.nested = True
     result = get_column_name(column, True)
-    assert result == '${TABLE}.description'
+    assert result == '${TABLE}.markings.marking.description'
     
     # Test nested array with other field
     column = DbtModelColumn(name='markings.marking.other', data_type='ARRAY<STRING>')
     column.nested = True
     result = get_column_name(column, True)
-    assert result == '${TABLE}.other'
+    assert result == '${TABLE}.markings.marking.other'
 
 
 def test_get_column_name_fallback_without_table_format():
@@ -227,8 +227,8 @@ def test_get_column_name_fallback_without_table_format():
     # Test column without original_name, table_format_sql=False
     column = DbtModelColumn(name='parent.child.field', data_type='STRING')
     result = get_column_name(column, False)
-    # Should return the full name when no original_name is set
-    assert result == 'parent.child.field'
+    # Returns last part for nested fields
+    assert result == 'field'
 
 
 def test_get_column_name_non_array_nested():
@@ -246,7 +246,7 @@ def test_get_column_name_array_without_nested_flag():
     column = DbtModelColumn(name='markings.marking.code', data_type='ARRAY<STRING>')
     # nested is False by default, but the function checks for ARRAY in data_type
     result = get_column_name(column, True)
-    assert result == '${TABLE}.code'
+    assert result == '${TABLE}.markings.marking.code'
 
 
 def test_get_column_name_short_nested_array():

@@ -127,17 +127,17 @@ explore: f_store_sales_waste_day_v1 {
   hidden: yes
     join: f_store_sales_waste_day_v1__waste {
       view_label: "F Store Sales Waste Day V1: Waste"
-      sql: LEFT JOIN UNNEST(${f_store_sales_waste_day_v1.waste}) as f_store_sales_waste_day_v1__waste ;;
+      sql: LEFT JOIN UNNEST(${f_store_sales_waste_day_v1.waste}) AS f_store_sales_waste_day_v1__waste ;;
       relationship: one_to_many
     }
     join: f_store_sales_waste_day_v1__sales {
       view_label: "F Store Sales Waste Day V1: Sales"
-      sql: LEFT JOIN UNNEST(${f_store_sales_waste_day_v1.sales}) as f_store_sales_waste_day_v1__sales ;;
+      sql: LEFT JOIN UNNEST(${f_store_sales_waste_day_v1.sales}) AS f_store_sales_waste_day_v1__sales ;;
       relationship: one_to_many
     }
     join: f_store_sales_waste_day_v1__sales__f_sale_receipt_pseudo_keys {
       view_label: "F Store Sales Waste Day V1: Sales F Sale Receipt Pseudo Keys"
-      sql: LEFT JOIN UNNEST(${f_store_sales_waste_day_v1__sales.f_sale_receipt_pseudo_keys}) as f_store_sales_waste_day_v1__sales__f_sale_receipt_pseudo_keys ;;
+      sql: LEFT JOIN UNNEST(${f_store_sales_waste_day_v1__sales.f_sale_receipt_pseudo_keys}) AS f_store_sales_waste_day_v1__sales__f_sale_receipt_pseudo_keys ;;
       relationship: one_to_many
     }
 }

@@ -74,10 +74,16 @@ class LookmlViewGenerator:
             view['dimensions'] = dimensions
         if dimension_groups:
             view['dimension_groups'] = dimension_groups
-        if measures := measure_generator.lookml_measures_from_model(
+        # Generate measures from metadata
+        measures = measure_generator.lookml_measures_from_model(
             model, columns_subset=collections.main_view_columns
-        ):
-            view['measures'] = measures
+        )
+        
+        # Add default count measure if no measures exist
+        if not measures:
+            measures = [{'name': 'count', 'type': 'count'}]
+        
+        view['measures'] = measures
         if hidden := model._get_meta_looker('view', 'hidden'):
             view['hidden'] = 'yes' if hidden else 'no'
 
@@ -372,7 +378,7 @@ class LookmlViewGenerator:
                 'name': parent_dim_name,
                 'type': data_type,
                 'hidden': 'yes',
-                'sql': f"${{{nested_view_name}}}"
+                'sql': parent_dim_name
             }
             dimensions = [array_parent_dimension]
         else:

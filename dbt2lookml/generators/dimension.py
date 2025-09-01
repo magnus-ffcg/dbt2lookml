@@ -275,38 +275,28 @@ class LookmlDimensionGenerator:
 
         # Apply naming conventions for nested views to match fixture expectations
         if include_names and any('.' in name for name in include_names):
-            # For nested views, strip the array model prefix from dimension names
-            # The include_names contains the original column names like 'supplier_information.GTIN.GTINId'
-            array_model_prefix = include_names[0].split('.')[0]
-            from dbt2lookml.utils import camel_to_snake
-            snake_case_prefix = camel_to_snake(array_model_prefix)
+            # For nested views, strip the first prefix (anything before the first __)
+            # e.g., "supplier_information__gtin__gtin_id" -> "gtin__gtin_id"
+            import re
+            if '__' in dimension_name:
+                # Use regex to strip the first prefix: "prefix__rest" -> "rest"
+                dimension_name = re.sub(r'^.*?__', '', dimension_name)
+        
+        else:
+            # For non-nested views, convert dots to double underscores and apply camelCase conversion
+            # Use original_name if available to get the proper camelCase format
+            source_name = getattr(column, 'original_name', column.name) or column.name
             
-            # Convert the snake_case prefix to match the dimension naming format with underscores
-            # supplierinformation -> supplier_information for proper prefix matching
-            if snake_case_prefix == 'supplierinformation':
-                actual_prefix = 'supplier_information__'
+            if '.' in source_name:
+                # Convert dots to double underscores: Classification.ItemGroup.Code -> classification__item_group__code
+                parts = source_name.split('.')
+                from dbt2lookml.utils import camel_to_snake
+                snake_parts = [camel_to_snake(part).lower() for part in parts]
+                dimension_name = '__'.join(snake_parts)
             else:
-                actual_prefix = f"{snake_case_prefix}__"
-                
-            if dimension_name.startswith(actual_prefix):
-                # Strip the array model prefix
-                stripped_name = dimension_name[len(actual_prefix):]
-                
-                # For markings__marking nested view, also strip the marking__ prefix
-                if stripped_name.startswith('marking__'):
-                    stripped_name = stripped_name[len('marking__'):]
-                
-                # Apply fixture naming conventions
-                if stripped_name.endswith('__gtin_id'):
-                    stripped_name = stripped_name.replace('__gtin_id', '__gtinid')
-                elif stripped_name.endswith('__gtin_type'):
-                    stripped_name = stripped_name.replace('__gtin_type', '__gtintype')
-                elif stripped_name == 'soi_quantity':
-                    stripped_name = 'soiquantity'
-                elif stripped_name == 'soi_quantity_per_pallet':
-                    stripped_name = 'soiquantity_per_pallet'
-                
-                dimension_name = stripped_name
+                # Apply camelCase conversion for single names
+                from dbt2lookml.utils import camel_to_snake
+                dimension_name = camel_to_snake(source_name).lower()
 
         dimension: Dict[str, Any] = {"name": utils.safe_name(dimension_name)}
         # Add type for scalar types (should come before sql)
@@ -389,7 +379,7 @@ class LookmlDimensionGenerator:
             column_name_adjusted = self._transform_date_column_name(column)
         else:
             return None, None, None
-        sql = get_column_name(column, table_format_sql)
+        sql = get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id)
         dimensions = []
         # Use original_name for proper formatting if available, otherwise use column name
         label_source = getattr(column, 'original_name', column.name)
@@ -650,7 +640,7 @@ class LookmlDimensionGenerator:
             
             # Create regular dimension
             from dbt2lookml.generators.utils import get_column_name
-            column_name = get_column_name(column, table_format_sql)
+            column_name = get_column_name(column, table_format_sql, getattr(model, 'catalog_data', None), model.unique_id)
             dimension = self._create_dimension(column, column_name)
             if dimension is not None:
                 dimensions.append(dimension)
@@ -666,7 +656,7 @@ class LookmlDimensionGenerator:
         """Generate dimensions for nested views with proper naming transformations."""
         dimensions: List[Dict[str, Any]] = []
         nested_dimensions: List[Dict[str, Any]] = []
-        table_format_sql = True  # Always use ${TABLE} format for nested views
+        table_format_sql = False  # Use simple field names for nested views
         processed_columns = set()
         
         # Build hierarchy map to identify nested arrays
@@ -699,7 +689,7 @@ class LookmlDimensionGenerator:
                 if data_type_str.startswith('ARRAY') and len(hierarchy.get(col_name, {}).get('children', set())) > 0:
                     # This is a nested array within the current array - add as hidden dimension
                     from dbt2lookml.generators.utils import get_column_name
-                    nested_column_name = get_column_name(column, table_format_sql)
+                    nested_column_name = get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id)
                     
                     # Create dimension with prefix stripping for nested views
                     fake_include_names = [f"{array_model_name}.dummy"]  # Simulate include_names with dotted name for naming
@@ -724,7 +714,7 @@ class LookmlDimensionGenerator:
                 # Keep parent field only if it's a simple array (e.g. ARRAY<INT64>)
                 if self._is_single_type_array(column):
                     from dbt2lookml.generators.utils import get_column_name
-                    column_name = get_column_name(column, table_format_sql)
+                    column_name = get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id)
                     fake_include_names = [f"{array_model_name}.dummy"]  # Simulate include_names with dotted name for naming
                     dimension = self._create_dimension(column, column_name, include_names=fake_include_names)
                     if dimension is not None:
@@ -734,7 +724,7 @@ class LookmlDimensionGenerator:
             
             # Create regular dimension with proper naming for nested views
             from dbt2lookml.generators.utils import get_column_name
-            column_name = get_column_name(column, table_format_sql)
+            column_name = get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id)
             
             # Generic level-aware prefix stripping for nested views
             # Determine nesting level and apply appropriate prefix stripping

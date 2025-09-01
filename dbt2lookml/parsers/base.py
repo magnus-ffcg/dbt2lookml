@@ -47,6 +47,8 @@ class DbtParser:
         failed_models = []
         for model in filtered_models:
             if processed_model := self._catalog_parser.process_model_columns(model):
+                # Store catalog data reference for generators
+                processed_model._catalog_data = self._catalog_parser._raw_catalog_data
                 processed_models.append(processed_model)
             else:
                 failed_models.append(model.name)

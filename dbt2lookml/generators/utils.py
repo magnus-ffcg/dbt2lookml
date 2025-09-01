@@ -82,12 +82,13 @@ def map_bigquery_to_looker(column_type: Optional[str]) -> Optional[str]:
         return None
 
 
-def get_column_name(column: DbtModelColumn, table_format_sql: bool = True) -> str:
+def get_column_name(column: DbtModelColumn, table_format_sql: bool = True, catalog_data: dict = None, model_unique_id: str = None) -> str:
     """Get the appropriate column name for SQL references.
     
     Args:
         column: The column object
         table_format_sql: Whether to format as ${TABLE}.column_name
+        catalog_data: Raw catalog data for dynamic type analysis
         
     Returns:
         Formatted column name for SQL reference
@@ -101,23 +102,112 @@ def get_column_name(column: DbtModelColumn, table_format_sql: bool = True) -> st
             return f"`{col_name}`"
         return col_name
     
-    # For nested array elements, use the last part of the column name
-    # Only apply this logic to actual array elements (3+ parts AND nested array type)
-    # TODO: below is likely not the correct logic, need verification
-    if (table_format_sql and column.nested and len(column.name.split('.')) >= 3 and
-        hasattr(column, 'data_type') and column.data_type and 'ARRAY' in str(column.data_type).upper()):
-        # For nested array elements like markings.marking.code, use just the last part
-        last_part = column.name.split('.')[-1]
-        return f"${{TABLE}}.{quote_column_name_if_needed(last_part)}"
+    def is_struct_field(parent_path: str, catalog_data: dict, model_unique_id: str) -> bool:
+        """Check if a parent field is a STRUCT by looking up its type in catalog data."""
+        if not catalog_data or not model_unique_id:
+            return False
+            
+        # Look up the parent field's type in raw catalog data
+        nodes = catalog_data.get('nodes', {})
+        if model_unique_id in nodes:
+            columns = nodes[model_unique_id].get('columns', {})
+            if parent_path in columns:
+                parent_type = columns[parent_path].get('type', '')
+                # Check if it's a STRUCT (not ARRAY<STRUCT>)
+                return 'STRUCT<' in parent_type and not parent_type.startswith('ARRAY<')
+        return False
+    
+    def get_field_type(field_path: str, catalog_data: dict, model_unique_id: str) -> str:
+        """Get the data type of a field from catalog data."""
+        if not catalog_data or not model_unique_id:
+            return ''
+            
+        nodes = catalog_data.get('nodes', {})
+        if model_unique_id in nodes:
+            columns = nodes[model_unique_id].get('columns', {})
+            if field_path in columns:
+                return columns[field_path].get('type', '')
+        return ''
+
+    def analyze_nested_field_pattern(column_name: str, catalog_data: dict = None, model_unique_id: str = None) -> tuple:
+        """Analyze field pattern to determine the correct SQL syntax.
+        
+        Handles complex patterns like ARRAY_STRUCT_ARRAY by analyzing the full hierarchy.
+        
+        Returns:
+            tuple: (pattern_type, parent_path)
+            pattern_type: 'struct_parent', 'array_child', or 'simple'
+            parent_path: the parent path to use in SQL (if applicable)
+        """
+        if '.' not in column_name:
+            return 'simple', None
+            
+        parts = column_name.split('.')
+        
+        # Try catalog data analysis first if available
+        if catalog_data and model_unique_id:
+            # Check immediate parent type first (highest priority)
+            immediate_parent_path = '.'.join(parts[:-1])
+            immediate_parent_type = get_field_type(immediate_parent_path, catalog_data, model_unique_id)
+            
+            if immediate_parent_type.startswith('ARRAY<STRUCT<'):
+                return 'array_child', None
+            elif 'STRUCT<' in immediate_parent_type and not immediate_parent_type.startswith('ARRAY<'):
+                return 'struct_parent', immediate_parent_path
+            
+            # Check for higher-level STRUCT parents if immediate parent isn't definitive
+            for i in range(len(parts) - 2, 0, -1):  # Work backwards from second-to-last
+                parent_path = '.'.join(parts[:i+1])
+                parent_type = get_field_type(parent_path, catalog_data, model_unique_id)
+                if is_struct_field(parent_path, catalog_data, model_unique_id):
+                    return 'struct_parent', parent_path
+        
+        # If catalog data is unavailable, return simple pattern
+        # This should rarely happen since catalog data should always be available
+        return 'simple', None
     
     
     # Use original_name from column if available (preserves catalog case)
     if hasattr(column, 'original_name') and column.original_name:
-        quoted_name = quote_column_name_if_needed(column.original_name)
         if table_format_sql:
+            quoted_name = quote_column_name_if_needed(column.original_name)
             return f"${{TABLE}}.{quoted_name}"
         else:
-            return quoted_name
+            # For nested views, determine SQL syntax based on catalog data analysis
+            field_name = column.original_name.split('.')[-1]
+            
+            # Dynamic analysis using catalog data to determine STRUCT vs ARRAY patterns
+            field_name = column.original_name.split('.')[-1]
+            # Use provided model_unique_id or try to get it from column
+            if not model_unique_id:
+                model_unique_id = getattr(column, 'model_unique_id', None)
+            
+            # Use catalog data to determine the correct SQL syntax
+            pattern, struct_parent_path = analyze_nested_field_pattern(column.original_name, catalog_data, model_unique_id)
+            
+            if pattern == 'struct_parent' and struct_parent_path:
+                # STRUCT parent: use ${TABLE}.parent.field syntax (only immediate parent)
+                parts = column.original_name.split('.')
+                struct_parts = struct_parent_path.split('.')
+                
+                # Build path from immediate STRUCT parent onwards (not full path)
+                nested_path = '.'.join(parts[len(struct_parts):])
+                immediate_parent = struct_parts[-1]  # Only the immediate parent
+                quoted_name = quote_column_name_if_needed(f"{immediate_parent}.{nested_path}")
+                return f"${{TABLE}}.{quoted_name}"
+            elif pattern == 'array_child':
+                # ARRAY child: check nesting depth for ${TABLE} format
+                nesting_levels = column.original_name.count('.')
+                if nesting_levels >= 2:
+                    # Deep nesting: use ${TABLE}.field format
+                    quoted_field = quote_column_name_if_needed(field_name)
+                    return f"${{TABLE}}.{quoted_field}"
+                else:
+                    # Simple ARRAY child: use simple field syntax
+                    return quote_column_name_if_needed(field_name)
+            else:
+                # Simple field: use simple field syntax
+                return quote_column_name_if_needed(field_name)
     
     # Fallback to column name
     column_name = column.name.split('.')[-1] if not table_format_sql else column.name

@@ -235,14 +235,14 @@ view: dq_icasoi_current__supplier_information {
     sql: ${TABLE}.GTIN.EndDate ;;
   }
   
-  dimension: gtin__gtinid {
+  dimension: gtin__gtin_id {
     type: string
     sql: ${TABLE}.GTIN.GTINId ;;
     group_label: "Gtin"
     group_item_label: "Gtinid"
   }
   
-  dimension: gtin__gtintype {
+  dimension: gtin__gtin_type {
     type: string
     sql: ${TABLE}.GTIN.GTINType ;;
     group_label: "Gtin"
@@ -277,12 +277,12 @@ view: dq_icasoi_current__supplier_information {
     group_item_label: "Gln"
   }
   
-  dimension: soiquantity {
+  dimension: soi_quantity {
     type: number
     sql: SOIQuantity ;;
   }
   
-  dimension: soiquantity_per_pallet {
+  dimension: soi_quantity_per_pallet {
     type: number
     sql: SOIQuantityPerPallet ;;
   }
@@ -315,14 +315,14 @@ view: dq_icasoi_current__supplier_information {
     sql: ${TABLE}.TUGTIN.EndDate ;;
   }
   
-  dimension: tugtin__gtinid {
+  dimension: tugtin__gtin_id {
     type: string
     sql: ${TABLE}.TUGTIN.GTINId ;;
     group_label: "Tugtin"
     group_item_label: "Gtinid"
   }
   
-  dimension: tugtin__gtintype {
+  dimension: tugtin__gtin_type {
     type: string
     sql: ${TABLE}.TUGTIN.GTINType ;;
     group_label: "Tugtin"
@@ -360,17 +360,17 @@ explore: dq_icasoi_current {
 
   join: dq_icasoi_current__format {
     view_label: "Dq Icasoi Current: Format"
-    sql: LEFT JOIN UNNEST(${dq_icasoi_current.format}) as dq_icasoi_current__format ;;
+    sql: LEFT JOIN UNNEST(${dq_icasoi_current.format}) AS dq_icasoi_current__format ;;
     relationship: one_to_many
   }
   join: dq_icasoi_current__supplier_information {
     view_label: "Dq Icasoi Current: Supplierinformation"
-    sql: LEFT JOIN UNNEST(${dq_icasoi_current.supplier_information}) as dq_icasoi_current__supplier_information ;;
+    sql: LEFT JOIN UNNEST(${dq_icasoi_current.supplier_information}) AS dq_icasoi_current__supplier_information ;;
     relationship: one_to_many
   }
   join: dq_icasoi_current__markings__marking {
     view_label: "Dq Icasoi Current: Markings Marking"
-    sql: LEFT JOIN UNNEST(${dq_icasoi_current.markings__marking}) as dq_icasoi_current__markings__marking ;;
+    sql: LEFT JOIN UNNEST(${dq_icasoi_current.markings__marking}) AS dq_icasoi_current__markings__marking ;;
     relationship: one_to_many
   }
 }
