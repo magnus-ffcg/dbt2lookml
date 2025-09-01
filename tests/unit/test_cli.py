@@ -2,8 +2,9 @@
 
 import argparse
 import os
+from unittest.mock import Mock, mock_open, patch
+
 import pytest
-from unittest.mock import Mock, patch, mock_open
 
 from dbt2lookml.cli import Cli
 from dbt2lookml.exceptions import CliError
@@ -28,7 +29,6 @@ class TestCliUnit:
         assert defaults['log_level'] == 'INFO'
         assert defaults['exposures_only'] is False
         assert defaults['use_table_name'] is False
-        assert defaults['include_explore'] is False
         assert defaults['include_iso_fields'] is False
         assert defaults['continue_on_error'] is False
         assert defaults['generate_locale'] is False
@@ -211,7 +211,6 @@ class TestCliUnit:
             exposures_tag=None,
             tag=None,
             select=None,
-            include_explore=True,
         )
         
         result = cli.parse(args)
@@ -239,7 +238,6 @@ class TestCliUnit:
             exposures_tag=None,
             tag=None,
             select=None,
-            include_explore=True,
         )
         
         result = cli.parse(args)
@@ -409,7 +407,6 @@ class TestCliUnit:
             exposures_tag=None,
             tag=None,
             select=None,
-            include_explore=True,
             output_dir='output'
         )
         cli._args_parser.parse_args = Mock(return_value=mock_args)
@@ -473,15 +470,13 @@ class TestCliUnit:
             '--output-dir', 'output',
             '--tag', 'analytics',
             '--log-level', 'DEBUG',
-            '--include-explore',
             '--use-table-name',
             '--continue-on-error',
-            '--generate-locale',
+            '--generate-locale'
         ])
         
         assert args.tag == 'analytics'
         assert args.log_level == 'DEBUG'
-        assert args.include_explore is True
         assert args.use_table_name is True
         assert args.continue_on_error is True
         assert args.generate_locale is True

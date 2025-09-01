@@ -459,8 +459,10 @@ class LookmlDimensionGenerator:
                 if i == len(parts) - 1:  # Last part
                     if part.endswith('Date'):
                         part = part[:-4]  # Remove 'Date'
-                    elif part.lower().endswith('date') and not part.endswith('_date'):
-                        part = part[:-4]  # Remove 'date' but not '_date'
+                    elif part.endswith('_date'):
+                        part = part[:-5]  # Remove '_date'
+                    elif part.lower().endswith('date'):
+                        part = part[:-4]  # Remove 'date'
 
                 # Apply the same realistic conversion logic to each part
                 if part.islower() and '_' not in part:
@@ -727,18 +729,45 @@ class LookmlDimensionGenerator:
                     dimension = self._create_dimension(column, column_name, include_names=fake_include_names)
                     if dimension is not None:
                         dimensions.append(dimension)
-                continue
             elif not col_name.startswith(f"{parent}."):
                 continue
             
             # Create regular dimension with proper naming for nested views
             from dbt2lookml.generators.utils import get_column_name
             column_name = get_column_name(column, table_format_sql)
-            fake_include_names = [f"{array_model_name}.dummy"]  # Simulate include_names with dotted name for naming
-            dimension = self._create_dimension(column, column_name, include_names=fake_include_names)
+            
+            # Generic level-aware prefix stripping for nested views
+            # Determine nesting level and apply appropriate prefix stripping
+            
+            # Normalize array_model_name to underscore format for level analysis
+            normalized_array_name = array_model_name.replace('.', '__')
+            nesting_level = len(normalized_array_name.split('__'))
+            
+            if nesting_level == 1:
+                # Level 1: Single array (e.g., "supplier_information")
+                # Use include_names logic to get proper naming like "gtin__gtinid"
+                fake_include_names = [f"{array_model_name}.dummy"]
+                dimension = self._create_dimension(column, column_name, include_names=fake_include_names)
+            else:
+                # Level 2+: Multi-level nesting (e.g., "packaging_information__packaging_material_composition")
+                # Strip the immediate parent prefix to avoid redundancy
+                dimension = self._create_dimension(column, column_name)
+                
+                if dimension and 'name' in dimension:
+                    dim_name = dimension['name']
+                    
+                    # Get the last component as the prefix to strip
+                    parts = normalized_array_name.split('__')
+                    last_component = parts[-1]
+                    prefix_to_strip = f"{last_component}__"
+                    
+                    # Strip the prefix if the dimension name starts with it
+                    if dim_name.startswith(prefix_to_strip):
+                        new_name = dim_name[len(prefix_to_strip):]
+                        dimension['name'] = new_name
+            
             if dimension is not None:
                 dimensions.append(dimension)
-        
         return dimensions, nested_dimensions
 
     def lookml_dimension_groups_from_model(

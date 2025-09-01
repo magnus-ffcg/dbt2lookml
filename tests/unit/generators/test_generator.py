@@ -15,7 +15,6 @@ def cli_args():
     """Create CLI args fixture."""
     return Namespace(
         use_table_name=False,
-        include_explore=False,
         include_models=[],
         exclude_models=[],
         target_dir='output',
@@ -295,7 +294,6 @@ class TestLookmlGenerator:
     def test_generate_versioned_model_unique_names(self, mock_view_gen, cli_args):
         """Test that versioned models generate unique view names and file paths."""
         cli_args.use_table_name = False
-        cli_args.include_explore = False
         
         # Create two versions of the same model
         model_v1 = DbtModel(
@@ -368,29 +366,8 @@ class TestLookmlGenerator:
     
     @patch('dbt2lookml.generators.LookmlViewGenerator')
     @patch('dbt2lookml.generators.LookmlExploreGenerator')
-    def test_generate_without_explore(self, mock_explore_gen, mock_view_gen, cli_args, sample_model):
-        """Test generate method without explore generation."""
-        cli_args.include_explore = False
-        
-        # Mock the view generator
-        mock_view_instance = Mock()
-        mock_view_instance.generate.return_value = [{'name': 'test_view'}]
-        mock_view_gen.return_value = mock_view_instance
-        
-        generator = LookmlGenerator(cli_args)
-        generator.view_generator = mock_view_instance
-        
-        file_path, lookml = generator.generate(sample_model)
-        
-        assert 'view' in lookml
-        assert 'explore' not in lookml
-        assert file_path.endswith('.view.lkml')
-    
-    @patch('dbt2lookml.generators.LookmlViewGenerator')
-    @patch('dbt2lookml.generators.LookmlExploreGenerator')
     def test_generate_with_explore(self, mock_explore_gen, mock_view_gen, cli_args, sample_model):
         """Test generate method with explore generation."""
-        cli_args.include_explore = True
         
         # Mock the generators
         mock_view_instance = Mock()
@@ -415,7 +392,6 @@ class TestLookmlGenerator:
     def test_generate_with_table_name(self, mock_view_gen, cli_args, sample_model):
         """Test generate method with use_table_name=True."""
         cli_args.use_table_name = True
-        cli_args.include_explore = False
         
         mock_view_instance = Mock()
         mock_view_instance.generate.return_value = [{'name': 'sample_table'}]
@@ -435,7 +411,6 @@ class TestLookmlGenerator:
     def test_generate_with_model_name(self, mock_view_gen, cli_args, sample_model):
         """Test generate method with use_table_name=False."""
         cli_args.use_table_name = False
-        cli_args.include_explore = False
         
         mock_view_instance = Mock()
         mock_view_instance.generate.return_value = [{'name': 'sample_model'}]
@@ -454,8 +429,6 @@ class TestLookmlGenerator:
     @patch('dbt2lookml.generators.LookmlViewGenerator')
     def test_generate_with_array_models(self, mock_view_gen, cli_args, array_model):
         """Test generate method with array models."""
-        cli_args.include_explore = False
-        
         mock_view_instance = Mock()
         mock_view_instance.generate.return_value = [{'name': 'array_model'}]
         mock_view_gen.return_value = mock_view_instance
@@ -482,7 +455,6 @@ class TestLookmlGenerator:
     
     def test_generate_view_label_with_meta(self, cli_args):
         """Test generate method uses custom view label from meta."""
-        cli_args.include_explore = False
         
         # Create model with custom label
         model = DbtModel(

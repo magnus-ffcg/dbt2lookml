@@ -71,6 +71,12 @@ class ColumnCollections:
                         main_view_columns[col_name] = column
                     if col_name not in nested_view_columns:
                         nested_view_columns[col_name] = {}
+                
+                # If this array is nested under another array, also add it to the parent's nested view
+                if is_nested_array and array_parent:
+                    if array_parent not in nested_view_columns:
+                        nested_view_columns[array_parent] = {}
+                    nested_view_columns[array_parent][col_name] = column
             elif array_parent:
                 # This column belongs to a nested view
                 if array_parent not in nested_view_columns:

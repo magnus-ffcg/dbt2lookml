@@ -1,7 +1,9 @@
 """Focused tests to improve dimension.py coverage for specific missing lines."""
 
-import pytest
 from argparse import Namespace
+
+import pytest
+
 from dbt2lookml.generators.dimension import LookmlDimensionGenerator
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn, DbtResourceType
 
@@ -11,7 +13,6 @@ def generator():
     """Create dimension generator with test args."""
     args = Namespace(
         use_table_name=False,
-        include_explore=False,
         table_format_sql=True,
     )
     return LookmlDimensionGenerator(args)

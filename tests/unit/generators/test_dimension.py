@@ -35,7 +35,6 @@ def cli_args():
     """Fixture for CLI arguments."""
     return Namespace(
         use_table_name=False,
-        include_explore=False,
         table_format_sql=True,
     )
 
@@ -209,7 +208,6 @@ class TestLookmlDimensionGeneratorExtended:
         """Set up test fixtures."""
         args = Namespace(
             use_table_name=False,
-            include_explore=False,
             table_format_sql=True,
         )
         self.generator = LookmlDimensionGenerator(args)

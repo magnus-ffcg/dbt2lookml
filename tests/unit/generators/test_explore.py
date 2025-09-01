@@ -15,7 +15,6 @@ def cli_args():
     """Create CLI args fixture."""
     return Namespace(
         use_table_name=False,
-        include_explore=True,
         include_models=[],
         exclude_models=[],
         target_dir='output',

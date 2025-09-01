@@ -153,7 +153,6 @@ exclude_models:
 
 # LookML generation options
 use_table_name: false
-include_explore: false
 generate_locale: false
 continue_on_error: true
 

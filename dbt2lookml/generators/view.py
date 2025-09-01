@@ -353,12 +353,24 @@ class LookmlViewGenerator:
         
         # Add the array parent dimension to the nested view
         if is_simple_array:
-            # For simple arrays, only include the array parent dimension (hidden)
-            parent_dim_name = array_model.name.split('.')[-1]
+            # For simple arrays, only include the array parent dimension
+            # Use full nested view name for dimension name to match expected fixtures
+            parent_dim_name = nested_view_name
+            
+            # Get the proper data type from the array model
+            from dbt2lookml.generators.utils import map_bigquery_to_looker
+            # For arrays, we need to get the inner type, not the array type itself
+            if hasattr(array_model, 'inner_types') and array_model.inner_types:
+                inner_type = array_model.inner_types[0]  # Get first inner type
+                data_type = map_bigquery_to_looker(inner_type)
+            else:
+                data_type = map_bigquery_to_looker(array_model.data_type)
+            if data_type is None:
+                data_type = 'string'  # fallback
             
             array_parent_dimension = {
                 'name': parent_dim_name,
-                'type': 'string',
+                'type': data_type,
                 'hidden': 'yes',
                 'sql': f"${{{nested_view_name}}}"
             }

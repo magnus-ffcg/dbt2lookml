@@ -23,7 +23,6 @@ def cli_args():
     """Fixture for CLI arguments."""
     return Namespace(
         use_table_name=False,
-        include_explore=False,
         table_format_sql=True,
         timeframes={},
         include_iso_fields=True,

@@ -233,8 +233,6 @@ view: dq_icasoi_current__supplier_information {
     convert_tz: no
     datatype: date
     sql: ${TABLE}.GTIN.EndDate ;;
-    group_label: "Supplier information Gtin"
-    label: "End Date"
   }
   
   dimension: gtin__gtinid {
@@ -257,8 +255,6 @@ view: dq_icasoi_current__supplier_information {
     convert_tz: no
     datatype: date
     sql: ${TABLE}.GTIN.StartDate ;;
-    group_label: "Supplier information Gtin"
-    label: "Start Date"
   }
   
   dimension: pallet_type {
@@ -356,5 +352,25 @@ view: dq_icasoi_current__markings__marking {
   dimension: description {
     type: string
     sql: ${TABLE}.Description ;;
+  }
+}
+
+explore: dq_icasoi_current {
+  hidden: yes
+
+  join: dq_icasoi_current__format {
+    view_label: "Dq Icasoi Current: Format"
+    sql: LEFT JOIN UNNEST(${dq_icasoi_current.format}) as dq_icasoi_current__format ;;
+    relationship: one_to_many
+  }
+  join: dq_icasoi_current__supplier_information {
+    view_label: "Dq Icasoi Current: Supplierinformation"
+    sql: LEFT JOIN UNNEST(${dq_icasoi_current.supplier_information}) as dq_icasoi_current__supplier_information ;;
+    relationship: one_to_many
+  }
+  join: dq_icasoi_current__markings__marking {
+    view_label: "Dq Icasoi Current: Markings Marking"
+    sql: LEFT JOIN UNNEST(${dq_icasoi_current.markings__marking}) as dq_icasoi_current__markings__marking ;;
+    relationship: one_to_many
   }
 }

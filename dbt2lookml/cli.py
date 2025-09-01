@@ -79,7 +79,6 @@ class Cli:
             'include_models': None,
             'exclude_models': None,
             'timeframes': None,
-            'include_explore': False,
             'include_iso_fields': False,
         }
 
@@ -171,11 +170,6 @@ class Cli:
             type=str,
         )
         parser.add_argument(
-            '--include-explore',
-            help='add this flag to generate explore blocks for views',
-            action='store_true',
-        )
-        parser.add_argument(
             '--use-table-name',
             help='add this flag to use table names on views and explore',
             action='store_true',
@@ -224,7 +218,6 @@ class Cli:
             help='Validate generated LookML files for syntax errors',
             action='store_true',
         )
-        parser.set_defaults(include_explore=False)
         return parser
 
     def _write_lookml_file(

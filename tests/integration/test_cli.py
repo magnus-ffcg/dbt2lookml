@@ -14,7 +14,6 @@ def test_create_parser_default_args():
     args = parser.parse_args(['--target-dir', 'target', '--output-dir', 'output'])
     assert args.target_dir == 'target'
     assert args.output_dir == 'output'
-    assert args.include_explore is False  # Default should be False (opt-in explores)
     assert args.use_table_name is False
     assert args.tag is None
     assert args.select is None
@@ -22,17 +21,6 @@ def test_create_parser_default_args():
     assert args.exposures_only is False
     assert args.exposures_tag is None
     assert args.generate_locale is False
-
-
-def test_include_explore_flag():
-    """Test --include-explore flag behavior"""
-    parser = Cli()._init_argparser()
-    # Without --include-explore (default)
-    args = parser.parse_args(['--target-dir', 'target', '--output-dir', 'output'])
-    assert args.include_explore is False
-    # With --include-explore
-    args = parser.parse_args(['--target-dir', 'target', '--output-dir', 'output', '--include-explore'])
-    assert args.include_explore is True
 
 
 def test_parse_args_all_options():
@@ -47,7 +35,6 @@ def test_parse_args_all_options():
             '--tag',
             'analytics',
             '--exposures-only',
-            '--include-explore',
             '--use-table-name',
             '--select',
             'model_name',
@@ -59,7 +46,6 @@ def test_parse_args_all_options():
     assert args.target_dir == '/custom/target'
     assert args.output_dir == '/custom/output'
     assert args.tag == 'analytics'
-    assert args.include_explore is True
     assert args.use_table_name is True
     assert args.select == 'model_name'
     assert args.log_level == 'DEBUG'
@@ -88,8 +74,7 @@ def test_cli_parse(mock_file_handler, mock_dbt_parser):
         exposures_only=False,
         exposures_tag=None,
         tag=None,
-        select=None,
-        include_explore=True,
+        select=None
     )
     result = cli.parse(args)
     # Verify file handler calls
@@ -104,22 +89,16 @@ def test_cli_parse(mock_file_handler, mock_dbt_parser):
 
 @patch('dbt2lookml.cli.LookmlGenerator')
 def test_cli_generate_with_args(mock_generator):
-    """Test generate method respects include_explore flag"""
+    """Test generate method creates generator correctly"""
     # Mock generator
     mock_generator_instance = Mock()
     mock_generator.return_value = mock_generator_instance
     mock_generator_instance.generate.return_value = (
-        'path/to/view.lkml',
+        'test.view.lkml',
         {'view': {'name': 'test'}},
     )
     cli = Cli()
-    # Test with include_explore=True
-    args = Mock(output_dir='output', include_explore=True)
-    cli.generate(args, [Mock()])
-    mock_generator.assert_called_with(args)
-    # Test with include_explore=False
-    mock_generator.reset_mock()
-    args = Mock(output_dir='output', include_explore=False)
+    args = Mock(output_dir='output')
     cli.generate(args, [Mock()])
     mock_generator.assert_called_with(args)
 
@@ -356,7 +335,6 @@ def test_merge_config_with_args():
         output_dir='/custom/output',  # Non-default value
         tag=None,  # Default value
         log_level='INFO',  # Default value
-        include_explore=True,  # Default value
         include_iso_fields=True,  # Default value
     )
     
@@ -377,8 +355,6 @@ def test_merge_config_with_args():
     # CLI args should take precedence over config
     assert merged.output_dir == '/custom/output'
     
-    # Defaults not in config should remain
-    assert merged.include_explore is True
     assert merged.include_iso_fields is True
 
 
@@ -411,7 +387,6 @@ def test_run_with_config_file(mock_file_handler, mock_dbt_parser, mock_logging):
         exposures_tag=None,
         tag=None,
         select=None,
-        include_explore=True,
         output_dir='output'
     )
     cli._args_parser.parse_args = Mock(return_value=mock_args)

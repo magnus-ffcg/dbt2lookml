@@ -170,18 +170,14 @@ class LookmlGenerator:
         lookml = {
             'view': views,
         }
-        # Create explore if needed
-        if (
-            self._cli_args.include_explore
-        ):  # When include_explore is True, we should generate the explore
-            # Create explore
-            explore = self.explore_generator.generate(
-                model=model,
-                view_name=view_name,
-                view_label=view_label,
-                array_models=array_models,
-            )
-            lookml['explore'] = explore
+        # Always create explore to ensure SQL references are valid
+        explore = self.explore_generator.generate(
+            model=model,
+            view_name=view_name,
+            view_label=view_label,
+            array_models=array_models,
+        )
+        lookml['explore'] = explore
         return self._get_file_path(model, view_name), lookml
 
 
