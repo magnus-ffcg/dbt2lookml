@@ -35,7 +35,7 @@ def cli_args():
     """Fixture for CLI arguments."""
     return Namespace(
         use_table_name=False,
-        build_explore=False,
+        include_explore=False,
         table_format_sql=True,
     )
 
@@ -190,7 +190,7 @@ def test_lookml_dimensions_with_metadata(cli_args):
         description="Test model",
         tags=[],
     )
-    dimensions, _ = dimension_generator.lookml_dimensions_from_model(model)
+    dimensions, _ = dimension_generator.lookml_dimensions_from_model(model, columns_subset=model.columns)
     assert len(dimensions) == 1
     dimension = dimensions[0]
     assert dimension["name"] == "string_col"
@@ -209,7 +209,7 @@ class TestLookmlDimensionGeneratorExtended:
         """Set up test fixtures."""
         args = Namespace(
             use_table_name=False,
-            build_explore=False,
+            include_explore=False,
             table_format_sql=True,
         )
         self.generator = LookmlDimensionGenerator(args)
@@ -475,8 +475,8 @@ class TestLookmlDimensionGeneratorExtended:
         if self.generator._include_iso_fields:
             assert len(dimensions) > 0
 
-    def test_lookml_dimensions_from_model_with_include_names(self):
-        """Test lookml_dimensions_from_model with include_names."""
+    def test_lookml_dimensions_from_model_with_columns_subset(self):
+        """Test lookml_dimensions_from_model with columns_subset."""
         model = DbtModel(
             unique_id='model.test.test_model',
             name='test_model',
@@ -492,13 +492,16 @@ class TestLookmlDimensionGeneratorExtended:
         column2 = DbtModelColumn(name="field2", data_type="STRING")
         model.columns = {"field1": column1, "field2": column2}
         
+        # Create a subset with only field1
+        columns_subset = {"field1": model.columns["field1"]}
         dimensions, nested_dims = self.generator.lookml_dimensions_from_model(
-            model, include_names=["field1"]
+            model, columns_subset=columns_subset
         )
         
         if dimensions:
             dimension_names = [d["name"] for d in dimensions]
-            assert "field1" in dimension_names or len(dimensions) == 0
+            assert "field1" in dimension_names
+            assert "field2" not in dimension_names
         else:
             assert len(dimensions) == 0
 
@@ -523,7 +526,7 @@ class TestLookmlDimensionGeneratorExtended:
         nested_col.nested = True
         model.columns["classification.item_group.code"] = nested_col
         
-        dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model)
+        dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model, columns_subset=model.columns)
         
         dimension_names = [d["name"] for d in dimensions]
         assert any("classification" in name for name in dimension_names)
@@ -544,7 +547,7 @@ class TestLookmlDimensionGeneratorExtended:
         datetime_col = DbtModelColumn(name="updated_at", data_type="DATETIME")
         model.columns["updated_at"] = datetime_col
         
-        dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model)
+        dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model, columns_subset=model.columns)
         
         dimension_names = [d["name"] for d in dimensions]
         assert "updated_at" not in dimension_names
@@ -565,7 +568,7 @@ class TestLookmlDimensionGeneratorExtended:
         null_col = DbtModelColumn(name="null_field", data_type=None)
         model.columns["null_field"] = null_col
         
-        dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model)
+        dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model, columns_subset=model.columns)
         
         dimension_names = [d["name"] for d in dimensions]
         assert "null_field" not in dimension_names
@@ -587,7 +590,7 @@ class TestLookmlDimensionGeneratorExtended:
         array_col.inner_types = ["STRING"]
         model.columns["tags"] = array_col
         
-        dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model)
+        dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model, columns_subset=model.columns)
         
         dimension_names = [d["name"] for d in dimensions]
 

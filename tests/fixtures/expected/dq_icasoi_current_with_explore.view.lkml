@@ -227,7 +227,7 @@ view: dq_icasoi_current__supplier_information {
     sql: dq_icasoi_current__supplier_information ;;
   }
   
-  dimension_group: gtin__end_date {
+  dimension_group: gtin__end {
     type: time
     timeframes: [raw, date, week, month, quarter, year]
     convert_tz: no
@@ -249,7 +249,7 @@ view: dq_icasoi_current__supplier_information {
     group_item_label: "Gtintype"
   }
   
-  dimension_group: gtin__start_date {
+  dimension_group: gtin__start {
     type: time
     timeframes: [raw, date, week, month, quarter, year]
     convert_tz: no

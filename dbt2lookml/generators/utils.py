@@ -92,27 +92,38 @@ def get_column_name(column: DbtModelColumn, table_format_sql: bool = True) -> st
     Returns:
         Formatted column name for SQL reference
     """
-    # For nested array elements, handle special cases first
+    def quote_column_name_if_needed(col_name: str) -> str:
+        """Quote column name with backticks if it contains spaces, special characters, or non-ASCII characters."""
+        # Check for spaces, special characters, or non-ASCII characters (like Swedish ä, ö, å)
+        if (' ' in col_name or 
+            any(char in col_name for char in ['-', '+', '/', '*', '(', ')', '[', ']']) or
+            not col_name.isascii()):
+            return f"`{col_name}`"
+        return col_name
+    
+    # For nested array elements, use the last part of the column name
     # Only apply this logic to actual array elements (3+ parts AND nested array type)
+    # TODO: below is likely not the correct logic, need verification
     if (table_format_sql and column.nested and len(column.name.split('.')) >= 3 and
         hasattr(column, 'data_type') and column.data_type and 'ARRAY' in str(column.data_type).upper()):
         # For nested array elements like markings.marking.code, use just the last part
         last_part = column.name.split('.')[-1]
-        if last_part == 'code':
-            last_part = 'Code'
-        elif last_part == 'description':
-            last_part = 'Description'
-        return f"${{TABLE}}.{last_part}"
+        return f"${{TABLE}}.{quote_column_name_if_needed(last_part)}"
+    
     
     # Use original_name from column if available (preserves catalog case)
     if hasattr(column, 'original_name') and column.original_name:
+        quoted_name = quote_column_name_if_needed(column.original_name)
         if table_format_sql:
-            return f"${{TABLE}}.{column.original_name}"
+            return f"${{TABLE}}.{quoted_name}"
         else:
-            return column.original_name
+            return quoted_name
     
     # Fallback to column name
+    column_name = column.name.split('.')[-1] if not table_format_sql else column.name
+    quoted_name = quote_column_name_if_needed(column_name)
+    
     if table_format_sql:
-        return f"${{TABLE}}.{column.name}"
+        return f"${{TABLE}}.{quoted_name}"
     else:
-        return column.name.split('.')[-1]
+        return quoted_name

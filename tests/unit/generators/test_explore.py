@@ -1,8 +1,9 @@
 """Test LookML Explore Generator implementations."""
 
 from argparse import Namespace
-import pytest
 from unittest.mock import Mock
+
+import pytest
 
 from dbt2lookml.generators.explore import LookmlExploreGenerator
 from dbt2lookml.models.dbt import DbtModel, DbtModelMeta
@@ -14,8 +15,7 @@ def cli_args():
     """Create CLI args fixture."""
     return Namespace(
         use_table_name=False,
-        build_explore=True,
-        skip_explore=False,
+        include_explore=True,
         include_models=[],
         exclude_models=[],
         target_dir='output',

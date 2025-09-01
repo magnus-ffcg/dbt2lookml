@@ -41,30 +41,32 @@ def test_timeframe_filtering():
     print(f"\nOriginal dimension group 'created' timeframes ({len(all_timeframes)}):")
     for tf in all_timeframes:
         print(f"  - {tf}")
-    # Test commenting (updated method name)
-    processed_groups = generator._comment_conflicting_timeframes(dimensions, dimension_groups)
-    if processed_groups:
-        processed_timeframes = processed_groups[0].get("timeframes", [])
-        print(f"\nProcessed dimension group 'created' timeframes ({len(processed_timeframes)}):")
-        for tf in processed_timeframes:
-            print(f"  - {tf}")
-        # Count commented vs active
-        commented = [tf for tf in processed_timeframes if tf.startswith("#")]
-        active = [tf for tf in processed_timeframes if not tf.startswith("#")]
-        print("\nSummary:")
-        print(f"  - Active timeframes: {len(active)}")
-        print(f"  - Commented timeframes: {len(commented)}")
-        print(f"  - Total timeframes preserved: {len(processed_timeframes)}")
-    else:
-        print("\nDimension group was completely removed (all timeframes conflicted)")
-    # Test conflict detection specifically
-    print("\nDetailed conflict analysis:")
-    conflicting = generator._get_conflicting_timeframes(
-        dimension_groups[0],
-        {dim["name"] for dim in dimensions},
-        dimension_groups[0].get("_original_column_name"),
-    )
-    print(f"Conflicting timeframes: {conflicting}")
+    # Test dimension removal (updated approach)
+    processed_dimensions, conflicting_names = generator._comment_conflicting_dimensions(dimensions, dimension_groups)
+    
+    print(f"\nProcessed dimensions ({len(processed_dimensions)}):")
+    for dim in processed_dimensions:
+        print(f"  - {dim['name']}")
+    
+    print(f"\nConflicting dimensions removed ({len(conflicting_names)}):")
+    for name in conflicting_names:
+        print(f"  - {name}")
+    
+    print("\nSummary:")
+    print(f"  - Remaining dimensions: {len(processed_dimensions)}")
+    print(f"  - Removed conflicting dimensions: {len(conflicting_names)}")
+    
+    # Test that conflicting dimensions are removed
+    assert len(conflicting_names) == 2, f"Expected 2 conflicting dimensions, got {len(conflicting_names)}"
+    assert 'created_date' in conflicting_names, "Expected 'created_date' to be removed"
+    assert 'created_month' in conflicting_names, "Expected 'created_month' to be removed"
+    
+    # Test that non-conflicting dimensions remain
+    remaining_names = {dim['name'] for dim in processed_dimensions}
+    assert 'id' in remaining_names, "Expected 'id' dimension to remain"
+    assert 'status' in remaining_names, "Expected 'status' dimension to remain"
+    assert 'created_date' not in remaining_names, "Expected 'created_date' to be removed"
+    assert 'created_month' not in remaining_names, "Expected 'created_month' to be removed"
 
 
 if __name__ == "__main__":

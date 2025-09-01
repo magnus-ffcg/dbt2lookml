@@ -45,8 +45,8 @@ def test_include_exclude_with_fixtures():
     parser4 = DbtParser(MockArgs(include_models=['nonexistent_model']), manifest, catalog)
     nonexistent_models = parser4.get_models()
     # Assertions
-    assert len(all_models) == 2, "Should have exactly two models"
+    assert len(all_models) == 3, "Should have exactly three models"
     assert len(included_models) == 1, "Should have exactly one included model"
     assert included_models[0].name == 'conlaybi_item_dataquality__dq_ICASOI_Current'
-    assert len(excluded_models) == 1, "Should have no models after excluding the only one"
+    assert len(excluded_models) == 2, "Should have two models after excluding one"
     assert len(nonexistent_models) == 0, "Should have no models when including nonexistent"

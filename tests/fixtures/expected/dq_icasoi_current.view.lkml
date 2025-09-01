@@ -227,12 +227,14 @@ view: dq_icasoi_current__supplier_information {
     sql: dq_icasoi_current__supplier_information ;;
   }
   
-  dimension_group: gtin__end_date {
+  dimension_group: gtin__end {
     type: time
     timeframes: [raw, date, week, month, quarter, year]
     convert_tz: no
     datatype: date
     sql: ${TABLE}.GTIN.EndDate ;;
+    group_label: "Supplier information Gtin"
+    label: "End Date"
   }
   
   dimension: gtin__gtinid {
@@ -249,12 +251,14 @@ view: dq_icasoi_current__supplier_information {
     group_item_label: "Gtintype"
   }
   
-  dimension_group: gtin__start_date {
+  dimension_group: gtin__start {
     type: time
     timeframes: [raw, date, week, month, quarter, year]
     convert_tz: no
     datatype: date
     sql: ${TABLE}.GTIN.StartDate ;;
+    group_label: "Supplier information Gtin"
+    label: "Start Date"
   }
   
   dimension: pallet_type {
