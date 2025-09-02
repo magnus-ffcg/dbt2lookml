@@ -1,0 +1,38 @@
+# Vulture configuration file for dbt2lookml project
+# This file contains patterns for code that vulture should ignore
+
+# CLI entry points and main functions
+main
+cli.py
+
+# Test fixtures and utilities that may appear unused
+*fixture*
+*mock*
+conftest.py
+
+# Pydantic model fields that may appear unused but are used by the framework
+*.dict
+*.json
+*.parse_obj
+*.parse_raw
+*.schema
+*.validate
+
+# Magic methods and special methods
+__*__
+
+# Exception classes that may not be explicitly raised in the analyzed code
+*Error
+*Exception
+
+# Callback functions and event handlers
+*callback*
+*handler*
+
+# Template and example files
+example*
+template*
+
+# Generated code patterns
+*_pb2.py
+*_generated.py
