@@ -7,6 +7,60 @@ from dbt2lookml.enums import LookerBigQueryDataType
 from dbt2lookml.models.dbt import DbtModelColumn
 
 
+def get_catalog_column_info(column_name: str, catalog_data: dict, model_unique_id: str, original_name: str = None) -> dict:
+    """
+    Get catalog column information with fallback to original case lookup.
+    Returns the catalog column data or None if not found.
+    """
+    if not catalog_data or not model_unique_id:
+        return None
+    
+    node_columns = catalog_data.get('nodes', {}).get(model_unique_id, {}).get('columns', {})
+    if not node_columns:
+        return None
+    
+    # Try lowercase lookup first
+    catalog_column = node_columns.get(column_name)
+    
+    # Try original case if lowercase lookup fails
+    if not catalog_column and original_name:
+        catalog_column = node_columns.get(original_name)
+    
+    return catalog_column
+
+
+def is_single_value_array(catalog_column: dict) -> bool:
+    """
+    Check if a catalog column represents a single value array (ARRAY<primitive>).
+    Returns True for ARRAY<primitive> types, False for ARRAY<STRUCT> types.
+    """
+    if not catalog_column:
+        return False
+    
+    full_type = catalog_column.get('type', '')
+    return full_type.startswith('ARRAY<') and 'STRUCT' not in full_type
+
+
+def get_array_element_looker_type(catalog_column: dict) -> str:
+    """
+    Get the appropriate Looker type for an array element based on its BigQuery type.
+    Returns 'string', 'number', or 'yesno'.
+    """
+    if not catalog_column:
+        return 'string'
+    
+    full_type = catalog_column.get('type', '')
+    if full_type.startswith('ARRAY<') and 'STRUCT' not in full_type:
+        # Extract element type from ARRAY<TYPE>
+        element_type = full_type[6:-1]  # Remove ARRAY< and >
+        if element_type in ['INT64', 'INTEGER', 'NUMERIC', 'FLOAT64', 'FLOAT']:
+            return 'number'
+        elif element_type in ['BOOL', 'BOOLEAN']:
+            return 'yesno'
+    
+    return 'string'
+
+
 def safe_name(name: str) -> str:
     """Convert a name to a safe identifier for Looker.
     Only allows alphanumeric characters and underscores [0-9A-Za-z_].
@@ -82,16 +136,16 @@ def map_bigquery_to_looker(column_type: Optional[str]) -> Optional[str]:
         return None
 
 
-def get_column_name(column: DbtModelColumn, table_format_sql: bool = True, catalog_data: dict = None, model_unique_id: str = None) -> str:
+def get_column_name(column: DbtModelColumn, table_format_sql: bool = True, catalog_data: dict = None, model_unique_id: str = None, is_nested_view: bool = False, array_model_name: str = None) -> str:
     """Get the appropriate column name for SQL references.
     
     Args:
         column: The column object
-        table_format_sql: Whether to format as ${TABLE}.column_name
+        table_format_sql: Whether to format as ${TABLE}.column_name (always True now)
         catalog_data: Raw catalog data for dynamic type analysis
         
     Returns:
-        Formatted column name for SQL reference
+        Formatted column name for SQL reference with ${TABLE} prefix
     """
     def quote_column_name_if_needed(col_name: str) -> str:
         """Quote column name with backticks if it contains spaces, special characters, or non-ASCII characters."""
@@ -169,51 +223,48 @@ def get_column_name(column: DbtModelColumn, table_format_sql: bool = True, catal
     
     # Use original_name from column if available (preserves catalog case)
     if hasattr(column, 'original_name') and column.original_name:
-        if table_format_sql:
-            quoted_name = quote_column_name_if_needed(column.original_name)
-            return f"${{TABLE}}.{quoted_name}"
-        else:
-            # For nested views, determine SQL syntax based on catalog data analysis
-            field_name = column.original_name.split('.')[-1]
+        original_name = column.original_name
+        
+        # For nested views, strip the array model prefix from SQL references
+        if is_nested_view and '.' in original_name and array_model_name:
+            parts = original_name.split('.')
+            array_model_parts = array_model_name.split('.')
             
-            # Dynamic analysis using catalog data to determine STRUCT vs ARRAY patterns
-            field_name = column.original_name.split('.')[-1]
-            # Use provided model_unique_id or try to get it from column
-            if not model_unique_id:
-                model_unique_id = getattr(column, 'model_unique_id', None)
-            
-            # Use catalog data to determine the correct SQL syntax
-            pattern, struct_parent_path = analyze_nested_field_pattern(column.original_name, catalog_data, model_unique_id)
-            
-            if pattern == 'struct_parent' and struct_parent_path:
-                # STRUCT parent: use ${TABLE}.parent.field syntax (only immediate parent)
-                parts = column.original_name.split('.')
-                struct_parts = struct_parent_path.split('.')
+            # Handle case-insensitive matching for array model prefix
+            # Strip array model prefix from nested field paths
+            if len(parts) > len(array_model_parts):
+                # Check if the first parts match the array model (case-insensitive)
+                parts_match = True
+                for i, array_part in enumerate(array_model_parts):
+                    if i < len(parts) and parts[i].lower() != array_part.lower():
+                        parts_match = False
+                        break
                 
-                # Build path from immediate STRUCT parent onwards (not full path)
-                nested_path = '.'.join(parts[len(struct_parts):])
-                immediate_parent = struct_parts[-1]  # Only the immediate parent
-                quoted_name = quote_column_name_if_needed(f"{immediate_parent}.{nested_path}")
-                return f"${{TABLE}}.{quoted_name}"
-            elif pattern == 'array_child':
-                # ARRAY child: check nesting depth for ${TABLE} format
-                nesting_levels = column.original_name.count('.')
-                if nesting_levels >= 2:
-                    # Deep nesting: use ${TABLE}.field format
-                    quoted_field = quote_column_name_if_needed(field_name)
-                    return f"${{TABLE}}.{quoted_field}"
+                if parts_match:
+                    # Remove the array model prefix parts
+                    remaining_parts = parts[len(array_model_parts):]
+                    struct_path = '.'.join(remaining_parts)
+                    quoted_name = quote_column_name_if_needed(struct_path)
                 else:
-                    # Simple ARRAY child: use simple field syntax
-                    return quote_column_name_if_needed(field_name)
+                    quoted_name = quote_column_name_if_needed(original_name)
+            elif len(parts) == len(array_model_parts) + 1:
+                # Simple field in array: ArrayName.FieldName -> FieldName
+                if parts[0].lower() == array_model_parts[0].lower():
+                    field_name = parts[-1]
+                    quoted_name = quote_column_name_if_needed(field_name)
+                else:
+                    quoted_name = quote_column_name_if_needed(original_name)
             else:
-                # Simple field: use simple field syntax
-                return quote_column_name_if_needed(field_name)
-    
-    # Fallback to column name
-    column_name = column.name.split('.')[-1] if not table_format_sql else column.name
-    quoted_name = quote_column_name_if_needed(column_name)
-    
-    if table_format_sql:
+                quoted_name = quote_column_name_if_needed(original_name)
+        elif is_nested_view and '.' in original_name:
+            # Fallback for when array_model_name is not provided - use full path
+            quoted_name = quote_column_name_if_needed(original_name)
+        else:
+            quoted_name = quote_column_name_if_needed(original_name)
+        
         return f"${{TABLE}}.{quoted_name}"
-    else:
-        return quoted_name
+    
+    # Fallback to column name with ${TABLE} prefix
+    column_name = column.name
+    quoted_name = quote_column_name_if_needed(column_name)
+    return f"${{TABLE}}.{quoted_name}"

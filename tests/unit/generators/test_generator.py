@@ -498,8 +498,9 @@ class TestEdgeCases:
         ]
         
         result = generator._extract_array_models(columns)
-        assert len(result) == 1
-        assert result[0].name == 'col3'
+        assert len(result) == 2  # Both col2 and col3 are ARRAY types
+        assert result[0].name == 'col2'
+        assert result[1].name == 'col3'
     
     def test_get_excluded_array_names_struct_without_children(self, cli_args):
         """Test _get_excluded_array_names with STRUCT that has no children."""

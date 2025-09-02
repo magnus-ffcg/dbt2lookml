@@ -60,17 +60,21 @@ class ColumnCollections:
                 is_nested_array = array_parent is not None and array_parent in array_model_names
                 
                 if has_children:
-                    # Array with children: add to main view only if not nested under another array, always create nested view
+                    # Array with children (ARRAY<STRUCT>): add to main view only if not nested under another array, always create nested view
                     if not is_nested_array:
                         main_view_columns[col_name] = column
                     if col_name not in nested_view_columns:
                         nested_view_columns[col_name] = {}
+                    # For ARRAY<STRUCT> fields, add the array field itself to its nested view as a hidden dimension
+                    nested_view_columns[col_name][col_name] = column
                 else:
-                    # Array without children: add to main view only if not nested under another array, always create nested view
+                    # Array without children (pure ARRAY): add to main view only if not nested under another array, always create nested view
                     if not is_nested_array:
                         main_view_columns[col_name] = column
                     if col_name not in nested_view_columns:
                         nested_view_columns[col_name] = {}
+                    # For pure ARRAY fields, add the array field itself to its nested view
+                    nested_view_columns[col_name][col_name] = column
                 
                 # If this array is nested under another array, also add it to the parent's nested view
                 if is_nested_array and array_parent:

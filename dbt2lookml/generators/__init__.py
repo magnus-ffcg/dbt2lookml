@@ -33,19 +33,23 @@ class LookmlGenerator:
     def _extract_array_models(self, columns: list[DbtModelColumn]) -> list[DbtModelColumn]:
         """Extract array models from a list of columns.
         
-        Only extracts ARRAY<STRUCT> types that need nested views.
-        ARRAY<PRIMITIVE> types (like ARRAY<STRING>) should not create nested views.
+        Extracts all ARRAY types that need nested views:
+        - ARRAY<STRUCT> types create nested views with multiple dimensions from struct fields
+        - ARRAY<PRIMITIVE> types create nested views with a single dimension representing the array element
+        
+        This includes both top-level arrays and nested arrays within other arrays.
         """
+        from dbt2lookml.models.column_collections import ColumnCollections
+        
+        # Use the same hierarchy-based logic as ColumnCollections to find all arrays
+        columns_dict = {col.name: col for col in columns}
+        hierarchy = ColumnCollections._build_hierarchy_map(columns_dict)
+        
         array_models = []
-        for column in columns:
-            if column.data_type is not None:
-                data_type_str = str(column.data_type).upper()
-                # Must start with ARRAY to be an array type (not just contain ARRAY)
-                if data_type_str.startswith('ARRAY'):
-                    # Check if it's ARRAY<STRUCT> by looking at inner_types or checking for nested columns
-                    if (column.inner_types and len(column.inner_types) > 0) or \
-                       any(other_col.name.startswith(f"{column.name}.") for other_col in columns):
-                        array_models.append(column)
+        for col_name, col_info in hierarchy.items():
+            if col_info['is_array'] and col_info['column']:
+                array_models.append(col_info['column'])
+        
         return array_models
 
     def _get_excluded_array_names(self, model: DbtModel, array_models: list) -> list:
@@ -124,9 +128,11 @@ class LookmlGenerator:
         if self._cli_args.use_table_name:
             # When using table names, use the directory structure from the model path
             # but don't include the model name in the path
+            from dbt2lookml.utils import camel_to_snake
             directory = os.path.dirname(model.path)
-            # Use relation_name but preserve version info for uniqueness
-            file_name = model.relation_name.split('.')[-1].strip('`').lower()
+            # Apply same transformation as view names
+            table_name = model.relation_name.split('.')[-1].strip('`')
+            file_name = camel_to_snake(table_name)
             return os.path.join(directory, f'{file_name}.view.lkml')
         else:
             # Original behavior for model names - use unique view name to avoid collisions
@@ -146,11 +152,12 @@ class LookmlGenerator:
             ValueError: If the model is missing required attributes
         """
         # Get view name - use unique name to handle versioned models
-        view_name = (
-            model.relation_name.split('.')[-1].strip('`').lower()
-            if self._cli_args.use_table_name
-            else self._get_unique_view_name(model)
-        )
+        if self._cli_args.use_table_name:
+            from dbt2lookml.utils import camel_to_snake
+            table_name = model.relation_name.split('.')[-1].strip('`')
+            view_name = camel_to_snake(table_name)
+        else:
+            view_name = self._get_unique_view_name(model)
         # Get view label - use the helper method to get proper label
         view_label = self._get_view_label(model)
         # Get array models and structure

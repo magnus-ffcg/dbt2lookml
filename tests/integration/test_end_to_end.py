@@ -33,7 +33,7 @@ class TestNestedLkmlGeneration:
             
         # Compare explores if they exist
         if 'explores' in expected and 'explores' in generated:
-            self._compare_explores(expected['explores'], generated['explores'])
+            self._compare_explores(expected['explores'], generated['explores'], generated['views'])
 
     def _compare_view_objects(self, expected_view, generated_view, view_name):
         """Compare individual view objects focusing on structural elements"""
@@ -120,7 +120,7 @@ class TestNestedLkmlGeneration:
             assert expected_table == generated_table, \
                 f"{view_name}: sql_table_name mismatch {generated_table}/{expected_table}"
 
-    def _compare_explores(self, expected_explores, generated_explores):
+    def _compare_explores(self, expected_explores, generated_explores, all_views=None):
         """Generic explore comparison that works for all test cases"""
         assert len(expected_explores) == len(generated_explores), \
             f"Explore count mismatch: expected {len(expected_explores)}, got {len(generated_explores)}"
@@ -140,9 +140,9 @@ class TestNestedLkmlGeneration:
             
             # Compare joins if they exist
             if 'joins' in expected_explore and 'joins' in generated_explore:
-                self._compare_joins(expected_explore['joins'], generated_explore['joins'])
+                self._compare_joins(expected_explore['joins'], generated_explore['joins'], all_views)
 
-    def _compare_joins(self, expected_joins, generated_joins):
+    def _compare_joins(self, expected_joins, generated_joins, all_views=None):
         """Generic join comparison that works for all test cases"""
         expected_join_names = {join['name'] for join in expected_joins}
         generated_join_names = {join['name'] for join in generated_joins}
@@ -164,10 +164,24 @@ class TestNestedLkmlGeneration:
                 assert exp_join['relationship'] == gen_join.get('relationship'), \
                     f"Join {join_name}: relationship mismatch {gen_join.get('relationship')}/{exp_join['relationship']}"
             
+            # Check required_joins if specified in expected join
+            if 'required_joins' in exp_join:
+                assert exp_join['required_joins'] == gen_join.get('required_joins'), \
+                    f"Join {join_name}: required_joins mismatch {gen_join.get('required_joins')}/{exp_join['required_joins']}"
+            
+            # Check that required_joins is not present when it shouldn't be
+            if 'required_joins' not in exp_join:
+                assert 'required_joins' not in gen_join, \
+                    f"Join {join_name}: unexpected required_joins field: {gen_join.get('required_joins')}"
+            
             # Check that SQL contains UNNEST for array joins
             if 'sql' in gen_join:
                 assert 'UNNEST' in gen_join['sql'], \
                     f"Join {join_name}: SQL should contain UNNEST"
+                
+                # Validate that join references existing views
+                if all_views:
+                    self._validate_join_references(gen_join, all_views, join_name)
                 
                 # Compare SQL if specified in expected join
                 if 'sql' in exp_join:
@@ -176,6 +190,25 @@ class TestNestedLkmlGeneration:
                     generated_sql = ' '.join(gen_join['sql'].split()).upper()
                     assert expected_sql == generated_sql, \
                         f"Join {join_name}: SQL mismatch\nExpected: {exp_join['sql']}\nGenerated: {gen_join['sql']}"
+
+    def _validate_join_references(self, join, all_views, join_name):
+        """Validate that join SQL references existing views"""
+        import re
+        
+        # Create a set of all view names for quick lookup
+        view_names = {view['name'] for view in all_views}
+        
+        # Extract view references from join SQL
+        sql = join.get('sql', '')
+        
+        # Pattern to match ${view_name.field} references
+        view_ref_pattern = r'\$\{([^.}]+)\.'
+        view_references = re.findall(view_ref_pattern, sql)
+        
+        # Validate that all referenced views exist
+        for view_ref in view_references:
+            assert view_ref in view_names, \
+                f"Join {join_name}: references non-existent view '{view_ref}'. Available views: {sorted(view_names)}"
 
     def test_generate_nested_lkml_with_explore(self):
         """Test LKML generation with explore functionality."""
@@ -296,6 +329,38 @@ class TestNestedLkmlGeneration:
 
         # Load expected and generated files
         with open('tests/fixtures/expected/f_store_sales_day_selling_entity_v1.view.lkml', 'r') as file1:
+            expected = lkml.load(file1)
+            
+        with open(f'{directory}/{name}.view.lkml', 'r') as file2:
+            generated = lkml.load(file2)
+
+        # Compare key structural elements including explore
+        self._compare_lkml_structures(expected, generated)
+
+    def test_generate_dq_item_ebo_current_with_explore(self):
+        """Test generating LKML for dq_item_ebo_current model with complex nested structures"""
+        directory = 'output/tests/conlaybi/item_dataquality'
+        name = 'dq_item_ebo_current'
+
+        # Initialize and run CLI with fixture data
+        cli = Cli()
+        parser = cli._init_argparser()
+        args = parser.parse_args([
+            '--target-dir', 'tests/fixtures/data',
+            '--output-dir', 'output/tests/',
+            '--select', 'conlaybi_item_dataquality__dq_ItemEBO_Current',
+            '--use-table-name',
+        ])
+
+        # Parse and generate models
+        models = cli.parse(args)
+        assert len(models) > 0, "No models found for dq_item_ebo_current"
+        
+        # Generate LKML files fresh for this test
+        cli.generate(args, models)
+
+        # Load expected and generated files
+        with open('tests/fixtures/expected/dq_item_ebo_current.view.lkml', 'r') as file1:
             expected = lkml.load(file1)
             
         with open(f'{directory}/{name}.view.lkml', 'r') as file2:

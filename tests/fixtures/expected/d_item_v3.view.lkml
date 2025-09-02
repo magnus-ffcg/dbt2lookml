@@ -1,63 +1,64 @@
+# Un-hide and use this explore, or copy the joins into another explore, to get all the fully nested relationships from this view
 explore: d_item_v3 {
   hidden: yes
     join: d_item_v3__accreditation {
       view_label: "D Item V3: Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.accreditation}) AS d_item_v3__accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.accreditation}) as d_item_v3__accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__country_of_origin {
       view_label: "D Item V3: Country Of Origin"
-      sql: LEFT JOIN UNNEST(${d_item_v3.country_of_origin}) AS d_item_v3__country_of_origin ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.country_of_origin}) as d_item_v3__country_of_origin ;;
       relationship: one_to_many
     }
     join: d_item_v3__central_department {
       view_label: "D Item V3: Central Department"
-      sql: LEFT JOIN UNNEST(${d_item_v3.central_department}) AS d_item_v3__central_department ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.central_department}) as d_item_v3__central_department ;;
       relationship: one_to_many
     }
     join: d_item_v3__load_carrier_deposit {
       view_label: "D Item V3: Load Carrier Deposit"
-      sql: LEFT JOIN UNNEST(${d_item_v3.load_carrier_deposit}) AS d_item_v3__load_carrier_deposit ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.load_carrier_deposit}) as d_item_v3__load_carrier_deposit ;;
       relationship: one_to_many
     }
     join: d_item_v3__ica_swedish_accreditation {
       view_label: "D Item V3: Ica Swedish Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.ica_swedish_accreditation}) AS d_item_v3__ica_swedish_accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.ica_swedish_accreditation}) as d_item_v3__ica_swedish_accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__ica_ethical_accreditation {
       view_label: "D Item V3: Ica Ethical Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.ica_ethical_accreditation}) AS d_item_v3__ica_ethical_accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.ica_ethical_accreditation}) as d_item_v3__ica_ethical_accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__ica_ecological_accreditation {
       view_label: "D Item V3: Ica Ecological Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.ica_ecological_accreditation}) AS d_item_v3__ica_ecological_accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.ica_ecological_accreditation}) as d_item_v3__ica_ecological_accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__item_information_claim_detail {
       view_label: "D Item V3: Item Information Claim Detail"
-      sql: LEFT JOIN UNNEST(${d_item_v3.item_information_claim_detail}) AS d_item_v3__item_information_claim_detail ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.item_information_claim_detail}) as d_item_v3__item_information_claim_detail ;;
       relationship: one_to_many
     }
     join: d_item_v3__ica_environmental_accreditation {
       view_label: "D Item V3: Ica Environmental Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.ica_environmental_accreditation}) AS d_item_v3__ica_environmental_accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.ica_environmental_accreditation}) as d_item_v3__ica_environmental_accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__ica_non_ecological_accreditation {
       view_label: "D Item V3: Ica Non Ecological Accreditation"
-      sql: LEFT JOIN UNNEST(${d_item_v3.ica_non_ecological_accreditation}) AS d_item_v3__ica_non_ecological_accreditation ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.ica_non_ecological_accreditation}) as d_item_v3__ica_non_ecological_accreditation ;;
       relationship: one_to_many
     }
     join: d_item_v3__packaging_information__packaging_material_composition {
       view_label: "D Item V3: Packaging Information Packaging Material Composition"
-      sql: LEFT JOIN UNNEST(${d_item_v3.packaging_information__packaging_material_composition}) AS d_item_v3__packaging_information__packaging_material_composition ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3.packaging_information__packaging_material_composition}) as d_item_v3__packaging_information__packaging_material_composition ;;
       relationship: one_to_many
     }
     join: d_item_v3__packaging_information__packaging_material_composition__packaging_material_composition_quantity {
       view_label: "D Item V3: Packaging Information Packaging Material Composition Packaging Material Composition Quantity"
-      sql: LEFT JOIN UNNEST(${d_item_v3__packaging_information__packaging_material_composition.packaging_material_composition_quantity}) AS d_item_v3__packaging_information__packaging_material_composition__packaging_material_composition_quantity ;;
+      sql: LEFT JOIN UNNEST(${d_item_v3__packaging_information__packaging_material_composition.packaging_material_composition_quantity}) as d_item_v3__packaging_information__packaging_material_composition__packaging_material_composition_quantity ;;
       relationship: one_to_many
     }
 }
@@ -1278,44 +1279,44 @@ view: d_item_v3 {
   # ----- Sets of fields for drilling ------
   set: detail {
     fields: [
-      category_name,
-      sub_category_name,
-      functional_name,
-      main_category_name,
-      css_main_category_group_name,
-      gpc_category_name,
-      segment_name,
-      returnable_asset_deposit_name,
-      division_name,
-      brand__code_name,
-      season__code_name,
-      ecr_category__code_name,
-      core_input_reason__code_name,
-      assortment_attributes__swedish__code_name,
-      assortment_attributes__quality__code_name,
-      assortment_attributes__plantbased__code_name,
-      assortment_attributes__price_range__code_name,
-      assortment_attributes__ica_swedish__code_name,
-      assortment_attributes__packing_size__code_name,
-      assortment_attributes__pack_variant__code_name,
-      category_specific_attributes__colour__code_name,
-      category_specific_attributes__origin__code_name,
-      assortment_attributes__multicultural__code_name,
-      category_specific_attributes__flavour__code_name,
-      assortment_attributes__gdpr_sensitive__code_name,
-      category_specific_attributes__execution1__code_name,
-      category_specific_attributes__execution2__code_name,
-      category_specific_attributes__execution3__code_name,
-      category_specific_attributes__execution4__code_name,
-      category_specific_attributes__preparation__code_name,
-      category_specific_attributes__raw_material__code_name,
-      category_specific_attributes__product_group__code_name,
-      category_specific_attributes__consumer_group__code_name,
-      category_specific_attributes__specific_content__code_name,
-      primary_soi_supplier_reference__supplier_organization_name,
-      primary_soi_supplier_reference__supplychain_supplier_long_name,
-      primary_soi_supplier_reference__supplychain_supplier_short_name
-      ]
+	category_name,
+	sub_category_name,
+	functional_name,
+	main_category_name,
+	css_main_category_group_name,
+	gpc_category_name,
+	segment_name,
+	returnable_asset_deposit_name,
+	division_name,
+	brand__code_name,
+	season__code_name,
+	ecr_category__code_name,
+	core_input_reason__code_name,
+	assortment_attributes__swedish__code_name,
+	assortment_attributes__quality__code_name,
+	assortment_attributes__plantbased__code_name,
+	assortment_attributes__price_range__code_name,
+	assortment_attributes__ica_swedish__code_name,
+	assortment_attributes__packing_size__code_name,
+	assortment_attributes__pack_variant__code_name,
+	category_specific_attributes__colour__code_name,
+	category_specific_attributes__origin__code_name,
+	assortment_attributes__multicultural__code_name,
+	category_specific_attributes__flavour__code_name,
+	assortment_attributes__gdpr_sensitive__code_name,
+	category_specific_attributes__execution1__code_name,
+	category_specific_attributes__execution2__code_name,
+	category_specific_attributes__execution3__code_name,
+	category_specific_attributes__execution4__code_name,
+	category_specific_attributes__preparation__code_name,
+	category_specific_attributes__raw_material__code_name,
+	category_specific_attributes__product_group__code_name,
+	category_specific_attributes__consumer_group__code_name,
+	category_specific_attributes__specific_content__code_name,
+	primary_soi_supplier_reference__supplier_organization_name,
+	primary_soi_supplier_reference__supplychain_supplier_long_name,
+	primary_soi_supplier_reference__supplychain_supplier_short_name
+	]
   }
 
 }
@@ -1324,15 +1325,15 @@ view: d_item_v3__accreditation {
 
   dimension: accreditation_code {
     type: string
-    sql: accreditation_code ;;
+    sql: ${TABLE}.accreditation_code ;;
   }
   dimension: accreditation_description {
     type: string
-    sql: accreditation_description ;;
+    sql: ${TABLE}.accreditation_description ;;
   }
   dimension: accreditation_name {
     type: string
-    sql: accreditation_name ;;
+    sql: ${TABLE}.accreditation_name ;;
   }
   dimension: d_item_v3__accreditation {
     type: string
@@ -1356,17 +1357,17 @@ view: d_item_v3__central_department {
   dimension: central_department_code {
     type: string
     description: "department (used for central analysis close to store , maintained by Store and Marketing sponsor area)"
-    sql: central_department_code ;;
+    sql: ${TABLE}.central_department_code ;;
   }
   dimension: central_department_description {
     type: string
     description: "department (used for central analysis close to store , maintained by Store and Marketing sponsor area)"
-    sql: central_department_description ;;
+    sql: ${TABLE}.central_department_description ;;
   }
   dimension: central_department_name {
     type: string
     description: "department (used for central analysis close to store , maintained by Store and Marketing sponsor area)"
-    sql: central_department_name ;;
+    sql: ${TABLE}.central_department_name ;;
   }
   dimension: d_item_v3__central_department {
     type: string
@@ -1377,12 +1378,12 @@ view: d_item_v3__central_department {
   dimension: profile_id {
     type: string
     description: "Store profile GLN thats connected to current central department"
-    sql: profile_id ;;
+    sql: ${TABLE}.profile_id ;;
   }
   dimension: profile_name {
     type: string
     description: "Store profile name thats connected to current central department"
-    sql: profile_name ;;
+    sql: ${TABLE}.profile_name ;;
   }
 }
 
@@ -1391,7 +1392,7 @@ view: d_item_v3__load_carrier_deposit {
   dimension: base_item_quantity {
     type: number
     description: "quantity of base items in this GTIN , based on packstucture information"
-    sql: base_item_quantity ;;
+    sql: ${TABLE}.base_item_quantity ;;
   }
   dimension: d_item_v3__load_carrier_deposit {
     type: string
@@ -1402,27 +1403,27 @@ view: d_item_v3__load_carrier_deposit {
   dimension: deposit_amount {
     type: number
     description: "deposit amount (returnable_asset_contained_quantity*returnable_package_deposit_amount)"
-    sql: deposit_amount ;;
+    sql: ${TABLE}.deposit_amount ;;
   }
   dimension: returnable_asset_contained_quantity {
     type: number
     description: "(T4125) Number of deposit items per item"
-    sql: returnable_asset_contained_quantity ;;
+    sql: ${TABLE}.returnable_asset_contained_quantity ;;
   }
   dimension: returnable_asset_deposit_name {
     type: string
     description: "(T0148) Depositname e.g. Engångs Pet över 1000 ml"
-    sql: returnable_asset_deposit_name ;;
+    sql: ${TABLE}.returnable_asset_deposit_name ;;
   }
   dimension: returnable_asset_deposit_type {
     type: string
     description: "(T0148) Type of deposit item (Container,Crate,LoadCarrier)"
-    sql: returnable_asset_deposit_type ;;
+    sql: ${TABLE}.returnable_asset_deposit_type ;;
   }
   dimension: returnable_package_deposit_amount {
     type: number
     description: "(T0148) Deposit value per deposit asset incluiding VAT"
-    sql: returnable_package_deposit_amount ;;
+    sql: ${TABLE}.returnable_package_deposit_amount ;;
   }
 }
 
@@ -1436,15 +1437,15 @@ view: d_item_v3__ica_swedish_accreditation {
   }
   dimension: ica_swedish_accreditation_code {
     type: string
-    sql: ica_swedish_accreditation_code ;;
+    sql: ${TABLE}.ica_swedish_accreditation_code ;;
   }
   dimension: ica_swedish_accreditation_description {
     type: string
-    sql: ica_swedish_accreditation_description ;;
+    sql: ${TABLE}.ica_swedish_accreditation_description ;;
   }
   dimension: ica_swedish_accreditation_name {
     type: string
-    sql: ica_swedish_accreditation_name ;;
+    sql: ${TABLE}.ica_swedish_accreditation_name ;;
   }
 }
 
@@ -1458,15 +1459,15 @@ view: d_item_v3__ica_ethical_accreditation {
   }
   dimension: ica_ethical_accreditation_code {
     type: string
-    sql: ica_ethical_accreditation_code ;;
+    sql: ${TABLE}.ica_ethical_accreditation_code ;;
   }
   dimension: ica_ethical_accreditation_description {
     type: string
-    sql: ica_ethical_accreditation_description ;;
+    sql: ${TABLE}.ica_ethical_accreditation_description ;;
   }
   dimension: ica_ethical_accreditation_name {
     type: string
-    sql: ica_ethical_accreditation_name ;;
+    sql: ${TABLE}.ica_ethical_accreditation_name ;;
   }
 }
 
@@ -1480,15 +1481,15 @@ view: d_item_v3__ica_ecological_accreditation {
   }
   dimension: ica_ecological_accreditation_code {
     type: string
-    sql: ica_ecological_accreditation_code ;;
+    sql: ${TABLE}.ica_ecological_accreditation_code ;;
   }
   dimension: ica_ecological_accreditation_description {
     type: string
-    sql: ica_ecological_accreditation_description ;;
+    sql: ${TABLE}.ica_ecological_accreditation_description ;;
   }
   dimension: ica_ecological_accreditation_name {
     type: string
-    sql: ica_ecological_accreditation_name ;;
+    sql: ${TABLE}.ica_ecological_accreditation_name ;;
   }
 }
 
@@ -1539,17 +1540,17 @@ view: d_item_v3__item_information_claim_detail {
   dimension: is_item_information_claim_marked_on_package {
     type: yesno
     description: "(T4357) Item information claim details is marked on packaage (true/false)"
-    sql: is_item_information_claim_marked_on_package ;;
+    sql: ${TABLE}.is_item_information_claim_marked_on_package ;;
   }
   dimension: item_information_claim_detail_code_name {
     type: string
     description: "(T4358, T4359) Combination of code_names for claim_type and claim_element, e.g. Fri från Gluten, Låg Laktos"
-    sql: item_information_claim_detail_code_name ;;
+    sql: ${TABLE}.item_information_claim_detail_code_name ;;
   }
   dimension: item_information_claim_detail_code_value {
     type: string
     description: "(T4358, T4359) Combination of code_values for claim_type and claim_element, e.g. FREE_FROM GLUTEN, LOW_ON LACTOSE"
-    sql: item_information_claim_detail_code_value ;;
+    sql: ${TABLE}.item_information_claim_detail_code_value ;;
   }
 }
 
@@ -1563,15 +1564,15 @@ view: d_item_v3__ica_environmental_accreditation {
   }
   dimension: ica_environmental_accreditation_code {
     type: string
-    sql: ica_environmental_accreditation_code ;;
+    sql: ${TABLE}.ica_environmental_accreditation_code ;;
   }
   dimension: ica_environmental_accreditation_description {
     type: string
-    sql: ica_environmental_accreditation_description ;;
+    sql: ${TABLE}.ica_environmental_accreditation_description ;;
   }
   dimension: ica_environmental_accreditation_name {
     type: string
-    sql: ica_environmental_accreditation_name ;;
+    sql: ${TABLE}.ica_environmental_accreditation_name ;;
   }
 }
 
@@ -1585,15 +1586,15 @@ view: d_item_v3__ica_non_ecological_accreditation {
   }
   dimension: ica_non_ecological_accreditation_code {
     type: string
-    sql: ica_non_ecological_accreditation_code ;;
+    sql: ${TABLE}.ica_non_ecological_accreditation_code ;;
   }
   dimension: ica_non_ecological_accreditation_description {
     type: string
-    sql: ica_non_ecological_accreditation_description ;;
+    sql: ${TABLE}.ica_non_ecological_accreditation_description ;;
   }
   dimension: ica_non_ecological_accreditation_name {
     type: string
-    sql: ica_non_ecological_accreditation_name ;;
+    sql: ${TABLE}.ica_non_ecological_accreditation_name ;;
   }
 }
 
