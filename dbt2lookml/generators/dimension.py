@@ -252,87 +252,162 @@ class LookmlDimensionGenerator:
             return "date"
         return "scalar"
 
-    def _create_dimension(self, column: DbtModelColumn, sql: str, is_hidden: bool = False, include_names: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+    def create_dimension(self, column: DbtModelColumn, sql: str, model: DbtModel = None, is_hidden: bool = False, include_names: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
         """Create a basic dimension dictionary.
         Args:
             column: Column to create dimension from
             sql: SQL expression for the dimension
+            model: DBT model for catalog lookups
             is_hidden: Whether the dimension is hidden
+            include_names: List of included names for nested view context
         Returns:
             Dictionary containing dimension definition
         """
         data_type = map_bigquery_to_looker(column.data_type)
         if data_type is None:
             return None
-        # Determine dimension name based on context
+
+        # Determine dimension name
+        dimension_name = self._determine_dimension_name(column, include_names)
+        
+        # Create base dimension structure
+        dimension = self._create_base_dimension(dimension_name, data_type, sql)
+        
+        # Add group labels for nested fields
+        self._add_group_labels(dimension, column)
+        
+        # Apply visibility and special attributes
+        self._apply_visibility_attributes(dimension, column, is_hidden)
+        
+        # Add description
+        self._add_dimension_description(dimension, column, model)
+        
+        # Apply meta looker attributes
+        self._apply_meta_looker_attributes(
+            dimension,
+            column,
+            ["description", "group_label", "value_format_name", "label", "hidden"],
+        )
+        
+        return dimension
+
+    def _determine_dimension_name(self, column: DbtModelColumn, include_names: Optional[List[str]] = None) -> str:
+        """Determine the appropriate dimension name based on column context.
+        
+        Args:
+            column: Column to determine name for
+            include_names: List of included names for nested view context
+            
+        Returns:
+            Processed dimension name
+        """
+        # Start with base name based on nesting
         if column.nested:
-            # Always use lookml_long_name for nested fields in main view
-            # This handles both struct fields like "classification.assortment.code" -> "classification__assortment__code"
-            # and array elements that should be in main view
             dimension_name = column.lookml_long_name
         else:
-            # Use lookml_name for regular columns
             dimension_name = column.lookml_name
-
-        # Apply naming conventions for nested views to match fixture expectations
-        if include_names and any('.' in name for name in include_names):
-            # For nested views, strip the array model prefix from dimension names
-            # Extract array model name from include_names (format: "array.model.name.dummy")
-            array_model_from_include = include_names[0].rsplit('.', 1)[0]  # Remove ".dummy"
-            
-            logging.debug(f"Nested view dimension naming - Column: {column.name}")
-            logging.debug(f"  Original dimension_name: {dimension_name}")
-            logging.debug(f"  Array model from include: {array_model_from_include}")
-            
-            # Convert the full array model path to match lookml_long_name format
-            # Extract the actual prefix from the current column's lookml_long_name
-            from dbt2lookml.utils import camel_to_snake
-
-            # The array model has N parts, so we need to strip the first N parts from lookml_long_name
-            array_parts_count = len(array_model_from_include.split('.'))
-            dimension_parts = dimension_name.split('__')
-            
-            logging.debug(f"  Array model from include: {array_model_from_include}")
-            logging.debug(f"  Array parts count: {array_parts_count}")
-            logging.debug(f"  Dimension parts: {dimension_parts}")
-            
-            # Strip the first N parts that correspond to the array model
-            if len(dimension_parts) > array_parts_count:
-                stripped_parts = dimension_parts[array_parts_count:]
-                dimension_name = '__'.join(stripped_parts)
-                logging.debug(f"  After stripping {array_parts_count} prefix parts: {dimension_name}")
-            elif '__' in dimension_name:
-                # Fallback: strip the first prefix for backward compatibility
-                import re
-                original_name = dimension_name
-                dimension_name = re.sub(r'^.*?__', '', dimension_name)
-                logging.debug(f"  Fallback stripping first prefix: {original_name} -> {dimension_name}")
-            
-            logging.debug(f"  Final dimension name: {dimension_name}")
         
+        # Apply nested view naming conventions
+        if include_names and any('.' in name for name in include_names):
+            dimension_name = self._apply_nested_view_naming(dimension_name, include_names, column)
         else:
-            # For non-nested views, convert dots to double underscores and apply camelCase conversion
-            # Use original_name if available to get the proper camelCase format
-            source_name = getattr(column, 'original_name', column.name) or column.name
+            dimension_name = self._apply_standard_naming(dimension_name, column)
             
-            if '.' in source_name:
-                # Convert dots to double underscores: Classification.ItemGroup.Code -> classification__item_group__code
-                parts = source_name.split('.')
-                from dbt2lookml.utils import camel_to_snake
-                snake_parts = [camel_to_snake(part).lower() for part in parts]
-                dimension_name = '__'.join(snake_parts)
-            else:
-                # Apply camelCase conversion for single names
-                from dbt2lookml.utils import camel_to_snake
-                dimension_name = camel_to_snake(source_name).lower()
-
+        return dimension_name
+    
+    def _apply_nested_view_naming(self, dimension_name: str, include_names: List[str], column: DbtModelColumn) -> str:
+        """Apply naming conventions for nested views to match fixture expectations.
+        
+        Args:
+            dimension_name: Current dimension name
+            include_names: List of included names
+            column: Column being processed
+            
+        Returns:
+            Processed dimension name for nested views
+        """
+        # Extract array model name from include_names (format: "array.model.name.dummy")
+        array_model_from_include = include_names[0].rsplit('.', 1)[0]  # Remove ".dummy"
+        
+        logging.debug(f"Nested view dimension naming - Column: {column.name}")
+        logging.debug(f"  Original dimension_name: {dimension_name}")
+        logging.debug(f"  Array model from include: {array_model_from_include}")
+        
+        # The array model has N parts, so we need to strip the first N parts from lookml_long_name
+        array_parts_count = len(array_model_from_include.split('.'))
+        dimension_parts = dimension_name.split('__')
+        
+        logging.debug(f"  Array parts count: {array_parts_count}")
+        logging.debug(f"  Dimension parts: {dimension_parts}")
+        
+        # Strip the first N parts that correspond to the array model
+        if len(dimension_parts) > array_parts_count:
+            stripped_parts = dimension_parts[array_parts_count:]
+            dimension_name = '__'.join(stripped_parts)
+            logging.debug(f"  After stripping {array_parts_count} prefix parts: {dimension_name}")
+        elif '__' in dimension_name:
+            # Fallback: strip the first prefix for backward compatibility
+            import re
+            original_name = dimension_name
+            dimension_name = re.sub(r'^.*?__', '', dimension_name)
+            logging.debug(f"  Fallback stripping first prefix: {original_name} -> {dimension_name}")
+        
+        logging.debug(f"  Final dimension name: {dimension_name}")
+        return dimension_name
+    
+    def _apply_standard_naming(self, dimension_name: str, column: DbtModelColumn) -> str:
+        """Apply standard naming conventions for non-nested views.
+        
+        Args:
+            dimension_name: Current dimension name
+            column: Column being processed
+            
+        Returns:
+            Processed dimension name with camelCase conversion
+        """
+        # Use original_name if available to get the proper camelCase format
+        source_name = getattr(column, 'original_name', column.name) or column.name
+        
+        if '.' in source_name:
+            # Convert dots to double underscores: Classification.ItemGroup.Code -> classification__item_group__code
+            parts = source_name.split('.')
+            from dbt2lookml.utils import camel_to_snake
+            snake_parts = [camel_to_snake(part).lower() for part in parts]
+            dimension_name = '__'.join(snake_parts)
+        else:
+            # Apply camelCase conversion for single names
+            from dbt2lookml.utils import camel_to_snake
+            dimension_name = camel_to_snake(source_name).lower()
+            
+        return dimension_name
+    
+    def _create_base_dimension(self, dimension_name: str, data_type: str, sql: str) -> Dict[str, Any]:
+        """Create the base dimension dictionary with name, type, and SQL.
+        
+        Args:
+            dimension_name: Name for the dimension
+            data_type: Looker data type
+            sql: SQL expression
+            
+        Returns:
+            Base dimension dictionary
+        """
         dimension: Dict[str, Any] = {"name": utils.safe_name(dimension_name)}
+        
         # Add type for scalar types (should come before sql)
         if data_type in LookerScalarTypes.values():
             dimension["type"] = data_type
-        dimension |= {"sql": sql}
-
-        # Add group labels for nested fields in main view
+            
+        dimension["sql"] = sql
+        return dimension
+    
+    def _add_group_labels(self, dimension: Dict[str, Any], column: DbtModelColumn) -> None:
+        """Add group labels for nested fields in main view.
+        
+        Args:
+            dimension: Dimension dictionary to modify
+            column: Column being processed
+        """
         if column.nested and '.' in column.name:
             parts = column.name.split('.')
             if len(parts) >= 2:
@@ -352,7 +427,15 @@ class LookmlDimensionGenerator:
                 else:
                     last_part = parts[-1]
                 dimension["group_item_label"] = self._create_item_label(last_part)
-
+    
+    def _apply_visibility_attributes(self, dimension: Dict[str, Any], column: DbtModelColumn, is_hidden: bool) -> None:
+        """Apply visibility and special attributes based on column properties.
+        
+        Args:
+            dimension: Dimension dictionary to modify
+            column: Column being processed
+            is_hidden: Whether dimension should be hidden
+        """
         # Add primary key attributes
         if column.is_primary_key:
             dimension["primary_key"] = "yes"
@@ -363,6 +446,7 @@ class LookmlDimensionGenerator:
         # Mark deeply nested struct fields as hidden (3+ levels of nesting)
         elif column.nested and len(column.name.split('.')) >= 3:
             dimension["hidden"] = "yes"
+            
         # Handle array and struct types
         if "ARRAY" in f"{column.data_type}":
             dimension["hidden"] = "yes"
@@ -371,13 +455,18 @@ class LookmlDimensionGenerator:
         elif "STRUCT" in f"{column.data_type}":
             dimension["hidden"] = "yes"
             dimension["tags"] = ["struct"]
-        # Apply meta looker attributes
-        self._apply_meta_looker_attributes(
-            dimension,
-            column,
-            ["description", "group_label", "value_format_name", "label", "hidden"],
-        )
-        return dimension
+    
+    def _add_dimension_description(self, dimension: Dict[str, Any], column: DbtModelColumn, model: DbtModel = None) -> None:
+        """Add description to dimension from column or catalog.
+        
+        Args:
+            dimension: Dimension dictionary to modify
+            column: Column being processed
+            model: DBT model for catalog lookups
+        """
+        description = self._get_dimension_description(column, model)
+        if description:
+            dimension["description"] = description
 
     def lookml_dimension_group(
         self, column: DbtModelColumn, looker_type: str, table_format_sql: bool, model: DbtModel, is_nested_view: bool = False, array_model_name: str = None
@@ -399,12 +488,12 @@ class LookmlDimensionGenerator:
             convert_tz = "no"
             # Use enum values for timeframes
             timeframes = self._custom_timeframes.get('date', LookerDateTimeframes.values())
-            column_name_adjusted = self._transform_date_column_name(column, is_nested_view, array_model_name)
+            column_name_adjusted = self.transform_date_column_name(column, is_nested_view, array_model_name)
         elif looker_type == "time":
             convert_tz = "yes"
             # Use enum values for timeframes
             timeframes = self._custom_timeframes.get('time', LookerTimeTimeframes.values())
-            column_name_adjusted = self._transform_date_column_name(column, is_nested_view, array_model_name)
+            column_name_adjusted = self.transform_date_column_name(column, is_nested_view, array_model_name)
         else:
             return None, None, None
         sql = get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id, is_nested_view, array_model_name)
@@ -436,9 +525,10 @@ class LookmlDimensionGenerator:
             "convert_tz": convert_tz,
             "_original_column_name": column.name,  # Store original column name for conflict detection
         }
-        # Only add description if it's not None
-        if column.description is not None:
-            dimension_group["description"] = column.description
+        # Add description from column description or catalog comment
+        description = self._get_dimension_description(column, model)
+        if description:
+            dimension_group["description"] = description
         self._apply_meta_looker_attributes(dimension_group, column, ["group_label", "label"])
         dimension_group_set = {
             "name": f"s_{column_name_adjusted}",
@@ -451,7 +541,7 @@ class LookmlDimensionGenerator:
             dimension_group_set["fields"].extend([f"{column.name}_iso_year", f"{column.name}_iso_week_of_year"])
         return dimension_group, dimension_group_set, dimensions
 
-    def _transform_date_column_name(self, column: DbtModelColumn, is_nested_view: bool = False, array_model_name: str = None) -> str:
+    def transform_date_column_name(self, column: DbtModelColumn, is_nested_view: bool = False, array_model_name: str = None) -> str:
         """Transform date column names to dimension group names.
 
         Removes 'Date' or 'date' suffix and converts to snake_case.
@@ -467,97 +557,82 @@ class LookmlDimensionGenerator:
         """
         from dbt2lookml.utils import camel_to_snake
 
-        # Use original name to preserve CamelCase for proper conversion
         column_name = column.original_name or column.name
-
-        # Handle nested fields first
+        
         if '.' in column_name:
-            parts = column_name.split('.')
-            snake_parts = []
-            for i, part in enumerate(parts):
-                # Only remove date suffix from the last part (actual column name)
-                if i == len(parts) - 1:  # Last part
-                    if part.endswith('Date'):
-                        part = part[:-4]  # Remove 'Date'
-                    elif part.endswith('_date'):
-                        part = part[:-5]  # Remove '_date'
-                    elif part.lower().endswith('date'):
-                        part = part[:-4]  # Remove 'date'
-
-                # Apply the same realistic conversion logic to each part
-                if part.islower() and '_' not in part:
-                    # Pure lowercase - keep as-is
-                    snake_parts.append(part)
-                else:
-                    # CamelCase or snake_case - convert
-                    snake_parts.append(camel_to_snake(part))
-            result = '__'.join(snake_parts)
+            result = self._process_nested_field(column_name, camel_to_snake)
         else:
-            # Single field - remove date suffix first, then segment and convert
-            # Special case: if column name is exactly "Date", don't remove the suffix
-            if column_name == 'Date':
-                result = 'date'  # Keep as 'date' for dimension_group name
-            elif column_name == 'date':
-                result = 'date'  # Keep as 'date' for dimension_group name
-            elif column_name.endswith('Date'):
-                base_name = column_name[:-4]  # Remove 'Date'
-                # Clean up trailing underscores from base_name first
-                base_name = base_name.rstrip('_')
-                
-                # Only convert what we can reliably handle
-                if base_name.islower() and '_' not in base_name:
-                    # Pure lowercase concatenated words - keep as-is
-                    result = base_name
-                else:
-                    # CamelCase or snake_case - can convert reliably
-                    result = camel_to_snake(base_name)
-            elif column_name.lower().endswith('date'):
-                base_name = column_name[:-4]  # Remove 'date' or '_date'
-                # Clean up trailing underscores from base_name first
-                base_name = base_name.rstrip('_')
-                
-                # Only convert what we can reliably handle
-                if base_name.islower() and '_' not in base_name:
-                    # Pure lowercase concatenated words - keep as-is
-                    result = base_name
-                else:
-                    # CamelCase or snake_case - can convert reliably
-                    result = camel_to_snake(base_name)
-            else:
-                base_name = column_name
-                # Only convert what we can reliably handle
-                if base_name.islower() and '_' not in base_name:
-                    # Pure lowercase concatenated words - keep as-is
-                    result = base_name
-                else:
-                    # CamelCase or snake_case - can convert reliably
-                    result = camel_to_snake(base_name)
-
-        # Clean up any trailing underscores
+            result = self._process_single_field(column_name, camel_to_snake)
+        
         result = result.rstrip('_')
         
-        # For nested views, strip the nested view prefix from dimension group names
         if is_nested_view and array_model_name:
-            logging.debug(f"Dimension group naming - Column: {column.name}")
-            logging.debug(f"  Original result: {result}")
-            logging.debug(f"  Array model name: {array_model_name}")
+            result = self._strip_nested_view_prefix(result, array_model_name, column.name)
+        
+        return result
+
+    def _process_nested_field(self, column_name: str, camel_to_snake_func) -> str:
+        """Process nested field names (containing dots)."""
+        parts = column_name.split('.')
+        snake_parts = []
+        
+        for i, part in enumerate(parts):
+            # Remove date suffix only from the last part
+            if i == len(parts) - 1:
+                part = self._remove_date_suffix(part)
             
-            # Strip the array model prefix from dimension group names
-            # The array model has N parts, so we need to strip the first N parts
-            array_parts_count = len(array_model_name.split('.'))
-            result_parts = result.split('__')
-            
-            logging.debug(f"  Array model name: {array_model_name}")
-            logging.debug(f"  Array parts count: {array_parts_count}")
-            logging.debug(f"  Result parts: {result_parts}")
-            
-            # Strip the first N parts that correspond to the array model
-            if len(result_parts) > array_parts_count:
-                stripped_parts = result_parts[array_parts_count:]
-                result = '__'.join(stripped_parts)
-                logging.debug(f"  After stripping {array_parts_count} prefix parts: {result}")
-            else:
-                logging.debug(f"  Not enough parts to strip, keeping original: {result}")
+            snake_parts.append(self._convert_part_to_snake(part, camel_to_snake_func))
+        
+        return '__'.join(snake_parts)
+
+    def _process_single_field(self, column_name: str, camel_to_snake_func) -> str:
+        """Process single field names (no dots)."""
+        # Special case: exact "Date" or "date"
+        if column_name.lower() == 'date':
+            return 'date'
+        
+        base_name = self._remove_date_suffix(column_name).rstrip('_')
+        return self._convert_part_to_snake(base_name, camel_to_snake_func)
+
+    def _remove_date_suffix(self, part: str) -> str:
+        """Remove various date suffixes from a string part."""
+        if part.endswith('Date'):
+            return part[:-4]
+        elif part.endswith('_date'):
+            return part[:-5]
+        elif part.lower().endswith('date') and part != 'Date':
+            return part[:-4]
+        return part
+
+    def _convert_part_to_snake(self, part: str, camel_to_snake_func) -> str:
+        """Convert a part to snake_case if it's not pure lowercase."""
+        if part.islower() and '_' not in part:
+            # Pure lowercase - keep as-is
+            return part
+        else:
+            # CamelCase or snake_case - convert
+            return camel_to_snake_func(part)
+
+    def _strip_nested_view_prefix(self, result: str, array_model_name: str, column_name: str) -> str:
+        """Strip nested view prefix from dimension group names."""
+        import logging
+        
+        logging.debug(f"Dimension group naming - Column: {column_name}")
+        logging.debug(f"  Original result: {result}")
+        logging.debug(f"  Array model name: {array_model_name}")
+        
+        array_parts_count = len(array_model_name.split('.'))
+        result_parts = result.split('__')
+        
+        logging.debug(f"  Array parts count: {array_parts_count}")
+        logging.debug(f"  Result parts: {result_parts}")
+        
+        if len(result_parts) > array_parts_count:
+            stripped_parts = result_parts[array_parts_count:]
+            result = '__'.join(stripped_parts)
+            logging.debug(f"  After stripping {array_parts_count} prefix parts: {result}")
+        else:
+            logging.debug(f"  Not enough parts to strip, keeping original: {result}")
         
         return result
 
@@ -592,7 +667,8 @@ class LookmlDimensionGenerator:
             from dbt2lookml.utils import camel_to_snake
 
             snake_case = camel_to_snake(part)
-            title_case = snake_case.replace('_', ' ').capitalize()
+            # Use title() to properly capitalize each word
+            title_case = snake_case.replace('_', ' ').title()
             formatted_parts.append(title_case)
 
         return ' '.join(formatted_parts)
@@ -602,6 +678,38 @@ class LookmlDimensionGenerator:
 
         snake_case = camel_to_snake(item)
         return snake_case.replace('_', ' ').capitalize()
+
+    def _get_dimension_description(self, column: DbtModelColumn, model: DbtModel) -> str:
+        """Get description for dimension from column description or catalog comment.
+        
+        Args:
+            column: Column to get description for
+            model: Model containing the column
+            
+        Returns:
+            Description string or None if no description available
+        """
+        # First try column description
+        if column.description:
+            return column.description
+            
+        # Then try catalog comment
+        catalog_data = getattr(model, '_catalog_data', None)
+        if catalog_data and 'nodes' in catalog_data and model.unique_id in catalog_data['nodes']:
+            model_catalog = catalog_data['nodes'][model.unique_id]
+            if 'columns' in model_catalog:
+                # Look for column in catalog data (try both original case and lowercase)
+                catalog_column = model_catalog['columns'].get(column.name)
+                if not catalog_column:
+                    # Try with original_name if available
+                    original_name = getattr(column, 'original_name', None)
+                    if original_name:
+                        catalog_column = model_catalog['columns'].get(original_name)
+                
+                if catalog_column and catalog_column.get('comment'):
+                    return catalog_column['comment']
+                
+        return None
 
     def _create_single_array_dimension(self, column: DbtModelColumn) -> Dict[str, Any]:
         """Create a dimension for a simple array type.
@@ -697,7 +805,7 @@ class LookmlDimensionGenerator:
             # Create regular dimension
             from dbt2lookml.generators.utils import get_column_name
             column_name = get_column_name(column, table_format_sql, getattr(model, 'catalog_data', None), model.unique_id, is_nested_view, array_model_name)
-            dimension = self._create_dimension(column, column_name)
+            dimension = self.create_dimension(column, column_name)
             if dimension is not None:
                 #logging.debug(f'4 added dimension to dimensions: {dimensions}')
                 dimensions.append(dimension)
@@ -742,11 +850,10 @@ class LookmlDimensionGenerator:
                 
             # Create regular dimension
             from dbt2lookml.generators.utils import get_column_name
-            column_name = get_column_name(column, table_format_sql, getattr(model, 'catalog_data', None), model.unique_id, is_nested_view, array_model_name)
-            dimension = self._create_dimension(column, column_name)
+            column_name = get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id, is_nested_view, array_model_name)
+            dimension = self.create_dimension(column, column_name, model)
             if dimension is not None:
                 dimensions.append(dimension)
-                #logging.debug(f'2. added dimension to dimensions: {dimension}')
         
         return dimensions, nested_dimensions
 
@@ -797,7 +904,7 @@ class LookmlDimensionGenerator:
                     
                     # Create dimension with prefix stripping for nested views
                     fake_include_names = [f"{array_model_name}.dummy"]  # Simulate include_names with dotted name for naming
-                    nested_dimension = self._create_dimension(column, nested_column_name, include_names=fake_include_names)
+                    nested_dimension = self.create_dimension(column, nested_column_name, include_names=fake_include_names)
                     if nested_dimension is not None:
                         if 'dangerous' in nested_dimension.get('name', '').lower():
                             logging.debug(f'Created nested array dimension in dimension.py: {nested_dimension}')
@@ -902,7 +1009,7 @@ class LookmlDimensionGenerator:
             
             # For nested views, always use include_names logic to strip the array model prefix
             fake_include_names = [f"{array_model_name}.dummy"]
-            dimension = self._create_dimension(column, column_name, include_names=fake_include_names)
+            dimension = self.create_dimension(column, column_name, include_names=fake_include_names)
             
             if dimension is not None:
                 if 'dangerous' in dimension.get('name', '').lower():

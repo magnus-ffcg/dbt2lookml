@@ -90,7 +90,6 @@ class TestNestedLkmlGeneration:
         assert len(expected_dgs) == len(generated_dgs), \
             f"{view_name}: dimension group count mismatch {len(generated_dgs)}/{len(expected_dgs)}"
         
-        # Check all expected dimension groups exist by name
         for dg_name in expected_dgs:
             assert dg_name in generated_dgs, f"{view_name}: missing dimension group {dg_name}"
             
@@ -261,6 +260,32 @@ class TestNestedLkmlGeneration:
                         assert False, \
                             f"{view_name}.{field_name}: SQL incorrectly references array field '{first_part}' in nested view. " \
                             f"Should be '${{TABLE}}.{'.'.join(field_parts[1:])}' instead of '${{TABLE}}.{field_path}'"
+
+    def _validate_dimension_labels(self, view_name, dim_name, expected_dim, generated_dim):
+        """Validate that dimension labels match expected patterns"""
+        # Check group_label if expected
+        if 'group_label' in expected_dim:
+            assert 'group_label' in generated_dim, \
+                f"{view_name}.{dim_name}: missing group_label. Expected: '{expected_dim['group_label']}'"
+            assert expected_dim['group_label'] == generated_dim['group_label'], \
+                f"{view_name}.{dim_name}: group_label mismatch. " \
+                f"Generated: '{generated_dim['group_label']}', Expected: '{expected_dim['group_label']}'"
+        
+        # Check group_item_label if expected
+        if 'group_item_label' in expected_dim:
+            assert 'group_item_label' in generated_dim, \
+                f"{view_name}.{dim_name}: missing group_item_label. Expected: '{expected_dim['group_item_label']}'"
+            assert expected_dim['group_item_label'] == generated_dim['group_item_label'], \
+                f"{view_name}.{dim_name}: group_item_label mismatch. " \
+                f"Generated: '{generated_dim['group_item_label']}', Expected: '{expected_dim['group_item_label']}'"
+        
+        # Check description if expected
+        if 'description' in expected_dim:
+            assert 'description' in generated_dim, \
+                f"{view_name}.{dim_name}: missing description. Expected: '{expected_dim['description']}'"
+            assert expected_dim['description'] == generated_dim['description'], \
+                f"{view_name}.{dim_name}: description mismatch. " \
+                f"Generated: '{generated_dim.get('description', 'None')}', Expected: '{expected_dim['description']}'"
 
     def test_generate_nested_lkml_with_explore(self):
         """Test LKML generation with explore functionality."""

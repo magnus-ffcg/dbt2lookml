@@ -20,7 +20,6 @@ from dbt2lookml.exceptions import CliError
 from dbt2lookml.generators import LookmlGenerator
 from dbt2lookml.parsers import DbtParser
 from dbt2lookml.utils import FileHandler
-from dbt2lookml.validation import validate_generated_lookml
 
 logging.basicConfig(
     level=logging.INFO,

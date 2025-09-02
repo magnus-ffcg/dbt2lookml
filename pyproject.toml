@@ -28,6 +28,7 @@ pytest-mock = "^3.14.0"
 pytest-cov = "^6.0.0"
 datamodel-code-generator = "^0.26.3"
 twine = "^6.1.0"
+vulture = "^2.14"
 
 [build-system]
 requires = ["poetry-core"]
@@ -124,6 +125,13 @@ field-constraints = true
 snake-case-field = true
 strip-default-none = false
 target-python-version = "3.12"
+
+[tool.vulture]
+# Vulture configuration for dead code detection
+min_confidence = 80
+paths = ["dbt2lookml", "tests"]
+ignore_decorators = ["@pytest.fixture", "@property", "@staticmethod", "@classmethod"]
+ignore_names = ["_*", "test_*", "*_test", "setUp", "tearDown"]
 
 [tool.uv]
 

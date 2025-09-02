@@ -281,7 +281,7 @@ class TestLookmlDimensionGeneratorExtended:
     def test_get_dimension_type_edge_cases(self):
         """Test dimension type handling with edge cases."""
         column = DbtModelColumn(name="test", data_type="UNKNOWN_TYPE")
-        dimension = self.generator._create_dimension(column, "${TABLE}.test")
+        dimension = self.generator.create_dimension(column, "${TABLE}.test")
         if dimension is not None:
             assert dimension["type"] == "string"
         else:
@@ -292,10 +292,10 @@ class TestLookmlDimensionGeneratorExtended:
         column = DbtModelColumn(name="classification.item_group.code", data_type="STRING")
         column.nested = True
         
-        dimension = self.generator._create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
+        dimension = self.generator.create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
         
         assert dimension["name"] == "classification__item_group__code"
-        assert dimension["group_label"] == "Classification Item group"
+        assert dimension["group_label"] == "Classification Item Group"
         assert dimension["group_item_label"] == "Code"
 
     def test_create_dimension_with_primary_key(self):
@@ -303,14 +303,14 @@ class TestLookmlDimensionGeneratorExtended:
         column = DbtModelColumn(name="id", data_type="STRING")
         column.is_primary_key = True
         
-        dimension = self.generator._create_dimension(column, "${TABLE}.id")
+        dimension = self.generator.create_dimension(column, "${TABLE}.id")
         assert dimension["primary_key"] == "yes"
 
     def test_create_dimension_with_hidden_flag(self):
         """Test _create_dimension with hidden flag."""
         column = DbtModelColumn(name="hidden_field", data_type="STRING")
         
-        dimension = self.generator._create_dimension(column, "${TABLE}.hidden_field", is_hidden=True)
+        dimension = self.generator.create_dimension(column, "${TABLE}.hidden_field", is_hidden=True)
         assert dimension["hidden"] == "yes"
 
     def test_lookml_dimension_group_with_custom_timeframes(self):
@@ -386,31 +386,31 @@ class TestLookmlDimensionGeneratorExtended:
         """Test _transform_date_column_name with edge cases."""
         # Test column without original_name
         column = DbtModelColumn(name="test_date", data_type="DATE")
-        result = self.generator._transform_date_column_name(column)
+        result = self.generator.transform_date_column_name(column)
         assert result == "test"
         
         # Test nested field transformation
         column = DbtModelColumn(name="delivery.start.date", data_type="DATE")
         column.original_name = "Delivery.Start.Date"
-        result = self.generator._transform_date_column_name(column)
+        result = self.generator.transform_date_column_name(column)
         assert result == "delivery__start"
 
     def test_dimension_name_transformation(self):
         """Test dimension name transformation logic."""
         column = DbtModelColumn(name="DeliveryStartDate", data_type="DATE")
-        dimension = self.generator._create_dimension(column, "${TABLE}.DeliveryStartDate")
+        dimension = self.generator.create_dimension(column, "${TABLE}.DeliveryStartDate")
         
         assert "delivery" in dimension["name"].lower()
         
         column2 = DbtModelColumn(name="delivery_start_date", data_type="DATE")
-        dimension2 = self.generator._create_dimension(column2, "${TABLE}.delivery_start_date")
+        dimension2 = self.generator.create_dimension(column2, "${TABLE}.delivery_start_date")
         assert dimension2["name"] == "delivery_start_date"
 
     def test_transform_date_column_name_lowercase_handling(self):
         """Test _transform_date_column_name with lowercase handling."""
         column = DbtModelColumn(name="deliverystartdate", data_type="DATE")
         column.original_name = "deliverystartdate"
-        result = self.generator._transform_date_column_name(column)
+        result = self.generator.transform_date_column_name(column)
         assert result == "deliverystart"
 
     def test_dimension_group_timeframes(self):
@@ -591,19 +591,19 @@ class TestLookmlDimensionGeneratorExtended:
         # Test supplier_information prefix stripping
         column1 = DbtModelColumn(name="supplier_information__gtin__gtin_id", data_type="STRING")
         column1.nested = True
-        dimension1 = self.generator._create_dimension(column1, "${TABLE}.supplier_information.gtin.gtin_id")
+        dimension1 = self.generator.create_dimension(column1, "${TABLE}.supplier_information.gtin.gtin_id")
         assert "gtin" in dimension1["name"]
         
         # Test markings prefix stripping - actual behavior converts __ to _
         column2 = DbtModelColumn(name="markings__marking__code", data_type="STRING")
         column2.nested = True
-        dimension2 = self.generator._create_dimension(column2, "${TABLE}.markings.marking.code")
+        dimension2 = self.generator.create_dimension(column2, "${TABLE}.markings.marking.code")
         assert dimension2["name"] == "markings_marking_code"
         
         # Test soi_quantity naming convention
         column3 = DbtModelColumn(name="format__soi_quantity", data_type="NUMERIC")
         column3.nested = True
-        dimension3 = self.generator._create_dimension(column3, "${TABLE}.format.soi_quantity")
+        dimension3 = self.generator.create_dimension(column3, "${TABLE}.format.soi_quantity")
         assert "soi_quantity" in dimension3["name"] or "soiquantity" in dimension3["name"]
 
     def test_create_dimension_nested_group_label_creation(self):
@@ -611,7 +611,7 @@ class TestLookmlDimensionGeneratorExtended:
         column = DbtModelColumn(name="classification.item_group.sub_group.code", data_type="STRING")
         column.nested = True
         
-        dimension = self.generator._create_dimension(column, "${TABLE}.classification.item_group.sub_group.code")
+        dimension = self.generator.create_dimension(column, "${TABLE}.classification.item_group.sub_group.code")
         
         assert "group_label" in dimension
         assert "group_item_label" in dimension
@@ -621,7 +621,7 @@ class TestLookmlDimensionGeneratorExtended:
         column = DbtModelColumn(name="code", data_type="STRING")
         column.nested = True
         
-        dimension = self.generator._create_dimension(column, "${TABLE}.code")
+        dimension = self.generator.create_dimension(column, "${TABLE}.code")
         
         assert "group_label" not in dimension
         assert "group_item_label" not in dimension

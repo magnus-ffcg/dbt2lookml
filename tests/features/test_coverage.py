@@ -92,7 +92,7 @@ def test_get_dimension_type_unknown(generator):
     """Test dimension type detection with unknown type - line 202."""
     # This method doesn't exist, so let's test the actual dimension type logic
     column = DbtModelColumn(name="test", data_type="UNKNOWN_TYPE")
-    dimension = generator._create_dimension(column, "${TABLE}.test")
+    dimension = generator.create_dimension(column, "${TABLE}.test")
     # Should handle unknown types gracefully
     if dimension is not None:
         assert isinstance(dimension, dict)
@@ -104,10 +104,10 @@ def test_create_dimension_nested_fields(generator):
     column = DbtModelColumn(name="classification.item_group.code", data_type="STRING")
     column.nested = True
     
-    dimension = generator._create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
+    dimension = generator.create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
     
     assert dimension["name"] == "classification__item_group__code"
-    assert dimension["group_label"] == "Classification Item group"
+    assert dimension["group_label"] == "Classification Item Group"
     assert dimension["group_item_label"] == "Code"
 
 
@@ -116,7 +116,7 @@ def test_create_dimension_primary_key(generator):
     column = DbtModelColumn(name="id", data_type="STRING")
     column.is_primary_key = True
     
-    dimension = generator._create_dimension(column, "${TABLE}.id")
+    dimension = generator.create_dimension(column, "${TABLE}.id")
     assert dimension["primary_key"] == "yes"
 
 
@@ -124,7 +124,7 @@ def test_create_dimension_hidden(generator):
     """Test _create_dimension with hidden flag."""
     column = DbtModelColumn(name="hidden_field", data_type="STRING")
     
-    dimension = generator._create_dimension(column, "${TABLE}.hidden_field", is_hidden=True)
+    dimension = generator.create_dimension(column, "${TABLE}.hidden_field", is_hidden=True)
     assert dimension["hidden"] == "yes"
 
 
@@ -160,7 +160,7 @@ def test_lookml_dimension_group_no_iso_fields(generator, test_model):
 def test_transform_date_column_name_no_original(generator):
     """Test _transform_date_column_name without original_name - lines 307-310."""
     column = DbtModelColumn(name="test_date", data_type="DATE")
-    result = generator._transform_date_column_name(column)
+    result = generator.transform_date_column_name(column)
     assert result == "test"
 
 
@@ -168,7 +168,7 @@ def test_transform_date_column_name_nested(generator):
     """Test _transform_date_column_name with nested fields - lines 332-349."""
     column = DbtModelColumn(name="delivery.start.date", data_type="DATE")
     column.original_name = "Delivery.Start.Date"
-    result = generator._transform_date_column_name(column)
+    result = generator.transform_date_column_name(column)
     assert result == "delivery__start"
 
 
@@ -176,7 +176,7 @@ def test_transform_date_column_name_lowercase(generator):
     """Test _transform_date_column_name with lowercase - line 353."""
     column = DbtModelColumn(name="deliverystartdate", data_type="DATE")
     column.original_name = "deliverystartdate"
-    result = generator._transform_date_column_name(column)
+    result = generator.transform_date_column_name(column)
     assert result == "deliverystart"
 
 

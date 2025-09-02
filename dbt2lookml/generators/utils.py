@@ -62,16 +62,23 @@ def get_array_element_looker_type(catalog_column: dict) -> str:
 
 
 def safe_name(name: str) -> str:
-    """Convert a name to a safe identifier for Looker.
-    Only allows alphanumeric characters and underscores [0-9A-Za-z_].
-    Uses unidecode to transliterate Unicode characters to ASCII equivalents.
+    """Create a safe name for LookML by removing invalid characters and handling Unicode.
+    
+    This function converts Unicode characters to ASCII equivalents, replaces common
+    separators with underscores, removes invalid characters, and ensures the result
+    is a valid LookML identifier. Dots are preserved for nested field names.
+    
     Args:
         name: The input name to make safe
+        
     Returns:
-        A safe name containing only valid characters
+        A safe name suitable for use in LookML
+        
     Examples:
         >>> safe_name("My Field Name")
         'My_Field_Name'
+        >>> safe_name("field-name@test")
+        'field_name_test'
         >>> safe_name("åäö-test@123")
         'aao_test_123'
         >>> safe_name("Москва")
@@ -79,30 +86,58 @@ def safe_name(name: str) -> str:
         >>> safe_name("")
         'unnamed_d41d8cd9'
     """
-    import re
-
-    from unidecode import unidecode
-
     # Convert Unicode to ASCII equivalents
-    safe = unidecode(name)
-    # Replace common separators with underscores (but preserve dots for nested fields)
-    safe = re.sub(r'[ \-@]+', '_', safe)
-    # Remove any remaining invalid characters (keep only [0-9A-Za-z_.])
-    safe = re.sub(r'[^0-9A-Za-z_.]', '_', safe)
-    # Clean up multiple consecutive underscores, but preserve double underscores
-    # First replace 3+ underscores with double underscores
-    safe = re.sub(r'_{3,}', '__', safe)
-    # Then replace single underscores that aren't part of double underscores
-    safe = re.sub(r'(?<!_)_(?!_)', '_', safe)
+    safe = _transliterate_unicode(name)
+    # Replace common separators with underscores
+    safe = _replace_separators(safe)
+    # Remove invalid characters
+    safe = _remove_invalid_characters(safe)
+    # Clean up consecutive underscores
+    safe = _clean_consecutive_underscores(safe)
     # Remove leading/trailing underscores
-    safe = safe.strip('_')
-    # Ensure we don't return an empty string
+    safe = _strip_boundary_underscores(safe)
+    # Handle empty results
+    return _handle_empty_result(safe, name)
+
+
+def _transliterate_unicode(name: str) -> str:
+    """Convert Unicode characters to ASCII equivalents."""
+    from unidecode import unidecode
+    return unidecode(name)
+
+
+def _replace_separators(text: str) -> str:
+    """Replace common separators with underscores (preserve dots for nested fields)."""
+    import re
+    return re.sub(r'[ \-@]+', '_', text)
+
+
+def _remove_invalid_characters(text: str) -> str:
+    """Remove invalid characters, keeping only alphanumeric, underscores, and dots."""
+    import re
+    return re.sub(r'[^0-9A-Za-z_.]', '_', text)
+
+
+def _clean_consecutive_underscores(text: str) -> str:
+    """Clean up multiple consecutive underscores, preserving double underscores."""
+    import re
+    # First replace 3+ underscores with double underscores
+    text = re.sub(r'_{3,}', '__', text)
+    # Then replace single underscores that aren't part of double underscores
+    return re.sub(r'(?<!_)_(?!_)', '_', text)
+
+
+def _strip_boundary_underscores(text: str) -> str:
+    """Remove leading and trailing underscores."""
+    return text.strip('_')
+
+
+def _handle_empty_result(safe: str, original_name: str) -> str:
+    """Handle empty results by generating error hash."""
     if not safe:
         import hashlib
-
-        # Create a unique identifier based on the original input
-        hash_suffix = hashlib.md5(name.encode('utf-8')).hexdigest()[:8]
-        safe = f"error_{hash_suffix}"
+        hash_suffix = hashlib.md5(original_name.encode('utf-8')).hexdigest()[:8]
+        return f"error_{hash_suffix}"
     return safe
 
 
@@ -143,128 +178,192 @@ def get_column_name(column: DbtModelColumn, table_format_sql: bool = True, catal
         column: The column object
         table_format_sql: Whether to format as ${TABLE}.column_name (always True now)
         catalog_data: Raw catalog data for dynamic type analysis
+        model_unique_id: Unique identifier for the model
+        is_nested_view: Whether this is for a nested view
+        array_model_name: Name of the array model for prefix stripping
         
     Returns:
         Formatted column name for SQL reference with ${TABLE} prefix
     """
-    def quote_column_name_if_needed(col_name: str) -> str:
-        """Quote column name with backticks if it contains spaces, special characters, or non-ASCII characters."""
-        # Check for spaces, special characters, or non-ASCII characters (like Swedish ä, ö, å)
-        if (' ' in col_name or 
-            any(char in col_name for char in ['-', '+', '/', '*', '(', ')', '[', ']']) or
-            not col_name.isascii()):
-            return f"`{col_name}`"
-        return col_name
+    # Determine the column name to use
+    column_name = _get_effective_column_name(column)
     
-    def is_struct_field(parent_path: str, catalog_data: dict, model_unique_id: str) -> bool:
-        """Check if a parent field is a STRUCT by looking up its type in catalog data."""
-        if not catalog_data or not model_unique_id:
-            return False
-            
-        # Look up the parent field's type in raw catalog data
-        nodes = catalog_data.get('nodes', {})
-        if model_unique_id in nodes:
-            columns = nodes[model_unique_id].get('columns', {})
-            if parent_path in columns:
-                parent_type = columns[parent_path].get('type', '')
-                # Check if it's a STRUCT (not ARRAY<STRUCT>)
-                return 'STRUCT<' in parent_type and not parent_type.startswith('ARRAY<')
-        return False
+    # Process nested view column names if applicable
+    if is_nested_view and '.' in column_name and array_model_name:
+        processed_name = _process_nested_view_column_name(column_name, array_model_name)
+    elif is_nested_view and '.' in column_name:
+        processed_name = column_name  # Use full path as fallback
+    else:
+        processed_name = column_name
     
-    def get_field_type(field_path: str, catalog_data: dict, model_unique_id: str) -> str:
-        """Get the data type of a field from catalog data."""
-        if not catalog_data or not model_unique_id:
-            return ''
-            
-        nodes = catalog_data.get('nodes', {})
-        if model_unique_id in nodes:
-            columns = nodes[model_unique_id].get('columns', {})
-            if field_path in columns:
-                return columns[field_path].get('type', '')
-        return ''
-
-    def analyze_nested_field_pattern(column_name: str, catalog_data: dict = None, model_unique_id: str = None) -> tuple:
-        """Analyze field pattern to determine the correct SQL syntax.
-        
-        Handles complex patterns like ARRAY_STRUCT_ARRAY by analyzing the full hierarchy.
-        
-        Returns:
-            tuple: (pattern_type, parent_path)
-            pattern_type: 'struct_parent', 'array_child', or 'simple'
-            parent_path: the parent path to use in SQL (if applicable)
-        """
-        if '.' not in column_name:
-            return 'simple', None
-            
-        parts = column_name.split('.')
-        
-        # Try catalog data analysis first if available
-        if catalog_data and model_unique_id:
-            # Check immediate parent type first (highest priority)
-            immediate_parent_path = '.'.join(parts[:-1])
-            immediate_parent_type = get_field_type(immediate_parent_path, catalog_data, model_unique_id)
-            
-            if immediate_parent_type.startswith('ARRAY<STRUCT<'):
-                return 'array_child', None
-            elif 'STRUCT<' in immediate_parent_type and not immediate_parent_type.startswith('ARRAY<'):
-                return 'struct_parent', immediate_parent_path
-            
-            # Check for higher-level STRUCT parents if immediate parent isn't definitive
-            for i in range(len(parts) - 2, 0, -1):  # Work backwards from second-to-last
-                parent_path = '.'.join(parts[:i+1])
-                parent_type = get_field_type(parent_path, catalog_data, model_unique_id)
-                if is_struct_field(parent_path, catalog_data, model_unique_id):
-                    return 'struct_parent', parent_path
-        
-        # If catalog data is unavailable, return simple pattern
-        # This should rarely happen since catalog data should always be available
-        return 'simple', None
-    
-    
-    # Use original_name from column if available (preserves catalog case)
-    if hasattr(column, 'original_name') and column.original_name:
-        original_name = column.original_name
-        
-        # For nested views, strip the array model prefix from SQL references
-        if is_nested_view and '.' in original_name and array_model_name:
-            parts = original_name.split('.')
-            array_model_parts = array_model_name.split('.')
-            
-            # Handle case-insensitive matching for array model prefix
-            # Strip array model prefix from nested field paths
-            if len(parts) > len(array_model_parts):
-                # Check if the first parts match the array model (case-insensitive)
-                parts_match = True
-                for i, array_part in enumerate(array_model_parts):
-                    if i < len(parts) and parts[i].lower() != array_part.lower():
-                        parts_match = False
-                        break
-                
-                if parts_match:
-                    # Remove the array model prefix parts
-                    remaining_parts = parts[len(array_model_parts):]
-                    struct_path = '.'.join(remaining_parts)
-                    quoted_name = quote_column_name_if_needed(struct_path)
-                else:
-                    quoted_name = quote_column_name_if_needed(original_name)
-            elif len(parts) == len(array_model_parts) + 1:
-                # Simple field in array: ArrayName.FieldName -> FieldName
-                if parts[0].lower() == array_model_parts[0].lower():
-                    field_name = parts[-1]
-                    quoted_name = quote_column_name_if_needed(field_name)
-                else:
-                    quoted_name = quote_column_name_if_needed(original_name)
-            else:
-                quoted_name = quote_column_name_if_needed(original_name)
-        elif is_nested_view and '.' in original_name:
-            # Fallback for when array_model_name is not provided - use full path
-            quoted_name = quote_column_name_if_needed(original_name)
-        else:
-            quoted_name = quote_column_name_if_needed(original_name)
-        
-        return f"${{TABLE}}.{quoted_name}"
-    
-    # Fallback to column name with ${TABLE} prefix
-    column_name = column.name
-    quoted_name = quote_column_name_if_needed(column_name)
+    # Quote the column name if needed and format with ${TABLE} prefix
+    quoted_name = _quote_column_name_if_needed(processed_name)
     return f"${{TABLE}}.{quoted_name}"
+
+
+def _get_effective_column_name(column: DbtModelColumn) -> str:
+    """Get the effective column name to use (original_name if available, otherwise name).
+    
+    Args:
+        column: The column object
+        
+    Returns:
+        The effective column name to use
+    """
+    if hasattr(column, 'original_name') and column.original_name:
+        return column.original_name
+    return column.name
+
+
+def _quote_column_name_if_needed(col_name: str) -> str:
+    """Quote column name with backticks if it contains spaces, special characters, or non-ASCII characters.
+    
+    Args:
+        col_name: The column name to potentially quote
+        
+    Returns:
+        Quoted column name if needed, otherwise original name
+    """
+    # Check for spaces, special characters, or non-ASCII characters (like Swedish ä, ö, å)
+    if (' ' in col_name or 
+        any(char in col_name for char in ['-', '+', '/', '*', '(', ')', '[', ']']) or
+        not col_name.isascii()):
+        return f"`{col_name}`"
+    return col_name
+
+
+def _process_nested_view_column_name(column_name: str, array_model_name: str) -> str:
+    """Process column name for nested views by stripping array model prefix.
+    
+    Args:
+        column_name: The original column name (e.g., 'items.details.name')
+        array_model_name: The array model name to strip (e.g., 'items')
+        
+    Returns:
+        Processed column name with prefix stripped (e.g., 'details.name')
+    """
+    parts = column_name.split('.')
+    array_model_parts = array_model_name.split('.')
+    
+    # Handle case-insensitive matching for array model prefix
+    if len(parts) > len(array_model_parts):
+        # Check if the first parts match the array model (case-insensitive)
+        if _parts_match_array_model(parts, array_model_parts):
+            # Remove the array model prefix parts
+            remaining_parts = parts[len(array_model_parts):]
+            return '.'.join(remaining_parts)
+        else:
+            return column_name
+    elif len(parts) == len(array_model_parts) + 1:
+        # Simple field in array: ArrayName.FieldName -> FieldName
+        if parts[0].lower() == array_model_parts[0].lower():
+            return parts[-1]
+        else:
+            return column_name
+    else:
+        return column_name
+
+
+def _parts_match_array_model(parts: list, array_model_parts: list) -> bool:
+    """Check if column parts match array model parts (case-insensitive).
+    
+    Args:
+        parts: Column name parts split by '.'
+        array_model_parts: Array model name parts split by '.'
+        
+    Returns:
+        True if parts match array model prefix, False otherwise
+    """
+    for i, array_part in enumerate(array_model_parts):
+        if i >= len(parts) or parts[i].lower() != array_part.lower():
+            return False
+    return True
+
+
+def _is_struct_field(parent_path: str, catalog_data: dict, model_unique_id: str) -> bool:
+    """Check if a parent field is a STRUCT by looking up its type in catalog data.
+    
+    Args:
+        parent_path: Path to the parent field
+        catalog_data: Raw catalog data
+        model_unique_id: Unique identifier for the model
+        
+    Returns:
+        True if parent field is a STRUCT, False otherwise
+    """
+    if not catalog_data or not model_unique_id:
+        return False
+        
+    # Look up the parent field's type in raw catalog data
+    nodes = catalog_data.get('nodes', {})
+    if model_unique_id in nodes:
+        columns = nodes[model_unique_id].get('columns', {})
+        if parent_path in columns:
+            parent_type = columns[parent_path].get('type', '')
+            # Check if it's a STRUCT (not ARRAY<STRUCT>)
+            return 'STRUCT<' in parent_type and not parent_type.startswith('ARRAY<')
+    return False
+
+
+def _get_field_type(field_path: str, catalog_data: dict, model_unique_id: str) -> str:
+    """Get the data type of a field from catalog data.
+    
+    Args:
+        field_path: Path to the field
+        catalog_data: Raw catalog data
+        model_unique_id: Unique identifier for the model
+        
+    Returns:
+        Field data type, or empty string if not found
+    """
+    if not catalog_data or not model_unique_id:
+        return ''
+        
+    nodes = catalog_data.get('nodes', {})
+    if model_unique_id in nodes:
+        columns = nodes[model_unique_id].get('columns', {})
+        if field_path in columns:
+            return columns[field_path].get('type', '')
+    return ''
+
+
+def _analyze_nested_field_pattern(column_name: str, catalog_data: dict = None, model_unique_id: str = None) -> tuple:
+    """Analyze field pattern to determine the correct SQL syntax.
+    
+    Handles complex patterns like ARRAY_STRUCT_ARRAY by analyzing the full hierarchy.
+    
+    Args:
+        column_name: The column name to analyze
+        catalog_data: Raw catalog data for type analysis
+        model_unique_id: Unique identifier for the model
+        
+    Returns:
+        tuple: (pattern_type, parent_path)
+        pattern_type: 'struct_parent', 'array_child', or 'simple'
+        parent_path: the parent path to use in SQL (if applicable)
+    """
+    if '.' not in column_name:
+        return 'simple', None
+        
+    parts = column_name.split('.')
+    
+    # Try catalog data analysis first if available
+    if catalog_data and model_unique_id:
+        # Check immediate parent type first (highest priority)
+        immediate_parent_path = '.'.join(parts[:-1])
+        immediate_parent_type = _get_field_type(immediate_parent_path, catalog_data, model_unique_id)
+        
+        if immediate_parent_type.startswith('ARRAY<STRUCT<'):
+            return 'array_child', None
+        elif 'STRUCT<' in immediate_parent_type and not immediate_parent_type.startswith('ARRAY<'):
+            return 'struct_parent', immediate_parent_path
+        
+        # Check for higher-level STRUCT parents if immediate parent isn't definitive
+        for i in range(len(parts) - 2, 0, -1):  # Work backwards from second-to-last
+            parent_path = '.'.join(parts[:i+1])
+            if _is_struct_field(parent_path, catalog_data, model_unique_id):
+                return 'struct_parent', parent_path
+    
+    # If catalog data is unavailable, return simple pattern
+    # This should rarely happen since catalog data should always be available
+    return 'simple', None

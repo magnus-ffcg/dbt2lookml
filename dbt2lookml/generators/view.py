@@ -118,16 +118,41 @@ class LookmlViewGenerator:
     ) -> dict[str, Any]:
         """Create a nested view definition for an array field."""
         # Generate nested view name
+        nested_view_name = self._generate_nested_view_name(model, base_name, array_model)
+        
+        # Get column collections for this nested view
+        nested_columns = self._get_nested_view_columns(model, array_model, array_models)
+        
+        # Generate dimensions and dimension groups
+        dimensions, dimension_groups, conflicting_dimensions = self._generate_nested_view_dimensions(
+            model, nested_columns, array_model, dimension_generator
+        )
+        
+        # Check if view has content, return None if empty
+        if self._is_empty_nested_view(dimensions, dimension_groups, nested_columns, measure_generator, model):
+            return None
+        
+        # Build and return nested view structure
+        return self._build_nested_view_structure(
+            nested_view_name, dimensions, dimension_groups, conflicting_dimensions,
+            nested_columns, measure_generator, model
+        )
+
+
+    def _generate_nested_view_name(self, model: DbtModel, base_name: str, array_model: DbtModelColumn) -> str:
+        """Generate the nested view name based on CLI arguments."""
         if self._cli_args.use_table_name:
             from dbt2lookml.utils import camel_to_snake
             array_model_name = array_model.lookml_long_name
             table_name = model.relation_name.split('.')[-1].strip('`')
             base_name = camel_to_snake(table_name)
-            nested_view_name = f"{base_name}__{array_model_name}"
+            return f"{base_name}__{array_model_name}"
         else:
-            nested_view_name = f"{base_name}__{array_model.lookml_long_name}".lower()
-        
-        # Get column collections for this nested view
+            return f"{base_name}__{array_model.lookml_long_name}".lower()
+
+
+    def _get_nested_view_columns(self, model: DbtModel, array_model: DbtModelColumn, array_models: list) -> dict:
+        """Get column collections for the nested view with caching."""
         if array_models is None:
             array_models = []
         
@@ -139,10 +164,13 @@ class LookmlViewGenerator:
         collections = self._column_collections_cache[cache_key]
         
         # Get columns for this specific nested view
-        nested_columns = collections.nested_view_columns.get(array_model.name, {})
-        
+        return collections.nested_view_columns.get(array_model.name, {})
+
+
+    def _generate_nested_view_dimensions(self, model: DbtModel, nested_columns: dict, 
+                                       array_model: DbtModelColumn, dimension_generator) -> tuple:
+        """Generate dimensions and dimension groups for nested view."""
         # Generate dimensions from the dimension generator
-        # Let the dimension generator handle all dimension creation logic
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
             model, columns_subset=nested_columns, is_nested_view=True, array_model_name=array_model.name
         )
@@ -164,15 +192,27 @@ class LookmlViewGenerator:
         if dimension_groups:
             dimension_groups = dimension_generator._clean_dimension_groups_for_output(dimension_groups)
         
-        # Only create nested view if it has content
-        if not dimensions and not dimension_groups:
-            measures = measure_generator.lookml_measures_from_model(
-                model, columns_subset=nested_columns
-            )
-            if not measures:
-                return None  # Don't create empty nested views
+        return dimensions, dimension_groups, conflicting_dimensions
+
+
+    def _is_empty_nested_view(self, dimensions: list, dimension_groups: list, nested_columns: dict,
+                             measure_generator, model: DbtModel) -> bool:
+        """Check if nested view would be empty (no content)."""
+        if dimensions or dimension_groups:
+            return False
         
+        measures = measure_generator.lookml_measures_from_model(
+            model, columns_subset=nested_columns
+        )
+        return not measures
+
+
+    def _build_nested_view_structure(self, nested_view_name: str, dimensions: list, dimension_groups: list,
+                                   conflicting_dimensions: list, nested_columns: dict, 
+                                   measure_generator, model: DbtModel) -> dict:
+        """Build the final nested view structure."""
         nested_view = {'name': nested_view_name}
+        
         if dimensions:
             nested_view['dimensions'] = dimensions
         if dimension_groups:

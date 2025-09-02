@@ -2,7 +2,7 @@
 
 import pytest
 from argparse import Namespace
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from dbt2lookml.generators.view import LookmlViewGenerator
 from dbt2lookml.models.dbt import (
