@@ -78,6 +78,9 @@ class TestNestedLkmlGeneration:
                     # Main views should use ${TABLE}.field_name syntax
                     assert '${' in sql and '}' in sql, \
                         f"{view_name}.{dim_name}: Main view SQL should use Looker reference syntax: {sql}"
+                else:
+                    # Nested views should not reference the array field name in SQL
+                    self._validate_nested_view_sql(view_name, dim_name, sql)
 
         # Compare dimension groups
         expected_dgs = {dg['name']: dg for dg in expected_view.get('dimension_groups', [])}
@@ -106,6 +109,14 @@ class TestNestedLkmlGeneration:
                 gen_timeframes = set(gen_dg.get('timeframes', []))
                 assert exp_timeframes == gen_timeframes, \
                     f"{view_name}.{dg_name}: timeframes mismatch {gen_timeframes}/{exp_timeframes}"
+            
+            # Validate SQL field syntax for dimension groups
+            if gen_dg.get('sql'):
+                sql = gen_dg['sql']
+                is_nested_view = '__' in view_name
+                if is_nested_view:
+                    # Nested views should not reference the array field name in SQL
+                    self._validate_nested_view_sql(view_name, dg_name, sql)
 
         # Compare measures - skip for now since fixtures expect basic count measures
         # but our generator only creates measures from metadata configuration
@@ -209,6 +220,47 @@ class TestNestedLkmlGeneration:
         for view_ref in view_references:
             assert view_ref in view_names, \
                 f"Join {join_name}: references non-existent view '{view_ref}'. Available views: {sorted(view_names)}"
+
+    def _validate_nested_view_sql(self, view_name, field_name, sql):
+        """Validate that nested view SQL doesn't incorrectly reference array field names"""
+        import re
+        
+        # Extract the array model name from the nested view name
+        # Pattern: main_view__array_field -> array_field
+        if '__' not in view_name:
+            return  # Not a nested view
+        
+        parts = view_name.split('__')
+        if len(parts) < 2:
+            return
+        
+        # Get the array field name (everything after the first __)
+        array_field_parts = parts[1:]
+        
+        # Check for problematic patterns in SQL
+        # Pattern: ${TABLE}.ArrayFieldName.SubField should be ${TABLE}.SubField
+        table_ref_pattern = r'\$\{TABLE\}\.([^}]+)'
+        matches = re.findall(table_ref_pattern, sql)
+        
+        for match in matches:
+            field_path = match.strip()
+            field_parts = field_path.split('.')
+            
+            # Check if the SQL incorrectly includes the array field name
+            # For nested views, the first part should not be the array field name
+            if len(field_parts) > 1:
+                first_part = field_parts[0]
+                # Convert to snake_case for comparison
+                from dbt2lookml.utils import camel_to_snake
+                first_part_snake = camel_to_snake(first_part).lower()
+                
+                # Check if first part matches any array field part
+                for array_part in array_field_parts:
+                    array_part_snake = camel_to_snake(array_part).lower()
+                    if first_part_snake == array_part_snake:
+                        assert False, \
+                            f"{view_name}.{field_name}: SQL incorrectly references array field '{first_part}' in nested view. " \
+                            f"Should be '${{TABLE}}.{'.'.join(field_parts[1:])}' instead of '${{TABLE}}.{field_path}'"
 
     def test_generate_nested_lkml_with_explore(self):
         """Test LKML generation with explore functionality."""

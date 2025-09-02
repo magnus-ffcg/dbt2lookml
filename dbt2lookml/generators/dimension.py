@@ -407,7 +407,7 @@ class LookmlDimensionGenerator:
             column_name_adjusted = self._transform_date_column_name(column, is_nested_view, array_model_name)
         else:
             return None, None, None
-        sql = get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id)
+        sql = get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id, is_nested_view, array_model_name)
         dimensions = []
         # Use original_name for proper formatting if available, otherwise use column name
         label_source = getattr(column, 'original_name', column.name)
