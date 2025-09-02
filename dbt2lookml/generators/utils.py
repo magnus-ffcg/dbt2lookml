@@ -1,10 +1,14 @@
 """LookML generator utilities for type mapping and column name handling."""
 
+import hashlib
 import logging
-from typing import Optional
+import re
+from typing import Any, Dict, List, Optional, Union
+
+from unidecode import unidecode
 
 from dbt2lookml.enums import LookerBigQueryDataType
-from dbt2lookml.models.dbt import DbtModelColumn
+from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
 
 
 def get_catalog_column_info(column_name: str, catalog_data: dict, model_unique_id: str, original_name: str = None) -> dict:
@@ -102,25 +106,21 @@ def safe_name(name: str) -> str:
 
 def _transliterate_unicode(name: str) -> str:
     """Convert Unicode characters to ASCII equivalents."""
-    from unidecode import unidecode
     return unidecode(name)
 
 
 def _replace_separators(text: str) -> str:
     """Replace common separators with underscores (preserve dots for nested fields)."""
-    import re
     return re.sub(r'[ \-@]+', '_', text)
 
 
 def _remove_invalid_characters(text: str) -> str:
     """Remove invalid characters, keeping only alphanumeric, underscores, and dots."""
-    import re
     return re.sub(r'[^0-9A-Za-z_.]', '_', text)
 
 
 def _clean_consecutive_underscores(text: str) -> str:
     """Clean up multiple consecutive underscores, preserving double underscores."""
-    import re
     # First replace 3+ underscores with double underscores
     text = re.sub(r'_{3,}', '__', text)
     # Then replace single underscores that aren't part of double underscores
@@ -135,7 +135,6 @@ def _strip_boundary_underscores(text: str) -> str:
 def _handle_empty_result(safe: str, original_name: str) -> str:
     """Handle empty results by generating error hash."""
     if not safe:
-        import hashlib
         hash_suffix = hashlib.md5(original_name.encode('utf-8')).hexdigest()[:8]
         return f"error_{hash_suffix}"
     return safe

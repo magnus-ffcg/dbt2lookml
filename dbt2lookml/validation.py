@@ -1,10 +1,15 @@
+"""LookML validation module."""
+import argparse
 import json
 import logging
 import os
 import re
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+
+from dbt2lookml.models.dbt import DbtModel
 
 # Pure regex-based validation - no external dependencies needed
 
@@ -289,8 +294,6 @@ def validate_generated_lookml(output_directory: Path, verbose: bool = False) -> 
 
 if __name__ == "__main__":
     """CLI interface for validation."""
-    import argparse
-    import sys
 
     # Configure logging for CLI
     logging.basicConfig(level=logging.INFO, format='%(message)s')

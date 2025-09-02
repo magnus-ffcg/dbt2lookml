@@ -227,13 +227,13 @@ class TestTransformDateColumnNameComprehensive:
 
     def test_camel_to_snake_integration(self):
         """Test integration with camel_to_snake utility function."""
-        with patch('dbt2lookml.utils.camel_to_snake') as mock_camel_to_snake:
+        with patch('dbt2lookml.generators.dimension.camel_to_snake') as mock_camel_to_snake:
             mock_camel_to_snake.return_value = "mocked_result"
             
             column = DbtModelColumn(name="TestCamelCaseDate", data_type="DATE")
             column.original_name = "TestCamelCaseDate"
             result = self.generator.transform_date_column_name(column)
             
-            # Should call camel_to_snake with "TestCamelCase" (Date removed)
+            # Should call camel_to_snake with "TestCamelCase" (Date suffix removed)
             mock_camel_to_snake.assert_called_with("TestCamelCase")
             assert result == "mocked_result"

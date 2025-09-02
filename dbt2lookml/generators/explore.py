@@ -1,9 +1,9 @@
 """LookML explore generator module."""
-
 import logging
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
+from dbt2lookml.utils import camel_to_snake
 
 
 class LookmlExploreGenerator:
@@ -145,7 +145,6 @@ class LookmlExploreGenerator:
         Returns:
             Join dictionary for the array
         """
-        from dbt2lookml.utils import camel_to_snake
         
         # Determine base name
         base_name = self._get_base_name(model)
@@ -176,7 +175,6 @@ class LookmlExploreGenerator:
         Returns:
             Base name for join references
         """
-        from dbt2lookml.utils import camel_to_snake
         
         if self._cli_args.use_table_name:
             table_name = model.relation_name.split('.')[-1].strip('`')
@@ -211,7 +209,6 @@ class LookmlExploreGenerator:
         Returns:
             SQL string for the join
         """
-        from dbt2lookml.utils import camel_to_snake
         
         # Check for parent view
         parent_view_info = self._find_parent_view(original_parent_name, base_name, existing_joins)
@@ -236,7 +233,6 @@ class LookmlExploreGenerator:
         Returns:
             Tuple of (parent_view_name, dimension_path) or None if no parent
         """
-        from dbt2lookml.utils import camel_to_snake
         
         if '.' not in original_parent_name:
             return None

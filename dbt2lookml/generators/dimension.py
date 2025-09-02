@@ -1,14 +1,21 @@
 """LookML dimension generator module."""
-
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+import re
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from dbt2lookml.enums import LookerDateTimeframes, LookerDateTimeTypes, LookerDateTypes, LookerScalarTypes, LookerTimeTimeframes
-from dbt2lookml.generators.utils import get_column_name, map_bigquery_to_looker
+from dbt2lookml.enums import LookerDateTimeframes, LookerDateTimeTypes, LookerDateTypes, LookerScalarTypes, LookerTimeFrame, LookerTimeTimeframes
+from dbt2lookml.generators.utils import (
+    get_array_element_looker_type,
+    get_catalog_column_info,
+    get_column_name,
+    is_single_value_array,
+    map_bigquery_to_looker,
+    safe_name,
+)
+from dbt2lookml.models.column_collections import ColumnCollections
 from dbt2lookml.models.dbt import DbtModel, DbtModelColumn
-
-from . import utils
-
+from dbt2lookml.models.looker import DbtMetaLookerDimension
+from dbt2lookml.utils import camel_to_snake
 
 class LookmlDimensionGenerator:
     """Lookml dimension generator."""
@@ -191,7 +198,6 @@ class LookmlDimensionGenerator:
                 name = name[:-5]
         
         # Convert CamelCase to snake_case first, then to readable format
-        from dbt2lookml.utils import camel_to_snake
         snake_case = camel_to_snake(name)
         return snake_case.replace("_", " ").title()
 
@@ -347,7 +353,6 @@ class LookmlDimensionGenerator:
             logging.debug(f"  After stripping {array_parts_count} prefix parts: {dimension_name}")
         elif '__' in dimension_name:
             # Fallback: strip the first prefix for backward compatibility
-            import re
             original_name = dimension_name
             dimension_name = re.sub(r'^.*?__', '', dimension_name)
             logging.debug(f"  Fallback stripping first prefix: {original_name} -> {dimension_name}")
@@ -371,12 +376,10 @@ class LookmlDimensionGenerator:
         if '.' in source_name:
             # Convert dots to double underscores: Classification.ItemGroup.Code -> classification__item_group__code
             parts = source_name.split('.')
-            from dbt2lookml.utils import camel_to_snake
             snake_parts = [camel_to_snake(part).lower() for part in parts]
             dimension_name = '__'.join(snake_parts)
         else:
             # Apply camelCase conversion for single names
-            from dbt2lookml.utils import camel_to_snake
             dimension_name = camel_to_snake(source_name).lower()
             
         return dimension_name
@@ -392,7 +395,7 @@ class LookmlDimensionGenerator:
         Returns:
             Base dimension dictionary
         """
-        dimension: Dict[str, Any] = {"name": utils.safe_name(dimension_name)}
+        dimension: Dict[str, Any] = {"name": safe_name(dimension_name)}
         
         # Add type for scalar types (should come before sql)
         if data_type in LookerScalarTypes.values():
@@ -515,7 +518,7 @@ class LookmlDimensionGenerator:
             group_label = field_label
         
         dimension_group = {
-            "name": utils.safe_name(column_name_adjusted),
+            "name": safe_name(column_name_adjusted),
             "label": field_label,
             "type": 'time',
             "sql": sql,
@@ -555,7 +558,6 @@ class LookmlDimensionGenerator:
             format.period.EndDate -> format__period__end (nested fields)
             returnable_assets_deposit__returnable_asset_deposit_end -> returnable_asset_deposit_end (nested view)
         """
-        from dbt2lookml.utils import camel_to_snake
 
         column_name = column.original_name or column.name
         
@@ -615,7 +617,6 @@ class LookmlDimensionGenerator:
 
     def _strip_nested_view_prefix(self, result: str, array_model_name: str, column_name: str) -> str:
         """Strip nested view prefix from dimension group names."""
-        import logging
         
         logging.debug(f"Dimension group naming - Column: {column_name}")
         logging.debug(f"  Original result: {result}")
@@ -664,8 +665,6 @@ class LookmlDimensionGenerator:
         # Convert each part to title case, handling common patterns
         formatted_parts = []
         for part in parts:
-            from dbt2lookml.utils import camel_to_snake
-
             snake_case = camel_to_snake(part)
             # Use title() to properly capitalize each word
             title_case = snake_case.replace('_', ' ').title()
@@ -674,8 +673,6 @@ class LookmlDimensionGenerator:
         return ' '.join(formatted_parts)
 
     def _create_item_label(self, item: str) -> str:
-        from dbt2lookml.utils import camel_to_snake
-
         snake_case = camel_to_snake(item)
         return snake_case.replace('_', ' ').capitalize()
 
@@ -803,7 +800,6 @@ class LookmlDimensionGenerator:
                 continue
                 
             # Create regular dimension
-            from dbt2lookml.generators.utils import get_column_name
             column_name = get_column_name(column, table_format_sql, getattr(model, 'catalog_data', None), model.unique_id, is_nested_view, array_model_name)
             dimension = self.create_dimension(column, column_name)
             if dimension is not None:
@@ -849,7 +845,6 @@ class LookmlDimensionGenerator:
                 continue
                 
             # Create regular dimension
-            from dbt2lookml.generators.utils import get_column_name
             column_name = get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id, is_nested_view, array_model_name)
             dimension = self.create_dimension(column, column_name, model)
             if dimension is not None:
@@ -899,7 +894,6 @@ class LookmlDimensionGenerator:
                 data_type_str = str(column.data_type).upper()
                 if data_type_str.startswith('ARRAY') and len(hierarchy.get(col_name, {}).get('children', set())) > 0:
                     # This is a nested array within the current array - add as hidden dimension to current view
-                    from dbt2lookml.generators.utils import get_column_name
                     nested_column_name = get_column_name(column, table_format_sql, getattr(model, '_catalog_data', None), model.unique_id, True, array_model_name)
                     
                     # Create dimension with prefix stripping for nested views
@@ -932,7 +926,6 @@ class LookmlDimensionGenerator:
             parent = array_model_name
             if col_name == parent:
                 # Check if this is a single value array (ARRAY<primitive>) or array with struct
-                from dbt2lookml.generators.utils import get_catalog_column_info, is_single_value_array
                 catalog_data = getattr(model, '_catalog_data', None)
                 original_name = getattr(column, 'original_name', None)
                 catalog_column = get_catalog_column_info(col_name, catalog_data, model.unique_id, original_name)
@@ -949,7 +942,6 @@ class LookmlDimensionGenerator:
                     # The dimension name should match the nested view name pattern
                     
                     # Get the base model name from the model
-                    from dbt2lookml.utils import camel_to_snake
                     if hasattr(model, 'relation_name') and model.relation_name:
                         table_name = model.relation_name.split('.')[-1].strip('`')
                         base_name = camel_to_snake(table_name)
@@ -970,7 +962,6 @@ class LookmlDimensionGenerator:
                     sql_reference = dimension_name
                     
                     # Determine the correct type for the array field dimension
-                    from dbt2lookml.generators.utils import get_array_element_looker_type
                     looker_type = get_array_element_looker_type(catalog_column)
                     
                     dimension = {
@@ -1004,7 +995,6 @@ class LookmlDimensionGenerator:
                 continue
             
             # Get column name for SQL
-            from dbt2lookml.generators.utils import get_column_name
             column_name = get_column_name(column, table_format_sql, getattr(model, 'catalog_data', None), model.unique_id, True, array_model_name)
             
             # For nested views, always use include_names logic to strip the array model prefix
