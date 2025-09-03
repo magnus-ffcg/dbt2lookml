@@ -38,19 +38,22 @@ class TestDimensionGroup:
                 "timeframes": list(LookerDateTimeframes.values()),
             },
         ]
-        # Test dimension removal approach
-        processed_dimensions, conflicting_names = generator._comment_conflicting_dimensions(dimensions, dimension_groups)
-        # Assert conflicting dimensions are removed
-        assert len(conflicting_names) == 2  # created_date and updated_month should be removed
-        assert 'created_date' in conflicting_names
-        assert 'updated_month' in conflicting_names
+        # Test dimension conflict renaming approach
+        processed_dimensions = generator._comment_conflicting_dimensions(dimensions, dimension_groups)
+        # Assert conflicting dimensions are renamed with _conflict suffix
+        conflict_dims = [dim for dim in processed_dimensions if dim['name'].endswith('_conflict')]
+        assert len(conflict_dims) == 2  # created_date and updated_month should be renamed
+        conflict_names = {dim['name'] for dim in conflict_dims}
+        assert 'created_date_conflict' in conflict_names
+        assert 'updated_month_conflict' in conflict_names
         # Assert non-conflicting dimensions are preserved
         remaining_names = {dim['name'] for dim in processed_dimensions}
         assert 'id' in remaining_names
         assert 'status' in remaining_names
+        # Original conflicting dimensions should not exist, only renamed versions
         assert 'created_date' not in remaining_names
         assert 'updated_month' not in remaining_names
-        # Dimension groups should remain unchanged since we remove conflicting dimensions instead
+        # Dimension groups should remain unchanged since we rename conflicting dimensions instead
         # All dimension groups should be preserved with their original timeframes
         assert len(dimension_groups) == 3  # All original dimension groups should remain
 
@@ -91,17 +94,19 @@ class TestDimensionGroup:
             set(conflicts) == expected_conflicts
         ), f"Expected conflicts {expected_conflicts}, got {set(conflicts)}"
         # Test conflict resolution produces expected results
-        processed_dimensions, conflicting_names = generator._comment_conflicting_dimensions(dimensions, dimension_groups)
-        # Verify conflicting dimensions are removed
-        assert len(conflicting_names) == 2, f"Expected 2 conflicting dimensions, got {len(conflicting_names)}"
-        assert 'created_date' in conflicting_names, "Expected 'created_date' to be marked as conflicting"
-        assert 'created_month' in conflicting_names, "Expected 'created_month' to be marked as conflicting"
+        processed_dimensions = generator._comment_conflicting_dimensions(dimensions, dimension_groups)
+        # Verify conflicting dimensions are renamed with _conflict suffix
+        conflict_dims = [dim for dim in processed_dimensions if dim['name'].endswith('_conflict')]
+        assert len(conflict_dims) == 2, f"Expected 2 conflicting dimensions, got {len(conflict_dims)}"
+        conflict_names = {dim['name'] for dim in conflict_dims}
+        assert 'created_date_conflict' in conflict_names, "Expected 'created_date_conflict' to exist"
+        assert 'created_month_conflict' in conflict_names, "Expected 'created_month_conflict' to exist"
         # Verify non-conflicting dimensions remain
         remaining_names = {dim['name'] for dim in processed_dimensions}
         assert 'id' in remaining_names, "Expected 'id' dimension to remain"
         assert 'status' in remaining_names, "Expected 'status' dimension to remain"
-        assert 'created_date' not in remaining_names, "Expected 'created_date' dimension to be removed"
-        assert 'created_month' not in remaining_names, "Expected 'created_month' dimension to be removed"
+        assert 'created_date' not in remaining_names, "Expected 'created_date' dimension to be renamed"
+        assert 'created_month' not in remaining_names, "Expected 'created_month' dimension to be renamed"
         # Test generated names method returns expected names
         generated_names = generator._get_dimension_group_generated_names("created", "date")
         # The actual implementation uses a simplified subset of timeframes

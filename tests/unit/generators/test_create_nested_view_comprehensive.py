@@ -184,10 +184,15 @@ class TestCreateNestedViewComprehensive:
                 mock_dimension_generator, mock_measure_generator
             )
         
-        # Check that conflicting dimensions comment is added
-        comment_key = '# Removed conflicting dimensions: conflicting_dim'
-        assert comment_key in result
-        assert result[comment_key] == ""
+        # Check that conflicting dimensions are renamed instead of removed
+        # The view should not have any comment about removed dimensions
+        comment_keys = [key for key in result.keys() if key.startswith('# Removed conflicting dimensions')]
+        assert len(comment_keys) == 0, "View should not have conflicting dimensions comments"
+        
+        # Verify that dimensions were processed (renamed, not removed)
+        assert 'dimensions' in result
+        dimensions = result['dimensions'][0]  # First element is the processed dimensions
+        assert len(dimensions) > 0, "Dimensions should be processed, not removed"
     
     def test_create_nested_view_returns_none_for_empty_view(self, view_generator, mock_model, mock_array_model,
                                                            mock_dimension_generator, mock_measure_generator):
@@ -348,8 +353,8 @@ class TestCreateNestedViewComprehensive:
                 mock_dimension_generator, mock_measure_generator
             )
         
-        # Verify measures are called twice (once for empty check, once for assignment)
-        assert mock_measure_generator.lookml_measures_from_model.call_count == 2
+        # Verify measures are called once (in the shared base method)
+        assert mock_measure_generator.lookml_measures_from_model.call_count == 1
         assert 'measures' in result
         assert result['measures'] == [{'name': 'total_amount', 'type': 'sum'}]
     
@@ -402,9 +407,15 @@ class TestCreateNestedViewComprehensive:
                 mock_dimension_generator, mock_measure_generator
             )
         
-        # Check that all conflicting dimensions are listed in comment
-        comment_key = '# Removed conflicting dimensions: conflict1,conflict2,conflict3'
-        assert comment_key in result
+        # Check that conflicting dimensions are renamed instead of removed
+        # The view should not have any comment about removed dimensions
+        comment_keys = [key for key in result.keys() if key.startswith('# Removed conflicting dimensions')]
+        assert len(comment_keys) == 0, "View should not have conflicting dimensions comments"
+        
+        # Verify that dimensions were processed (renamed, not removed)
+        assert 'dimensions' in result
+        dimensions = result['dimensions'][0]  # First element is the processed dimensions
+        assert len(dimensions) > 0, "Dimensions should be processed, not removed"
     
     def test_create_nested_view_cache_key_generation(self, view_generator, mock_model, mock_array_model,
                                                     mock_dimension_generator, mock_measure_generator):

@@ -14,6 +14,7 @@ class DbtParser:
     def __init__(self, cli_args, raw_manifest: Dict, raw_catalog: Dict):
         """Initialize the parser with raw manifest and catalog data."""
         self._cli_args = cli_args
+        self._raw_manifest = raw_manifest  # Store raw manifest for metadata extraction
         self._catalog = DbtCatalog(**raw_catalog)
         self._manifest = DbtManifest(**raw_manifest)
         self._model_parser = ModelParser(self._manifest)
@@ -49,6 +50,11 @@ class DbtParser:
             if processed_model := self._catalog_parser.process_model_columns(model):
                 # Store catalog data reference for generators
                 processed_model._catalog_data = self._catalog_parser._raw_catalog_data
+                # Store original raw manifest data for metadata extraction
+                # Use the raw manifest dict passed to constructor, not the parsed Pydantic model
+                raw_nodes = self._raw_manifest.get('nodes', {})
+                if model.unique_id in raw_nodes:
+                    processed_model._manifest_data = raw_nodes[model.unique_id]
                 processed_models.append(processed_model)
             else:
                 failed_models.append(model.name)

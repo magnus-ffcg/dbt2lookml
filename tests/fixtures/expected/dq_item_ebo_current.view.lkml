@@ -306,6 +306,10 @@ view: dq_item_ebo_current {
     timeframes: [raw, time, date, week, month, quarter, year]
     sql: ${TABLE}.itemstatuses.ItemCreationDate ;;
   }
+  dimension: itemstatuses__item_creation_date_conflict {
+    hidden: yes # Renamed from 'itemstatuses__item_creation_date' due to conflict with dimension group
+    sql: ${TABLE}.itemstatuses.ItemCreationDate ;;
+  }
   dimension: itemstatuses__item_introduction_status {
     type: string
     sql: ${TABLE}.itemstatuses.ItemIntroductionStatus ;;
@@ -321,6 +325,10 @@ view: dq_item_ebo_current {
   dimension_group: itemstatuses__last_update_date_time {
     type: time
     timeframes: [raw, time, date, week, month, quarter, year]
+    sql: ${TABLE}.itemstatuses.LastUpdateDateTime ;;
+  }
+  dimension: itemstatuses__last_update_date_time_conflict {
+    hidden: yes # Renamed from 'itemstatuses__last_update_date_time' due to conflict with dimension group
     sql: ${TABLE}.itemstatuses.LastUpdateDateTime ;;
   }
   dimension: itemstatuses__new_item_type {

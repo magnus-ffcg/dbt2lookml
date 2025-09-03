@@ -138,6 +138,8 @@ def test_generate_with_continue_on_error(mock_file_handler, mock_generator):
     """Test generate method with --continue-on-error when some models fail"""
     # Setup mocks
     mock_generator_instance = Mock()
+    mock_generator_instance.view_generator = Mock()
+    mock_generator_instance.view_generator._generate_model_header_comment = Mock(return_value='')
     mock_generator.return_value = mock_generator_instance
     mock_file_handler_instance = Mock()
     mock_file_handler.return_value = mock_file_handler_instance

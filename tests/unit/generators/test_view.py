@@ -269,54 +269,9 @@ class TestLookmlViewGenerator:
                 measure_generator=mock_measure_generator,
             )
             
-            # Should have comment about conflicting dimensions
-            assert any('Removed conflicting dimensions' in key for key in result.keys())
+            # Should not have comment about conflicting dimensions (they are renamed instead)
+            assert not any('Removed conflicting dimensions' in key for key in result.keys())
 
-    def test_is_yes_no_with_hidden_true(self, cli_args):
-        """Test _is_yes_no returns 'yes' when model is hidden."""
-        generator = LookmlViewGenerator(cli_args)
-        
-        model = DbtModel(
-            name="test_model",
-            path="models/test_model.sql",
-            relation_name="`project.dataset.test_table`",
-            columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker(view=DbtMetaLookerBase(hidden=True))),
-            unique_id="model.test.test_model",
-            resource_type=DbtResourceType.MODEL,
-            schema="test_schema",
-            description="Test model",
-            tags=[],
-        )
-        
-        result = generator._is_yes_no(model)
-        assert result == 'yes'
-
-    def test_is_yes_no_with_hidden_false(self, cli_args):
-        """Test _is_yes_no returns 'no' when model is not hidden."""
-        generator = LookmlViewGenerator(cli_args)
-        
-        model = DbtModel(
-            name="test_model",
-            path="models/test_model.sql",
-            relation_name="`project.dataset.test_table`",
-            columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker(view=DbtMetaLookerBase(hidden=False))),
-            unique_id="model.test.test_model",
-            resource_type=DbtResourceType.MODEL,
-            schema="test_schema",
-            description="Test model",
-            tags=[],
-        )
-        
-        result = generator._is_yes_no(model)
-        assert result == 'no'
-
-    def test_is_yes_no_with_no_meta(self, cli_args, sample_model):
-        """Test _is_yes_no returns 'no' when model has no meta."""
-        generator = LookmlViewGenerator(cli_args)
-        result = generator._is_yes_no(sample_model)
-        assert result == 'no'
 
     def test_create_nested_view(self, cli_args, sample_model, mock_dimension_generator, mock_measure_generator):
         """Test _create_nested_view method."""

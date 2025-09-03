@@ -335,7 +335,14 @@ class Cli:
         try:
             lookml_generator = LookmlGenerator(args)
             file_path, lookml = lookml_generator.generate(model=model)
-            contents = lkml.dump(lookml)
+            
+
+            # Generate LookML content and prepend header comment
+            lookml_content = lkml.dump(lookml)
+            
+            # Generate header comment with model metadata
+            header_comment = lookml_generator.view_generator._generate_model_header_comment(model)
+            contents = header_comment + lookml_content
             
             # Handle duplicate file paths when using table names
             if args.use_table_name and table_name_counter is not None:

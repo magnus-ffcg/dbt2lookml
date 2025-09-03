@@ -14,6 +14,67 @@ class LookmlViewGenerator:
         self._cli_args = args
         self._column_collections_cache = {}  # Cache column collections per model
 
+    def _create_view_base(
+        self,
+        model: DbtModel,
+        view_name: str,
+        columns_subset: dict,
+        array_models: list,
+        dimension_generator,
+        measure_generator,
+        is_nested_view: bool = False,
+        array_model_name: str = None,
+    ) -> dict:
+        """Shared view creation logic for both main and nested views."""
+        # Use provided array models or empty list if none provided
+        if array_models is None:
+            array_models = []
+        
+        # Cache column collections to avoid repeated expensive processing
+        array_model_names = [getattr(am, 'name', str(am)) for am in array_models]
+        cache_key = (model.unique_id, tuple(sorted(array_model_names)))
+        if cache_key not in self._column_collections_cache:
+            self._column_collections_cache[cache_key] = ColumnCollections.from_model(model, array_models)
+        
+        # Generate dimensions
+        dimension_kwargs = {'model': model, 'columns_subset': columns_subset}
+        if is_nested_view:
+            dimension_kwargs.update({'is_nested_view': True, 'array_model_name': array_model_name})
+        
+        dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(**dimension_kwargs)
+        
+        # Get dimension groups
+        dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(**dimension_kwargs)
+        dimension_groups = dimension_groups_result.get('dimension_groups', [])
+        
+        # Apply conflict detection
+        conflicting_dimensions = []
+        if dimensions and dimension_groups:
+            dimensions = dimension_generator._comment_conflicting_dimensions(
+                dimensions, dimension_groups, model.name
+            )
+        
+        # Clean dimension groups for output
+        if dimension_groups:
+            dimension_groups = dimension_generator._clean_dimension_groups_for_output(dimension_groups)
+        
+        # Generate measures
+        measures = measure_generator.lookml_measures_from_model(
+            model, columns_subset=columns_subset
+        )
+        
+        # Build base view structure
+        view = {'name': view_name}
+        
+        if dimensions:
+            view['dimensions'] = dimensions
+        if dimension_groups:
+            view['dimension_groups'] = dimension_groups
+        if measures:
+            view['measures'] = measures
+        
+        return view, nested_dimensions, measures
+
     def _create_main_view(
         self,
         model: DbtModel,
@@ -25,86 +86,97 @@ class LookmlViewGenerator:
         array_models: list = None,
     ) -> dict:
         """Create the main view definition."""
-        # Build view dict in specific order to match expected LookML output
-        view = {
-            'name': view_name.lower(),
-            'sql_table_name': model.relation_name,
-        }
+        # Get main view columns
+        collections = self._get_column_collections(model, array_models)
         
-        # Use provided array models or empty list if none provided
+        # Use shared base method
+        view, nested_dimensions, measures = self._create_view_base(
+            model, view_name.lower(), collections.main_view_columns, array_models,
+            dimension_generator, measure_generator
+        )
+        
+        # Main view specific properties
+        view['sql_table_name'] = model.relation_name
+        
+        # Add nested array dimensions to main view
+        if nested_dimensions:
+            if 'dimensions' not in view:
+                view['dimensions'] = []
+            view['dimensions'].extend(nested_dimensions)
+        
+        # Add default count measure if no measures exist
+        if not measures:
+            view['measures'] = [{'name': 'count', 'type': 'count'}]
+        
+        # Add hidden flag if specified in meta
+        if hidden := model._get_meta_looker('view', 'hidden'):
+            view['hidden'] = 'yes' if hidden else 'no'
+        
+        return view
+
+    def _generate_model_header_comment(self, model: DbtModel) -> str:
+        """Generate header comment with dbt model metadata.
+        
+        Args:
+            model: DbtModel to extract metadata from
+            
+        Returns:
+            Multi-line comment string with model metadata
+        """
+        lines = []
+        
+        # Check if model has name attribute before accessing
+        if hasattr(model, 'name'):
+            lines.append(f"# Model: {getattr(model, 'name', '')}")
+        
+        # Check if model has description before accessing
+        if hasattr(model, 'description'):
+            lines.append(f"# Description: {getattr(model, 'description', '')}")
+        
+        if hasattr(model, 'tags'):
+            lines.append(f"# Description: {','.join(getattr(model, 'tags', []))}")
+        
+        # Check for metadata stored in various possible locations
+        # Try to get metadata from model attributes or stored manifest data
+        manifest_data = getattr(model, '_manifest_data', None)
+        if manifest_data:
+            # Extract meta fields from stored manifest data
+            meta = manifest_data.get('meta', {})
+            
+            #owner = meta.get('owner')
+            if hasattr(meta, 'owner'):
+                lines.append(f"# Owner: {getattr(model, 'owner', '')}")
+            
+            #maturity = meta.get('model_maturity')  
+            if hasattr(meta, 'maturity'):
+                lines.append(f"# Maturity: {getattr(model, 'maturity', '')}")
+            
+            #contains_pii = meta.get('contains_pii')
+            if hasattr(meta, 'contains_pii'):
+                pii_value = "Yes" if getattr(model, 'maturity', '') else "No"
+                lines.append(f"# PII: {pii_value}")
+            
+            # Get group from manifest data
+            #group = manifest_data.get('group')
+            if hasattr(meta, 'group'):
+                lines.append(f"# Group: {getattr(model, 'group', '')}")
+             
+        if len(lines) > 1:
+            return '\n'.join(lines) + "\n\n"    
+        else:
+            # No content at all, return empty string
+            return ""
+
+    def _get_column_collections(self, model: DbtModel, array_models: list) -> ColumnCollections:
+        """Get column collections with caching."""
         if array_models is None:
             array_models = []
         
-        # Cache column collections to avoid repeated expensive processing
-        # Create hashable cache key from array model names
         array_model_names = [getattr(am, 'name', str(am)) for am in array_models]
         cache_key = (model.unique_id, tuple(sorted(array_model_names)))
         if cache_key not in self._column_collections_cache:
             self._column_collections_cache[cache_key] = ColumnCollections.from_model(model, array_models)
-        collections = self._column_collections_cache[cache_key]
-        
-        dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
-            model, columns_subset=collections.main_view_columns
-        )
-        
-        # Add nested array dimensions to main view
-        if nested_dimensions:
-            if dimensions is None:
-                dimensions = []
-            dimensions.extend(nested_dimensions)
-
-        # Get dimension groups
-        dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(
-            model, columns_subset=collections.main_view_columns
-        )
-        conflicting_dimensons = []
-        dimension_groups = dimension_groups_result.get('dimension_groups', [])
-        # Comment out conflicting regular dimensions instead of timeframes
-        if dimensions and dimension_groups:
-            dimensions, conflicting_dimensons = dimension_generator._comment_conflicting_dimensions(
-                dimensions, dimension_groups, model.name
-            )
-        # Clean dimension groups for output (remove internal fields)
-        if dimension_groups:
-            dimension_groups = dimension_generator._clean_dimension_groups_for_output(
-                dimension_groups
-            )
-        # Add dimensions and dimension_groups to view
-        if dimensions:
-            view['dimensions'] = dimensions
-        if dimension_groups:
-            view['dimension_groups'] = dimension_groups
-        # Generate measures from metadata
-        measures = measure_generator.lookml_measures_from_model(
-            model, columns_subset=collections.main_view_columns
-        )
-        
-        # Add default count measure if no measures exist
-        if not measures:
-            measures = [{'name': 'count', 'type': 'count'}]
-        
-        view['measures'] = measures
-        if hidden := model._get_meta_looker('view', 'hidden'):
-            view['hidden'] = 'yes' if hidden else 'no'
-
-        if len(conflicting_dimensons) > 0:
-            view['# Removed conflicting dimensions: ' + ','.join(conflicting_dimensons)] = ""
-            
-        
-        return view
-
-    def _is_yes_no(self, model: DbtModel) -> str:
-        """Check if model should be hidden."""
-        hidden = 'no'
-        if (
-            model.meta is not None
-            and model.meta.looker is not None
-            and hasattr(model.meta.looker, 'view')
-            and model.meta.looker.view is not None
-            and hasattr(model.meta.looker.view, 'hidden')
-        ):
-            hidden = 'yes' if model.meta.looker.view.hidden else 'no'
-        return hidden
+        return self._column_collections_cache[cache_key]
 
     def _create_nested_view(
         self,
@@ -123,21 +195,18 @@ class LookmlViewGenerator:
         # Get column collections for this nested view
         nested_columns = self._get_nested_view_columns(model, array_model, array_models)
         
-        # Generate dimensions and dimension groups
-        dimensions, dimension_groups, conflicting_dimensions = self._generate_nested_view_dimensions(
-            model, nested_columns, array_model, dimension_generator
+        # Use shared base method
+        view, _, measures = self._create_view_base(
+            model, nested_view_name, nested_columns, array_models,
+            dimension_generator, measure_generator,
+            is_nested_view=True, array_model_name=array_model.name
         )
         
         # Check if view has content, return None if empty
-        if self._is_empty_nested_view(dimensions, dimension_groups, nested_columns, measure_generator, model):
+        if self._is_empty_view(view, measures):
             return None
         
-        # Build and return nested view structure
-        return self._build_nested_view_structure(
-            nested_view_name, dimensions, dimension_groups, conflicting_dimensions,
-            nested_columns, measure_generator, model
-        )
-
+        return view
 
     def _generate_nested_view_name(self, model: DbtModel, base_name: str, array_model: DbtModelColumn) -> str:
         """Generate the nested view name based on CLI arguments."""
@@ -150,83 +219,18 @@ class LookmlViewGenerator:
         else:
             return f"{base_name}__{array_model.lookml_long_name}".lower()
 
-
     def _get_nested_view_columns(self, model: DbtModel, array_model: DbtModelColumn, array_models: list) -> dict:
         """Get column collections for the nested view with caching."""
-        if array_models is None:
-            array_models = []
-        
-        # Cache column collections to avoid repeated expensive processing
-        array_model_names = [getattr(am, 'name', str(am)) for am in array_models]
-        cache_key = (model.unique_id, tuple(sorted(array_model_names)))
-        if cache_key not in self._column_collections_cache:
-            self._column_collections_cache[cache_key] = ColumnCollections.from_model(model, array_models)
-        collections = self._column_collections_cache[cache_key]
-        
-        # Get columns for this specific nested view
+        collections = self._get_column_collections(model, array_models)
         return collections.nested_view_columns.get(array_model.name, {})
 
-
-    def _generate_nested_view_dimensions(self, model: DbtModel, nested_columns: dict, 
-                                       array_model: DbtModelColumn, dimension_generator) -> tuple:
-        """Generate dimensions and dimension groups for nested view."""
-        # Generate dimensions from the dimension generator
-        dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(
-            model, columns_subset=nested_columns, is_nested_view=True, array_model_name=array_model.name
-        )
+    def _is_empty_view(self, view: dict, measures: list) -> bool:
+        """Check if view would be empty (no content)."""
+        has_dimensions = bool(view.get('dimensions'))
+        has_dimension_groups = bool(view.get('dimension_groups'))
+        has_measures = bool(measures)
         
-        # Get dimension groups
-        dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(
-            model, columns_subset=nested_columns, is_nested_view=True, array_model_name=array_model.name
-        )
-        dimension_groups = dimension_groups_result.get('dimension_groups', [])
-        
-        # Apply conflict detection
-        conflicting_dimensions = []
-        if dimensions and dimension_groups:
-            dimensions, conflicting_dimensions = dimension_generator._comment_conflicting_dimensions(
-                dimensions, dimension_groups, model.name
-            )
-        
-        # Clean dimension groups for output
-        if dimension_groups:
-            dimension_groups = dimension_generator._clean_dimension_groups_for_output(dimension_groups)
-        
-        return dimensions, dimension_groups, conflicting_dimensions
-
-
-    def _is_empty_nested_view(self, dimensions: list, dimension_groups: list, nested_columns: dict,
-                             measure_generator, model: DbtModel) -> bool:
-        """Check if nested view would be empty (no content)."""
-        if dimensions or dimension_groups:
-            return False
-        
-        measures = measure_generator.lookml_measures_from_model(
-            model, columns_subset=nested_columns
-        )
-        return not measures
-
-
-    def _build_nested_view_structure(self, nested_view_name: str, dimensions: list, dimension_groups: list,
-                                   conflicting_dimensions: list, nested_columns: dict, 
-                                   measure_generator, model: DbtModel) -> dict:
-        """Build the final nested view structure."""
-        nested_view = {'name': nested_view_name}
-        
-        if dimensions:
-            nested_view['dimensions'] = dimensions
-        if dimension_groups:
-            nested_view['dimension_groups'] = dimension_groups
-        if measures := measure_generator.lookml_measures_from_model(
-            model, columns_subset=nested_columns
-        ):
-            nested_view['measures'] = measures
-            
-        # Add dimension removal comment for nested views too
-        if len(conflicting_dimensions) > 0:
-            nested_view['# Removed conflicting dimensions: ' + ','.join(conflicting_dimensions)] = ""
-            
-        return nested_view
+        return not (has_dimensions or has_dimension_groups or has_measures)
 
     def generate(
         self,
@@ -262,8 +266,6 @@ class LookmlViewGenerator:
     ):
         """Recursively create nested views for all array models."""
         # Extract all array models from the model using the same logic as the main generator
-        from dbt2lookml.models.column_collections import ColumnCollections
-        
         # Use hierarchy-based logic to find ALL arrays (including deeply nested ones)
         columns_dict = {col.name: col for col in model.columns.values()}
         hierarchy = ColumnCollections._build_hierarchy_map(columns_dict)
