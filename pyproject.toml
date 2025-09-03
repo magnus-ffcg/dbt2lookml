@@ -11,7 +11,7 @@ repository = "https://github.com/magnus-ffcg/dbt2lookml"
 lkml = ">=1.1"
 pydantic = ">=2.9"
 PyYAML = ">=5.0"
-python = ">=3.9.0,<4.0"
+python = ">=3.10.0,<4.0"
 typing-extensions = ">=4.0"
 importlib-metadata = ">=4"
 rich = ">=13.9.4"
@@ -42,7 +42,7 @@ build-backend = "poetry.core.masonry.api"
 name = "dbt2lookml"
 version = "0.2.2"
 description = "Convert dbt models to LookML"
-requires-python = ">=3.9.0,<4.0"
+requires-python = ">=3.10.0,<4.0"
 dependencies = [
     "lkml>=1.1",
     "pydantic>=2.9",
