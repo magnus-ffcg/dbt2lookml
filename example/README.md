@@ -12,7 +12,7 @@ Same ones is used for some of the tests
 ### Example of dbt model -> looker view conversion
 
 ```shell
-poetry run dbt2lookml --target-dir tests/fixtures --output-dir example/default
+uv run dbt2lookml --target-dir tests/fixtures --output-dir example/default
 ```
 
 The output you can see under example/default/ folder
@@ -20,7 +20,7 @@ The output you can see under example/default/ folder
 ### Example of dbt model -> looker view conversion with using the table names instead of the dbt model names
 
 ```shell
-poetry run dbt2lookml --target-dir tests/fixtures --output-dir example/use-table-name
+uv run dbt2lookml --target-dir tests/fixtures --output-dir example/use-table-name
 ```
 
 The output you can see under example/use-table-name/ folder
@@ -28,7 +28,7 @@ The output you can see under example/use-table-name/ folder
 ### Example of dbt model -> looker view conversion but skipping the explore joins
 
 ```shell
-poetry run dbt2lookml --target-dir tests/fixtures --output-dir example/skip-explore
+uv run dbt2lookml --target-dir tests/fixtures --output-dir example/skip-explore
 ```
 
 The output you can see under example/skip-explore/ folder

@@ -74,13 +74,11 @@ def test_cli_parse(mock_file_handler, mock_dbt_parser):
         exposures_only=False,
         exposures_tag=None,
         tag=None,
-        select=None
+        select=None,
     )
     result = cli.parse(args)
     # Verify file handler calls
-    mock_file_handler_instance.read.assert_has_calls(
-        [call('target/manifest.json'), call('target/catalog.json')]
-    )
+    mock_file_handler_instance.read.assert_has_calls([call('target/manifest.json'), call('target/catalog.json')])
     # Verify parser calls with correct args
     mock_dbt_parser.assert_called_once_with(args, 'manifest', 'catalog')
     mock_parser_instance.get_models.assert_called_once_with()
@@ -110,9 +108,7 @@ def test_continue_on_error_flag():
     args = parser.parse_args(['--target-dir', 'target', '--output-dir', 'output'])
     assert not hasattr(args, 'continue_on_error') or not args.continue_on_error
     # With --continue-on-error
-    args = parser.parse_args(
-        ['--target-dir', 'target', '--output-dir', 'output', '--continue-on-error']
-    )
+    args = parser.parse_args(['--target-dir', 'target', '--output-dir', 'output', '--continue-on-error'])
     assert args.continue_on_error is True
 
 
@@ -226,30 +222,33 @@ def test_version_argument():
 def test_include_exclude_models_parsing():
     """Test --include-models and --exclude-models argument parsing"""
     parser = Cli()._init_argparser()
-    
+
     # Test include-models
-    args = parser.parse_args([
-        '--target-dir', 'target',
-        '--output-dir', 'output',
-        '--include-models', 'model1', 'model2', 'model3'
-    ])
+    args = parser.parse_args(
+        ['--target-dir', 'target', '--output-dir', 'output', '--include-models', 'model1', 'model2', 'model3']
+    )
     assert args.include_models == ['model1', 'model2', 'model3']
-    
+
     # Test exclude-models
-    args = parser.parse_args([
-        '--target-dir', 'target', 
-        '--output-dir', 'output',
-        '--exclude-models', 'test_model', 'staging_model'
-    ])
+    args = parser.parse_args(
+        ['--target-dir', 'target', '--output-dir', 'output', '--exclude-models', 'test_model', 'staging_model']
+    )
     assert args.exclude_models == ['test_model', 'staging_model']
-    
+
     # Test both together
-    args = parser.parse_args([
-        '--target-dir', 'target',
-        '--output-dir', 'output', 
-        '--include-models', 'model1', 'model2',
-        '--exclude-models', 'test_model'
-    ])
+    args = parser.parse_args(
+        [
+            '--target-dir',
+            'target',
+            '--output-dir',
+            'output',
+            '--include-models',
+            'model1',
+            'model2',
+            '--exclude-models',
+            'test_model',
+        ]
+    )
     assert args.include_models == ['model1', 'model2']
     assert args.exclude_models == ['test_model']
 
@@ -257,22 +256,14 @@ def test_include_exclude_models_parsing():
 def test_remove_schema_string_parsing():
     """Test --remove-schema-string argument parsing"""
     parser = Cli()._init_argparser()
-    args = parser.parse_args([
-        '--target-dir', 'target',
-        '--output-dir', 'output',
-        '--remove-schema-string', 'staging_'
-    ])
+    args = parser.parse_args(['--target-dir', 'target', '--output-dir', 'output', '--remove-schema-string', 'staging_'])
     assert args.remove_schema_string == 'staging_'
 
 
 def test_config_file_parsing():
     """Test --config argument parsing"""
     parser = Cli()._init_argparser()
-    args = parser.parse_args([
-        '--target-dir', 'target',
-        '--output-dir', 'output',
-        '--config', '/path/to/config.yaml'
-    ])
+    args = parser.parse_args(['--target-dir', 'target', '--output-dir', 'output', '--config', '/path/to/config.yaml'])
     assert args.config == '/path/to/config.yaml'
 
 
@@ -280,17 +271,12 @@ def test_config_file_parsing():
 @patch('yaml.safe_load')
 def test_load_config_success(mock_yaml_load, mock_open):
     """Test successful YAML configuration loading"""
-    mock_config = {
-        'target_dir': '/custom/target',
-        'output_dir': '/custom/output',
-        'tag': 'analytics',
-        'log_level': 'DEBUG'
-    }
+    mock_config = {'target_dir': '/custom/target', 'output_dir': '/custom/output', 'tag': 'analytics', 'log_level': 'DEBUG'}
     mock_yaml_load.return_value = mock_config
-    
+
     cli = Cli()
     result = cli._load_config('/path/to/config.yaml')
-    
+
     mock_open.assert_called_once_with('/path/to/config.yaml', 'r')
     assert result == mock_config
 
@@ -308,7 +294,7 @@ def test_load_config_file_not_found():
 def test_load_config_yaml_error(mock_yaml_load, mock_open):
     """Test YAML parsing error in configuration file"""
     mock_yaml_load.side_effect = yaml.YAMLError("Invalid YAML")
-    
+
     cli = Cli()
     with pytest.raises(CliError) as exc_info:
         cli._load_config('/path/to/config.yaml')
@@ -320,17 +306,17 @@ def test_load_config_yaml_error(mock_yaml_load, mock_open):
 def test_load_config_empty_file(mock_yaml_load, mock_open):
     """Test loading empty configuration file"""
     mock_yaml_load.return_value = None
-    
+
     cli = Cli()
     result = cli._load_config('/path/to/config.yaml')
-    
+
     assert result == {}
 
 
 def test_merge_config_with_args():
     """Test merging configuration with CLI arguments"""
     cli = Cli()
-    
+
     # Create mock args with defaults
     args = Mock(
         target_dir='.',  # Default value
@@ -339,24 +325,24 @@ def test_merge_config_with_args():
         log_level='INFO',  # Default value
         include_iso_fields=True,  # Default value
     )
-    
+
     config = {
         'target_dir': '/config/target',
         'output_dir': '/config/output',  # Should not override CLI arg
         'tag': 'config_tag',
         'log_level': 'DEBUG',
     }
-    
+
     merged = cli._merge_config_with_args(args, config)
-    
+
     # Config should override defaults
     assert merged.target_dir == '/config/target'
     assert merged.tag == 'config_tag'
     assert merged.log_level == 'DEBUG'
-    
+
     # CLI args should take precedence over config
     assert merged.output_dir == '/custom/output'
-    
+
     assert merged.include_iso_fields is True
 
 
@@ -369,17 +355,17 @@ def test_run_with_config_file(mock_file_handler, mock_dbt_parser, mock_logging):
     mock_file_handler_instance = Mock()
     mock_file_handler.return_value = mock_file_handler_instance
     mock_file_handler_instance.read.side_effect = ['manifest', 'catalog']
-    
+
     # Mock parser
     mock_parser_instance = Mock()
     mock_dbt_parser.return_value = mock_parser_instance
     mock_parser_instance.get_models.return_value = []
-    
+
     # Mock config loading
     cli = Cli()
     cli._load_config = Mock(return_value={'log_level': 'DEBUG'})
     cli._merge_config_with_args = Mock(side_effect=lambda args, config: args)
-    
+
     # Mock argument parsing
     mock_args = Mock(
         config='/path/to/config.yaml',
@@ -389,12 +375,12 @@ def test_run_with_config_file(mock_file_handler, mock_dbt_parser, mock_logging):
         exposures_tag=None,
         tag=None,
         select=None,
-        output_dir='output'
+        output_dir='output',
     )
     cli._args_parser.parse_args = Mock(return_value=mock_args)
-    
+
     cli.run()
-    
+
     # Verify config was loaded and merged
     cli._load_config.assert_called_once_with('/path/to/config.yaml')
     cli._merge_config_with_args.assert_called_once()

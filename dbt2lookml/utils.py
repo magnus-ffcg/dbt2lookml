@@ -9,18 +9,15 @@ from typing import Dict, Optional, Union
 from dbt2lookml.exceptions import CliError
 
 
-
-
-
 def camel_to_snake(name: str) -> str:
     """Convert CamelCase to snake_case.
-    
+
     Args:
         name: The name to convert (can be CamelCase or already lowercase)
-        
+
     Returns:
         The name converted to snake_case
-        
+
     Examples:
         >>> camel_to_snake('SupplierInformation')
         'supplier_information'
@@ -35,7 +32,7 @@ def camel_to_snake(name: str) -> str:
     """
     if not name:
         return name
-    
+
     # Handle acronym-word combinations like GTINId, GTINType
     # Insert underscore between consecutive uppercase letters followed by lowercase
     s1 = re.sub('([A-Z]+)([A-Z][a-z])', r'\1_\2', name)
@@ -113,14 +110,11 @@ class Sql:
         sql = sql.strip()
         if self._has_ending_semicolons(sql):
             logging.warning(
-                f"SQL expression '{sql}' ends with semicolons. They will be removed as lkml adds "
-                "them automatically."
+                f"SQL expression '{sql}' ends with semicolons. They will be removed as lkml adds " "them automatically."
             )
             sql = sql.rstrip(";").rstrip(";").strip()
         if not self._has_dollar_syntax(sql):
-            logging.warning(
-                f"SQL expression '{sql}' does not contain ${{TABLE}} or ${{view_name}} syntax"
-            )
+            logging.warning(f"SQL expression '{sql}' does not contain ${{TABLE}} or ${{view_name}} syntax")
             return None
         return sql
 

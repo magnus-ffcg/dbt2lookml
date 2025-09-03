@@ -33,28 +33,28 @@ def sample_model():
         tags=[],
         path='models/sample_model.sql',
         columns={},
-        meta=DbtModelMeta(looker=DbtMetaLooker())
+        meta=DbtModelMeta(looker=DbtMetaLooker()),
     )
 
 
 class TestLookmlExploreGenerator:
     """Test cases for LookmlExploreGenerator class."""
-    
+
     def test_init(self, cli_args):
         """Test LookmlExploreGenerator initialization."""
         generator = LookmlExploreGenerator(cli_args)
         assert generator._cli_args == cli_args
-    
+
     def test_generate_basic_explore(self, cli_args, sample_model):
         """Test basic explore generation."""
         generator = LookmlExploreGenerator(cli_args)
-        
+
         view_name = 'sample_model'
         view_label = 'Sample Model'
         array_models = []
-        
+
         explore = generator.generate(sample_model, view_name, view_label, array_models)
-        
+
         assert explore is not None
         assert 'name' in explore
         assert explore['name'] == 'sample_model'

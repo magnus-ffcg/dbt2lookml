@@ -27,7 +27,7 @@ class CatalogParser:
             catalog_node = self._catalog.nodes[model.unique_id]
             for catalog_col_name in catalog_node.columns.keys():
                 original_case_mapping[catalog_col_name.lower()] = catalog_col_name
-        
+
         # Process existing columns and preserve original case
         for column_name, column in model.columns.items():
             processed_column = self._update_column_with_inner_types(column, model.unique_id)
@@ -49,21 +49,18 @@ class CatalogParser:
             raw_catalog_node = self._raw_catalog_data['nodes'][model.unique_id]
             for column_name, column_data in raw_catalog_node.get('columns', {}).items():
                 # Check both original case and lowercase for existing columns
-                if (column_name.lower() not in processed_columns and 
-                    column_data.get('type') is not None):
+                if column_name.lower() not in processed_columns and column_data.get('type') is not None:
                     # Add missing array columns
                     if 'ARRAY' in f'{column_data.get("type", "")}':
                         array_column = self._create_missing_array_column(
-                            column_name.lower(), column_data.get('type'), 
-                            column_data.get('inner_types', []), column_name
+                            column_name.lower(), column_data.get('type'), column_data.get('inner_types', []), column_name
                         )
                         processed_columns[column_name.lower()] = array_column
                     # Add nested struct fields (columns with dots in name)
                     elif '.' in column_name:
                         # Store with lowercase key but preserve original case in original_name
                         nested_column = self._create_missing_nested_column(
-                            column_name.lower(), column_data.get('type'), 
-                            column_data.get('comment'), column_name
+                            column_name.lower(), column_data.get('type'), column_data.get('comment'), column_name
                         )
                         # Ensure original_name preserves the exact case from catalog
                         nested_column.original_name = column_name
@@ -71,8 +68,7 @@ class CatalogParser:
                     # Add simple columns that exist in catalog but not in manifest
                     else:
                         simple_column = self._create_missing_nested_column(
-                            column_name.lower(), column_data.get('type'),
-                            column_data.get('comment'), column_name
+                            column_name.lower(), column_data.get('type'), column_data.get('comment'), column_name
                         )
                         simple_column.original_name = column_name
                         processed_columns[column_name.lower()] = simple_column
@@ -81,9 +77,11 @@ class CatalogParser:
             catalog_node = self._catalog.nodes[model.unique_id]
             for column_name, column in catalog_node.columns.items():
                 # Check both original case and lowercase for existing columns
-                if (column_name not in processed_columns and 
-                    column_name.lower() not in processed_columns and 
-                    column.data_type is not None):
+                if (
+                    column_name not in processed_columns
+                    and column_name.lower() not in processed_columns
+                    and column.data_type is not None
+                ):
                     # Add missing array columns
                     if 'ARRAY' in f'{column.data_type}':
                         processed_columns[column_name] = self._create_missing_array_column(
@@ -105,15 +103,14 @@ class CatalogParser:
                         )
                         processed_columns[column_name.lower()] = simple_column
         # Always return the model, even if no columns were processed
-        return (
-            model.model_copy(update={'columns': processed_columns}) if processed_columns else model
-        )
+        return model.model_copy(update={'columns': processed_columns}) if processed_columns else model
 
     def _create_missing_array_column(
         self, column_name: str, data_type: str, inner_types: List[str], original_column_name: str = None
     ) -> DbtModelColumn:
         """Create a new column model for array columns missing from manifest."""
         from dbt2lookml.utils import camel_to_snake
+
         original_name = original_column_name or column_name
         return DbtModelColumn(
             name=column_name,
@@ -130,6 +127,7 @@ class CatalogParser:
     ) -> DbtModelColumn:
         """Create a new column model for nested struct fields missing from manifest."""
         from dbt2lookml.utils import camel_to_snake
+
         return DbtModelColumn(
             name=column_name,
             data_type=data_type,
@@ -145,6 +143,7 @@ class CatalogParser:
     ) -> DbtModelColumn:
         """Create a new column model for simple fields missing from manifest."""
         from dbt2lookml.utils import camel_to_snake
+
         return DbtModelColumn(
             name=column_name,
             data_type=data_type,
@@ -155,9 +154,7 @@ class CatalogParser:
             original_name=original_column_name,
         )
 
-    def _get_catalog_column_info(
-        self, model_id: str, column_name: str
-    ) -> Tuple[Optional[str], List[str]]:
+    def _get_catalog_column_info(self, model_id: str, column_name: str) -> Tuple[Optional[str], List[str]]:
         """Get column type information from catalog."""
         if model_id not in self._catalog.nodes:
             return None, []
@@ -167,9 +164,7 @@ class CatalogParser:
         column = catalog_node.columns[column_name]
         return column.data_type, column.inner_types or []
 
-    def _update_column_with_inner_types(
-        self, column: DbtModelColumn, model_id: str
-    ) -> DbtModelColumn:
+    def _update_column_with_inner_types(self, column: DbtModelColumn, model_id: str) -> DbtModelColumn:
         """Update a column with type information from catalog."""
         data_type, inner_types = self._get_catalog_column_info(model_id, column.name)
         if data_type:

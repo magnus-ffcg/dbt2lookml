@@ -94,9 +94,7 @@ class SchemaParser:
             if name:
                 self._current_path.pop()
 
-    def _add_field(
-        self, name: str, type_str: str, inner_types: List[str] = field(default_factory=list)
-    ) -> None:
+    def _add_field(self, name: str, type_str: str, inner_types: List[str] = field(default_factory=list)) -> None:
         """Adds a field to the result list."""
         type_str = self._normalize_type(type_str)
         self._fields.append(

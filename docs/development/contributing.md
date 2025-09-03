@@ -6,8 +6,8 @@ We welcome contributions to dbt2lookml! This guide will help you get started.
 
 ### Prerequisites
 
-- Python 3.9 or higher
-- Poetry (recommended) or pip
+- Python 3.10 or higher
+- UV (fast Python package manager)
 - Git
 
 ### Clone and Setup
@@ -15,27 +15,22 @@ We welcome contributions to dbt2lookml! This guide will help you get started.
 ```bash
 git clone https://github.com/magnus-ffcg/dbt2lookml.git
 cd dbt2lookml
-poetry install
+uv sync
 ```
 
-Or with pip:
-```bash
-git clone https://github.com/magnus-ffcg/dbt2lookml.git
-cd dbt2lookml
-pip install -e ".[test]"
-```
+See [DEVELOPMENT.md](../../DEVELOPMENT.md) for detailed setup instructions.
 
 ### Run Tests
 
 ```bash
 # Run all tests
-poetry run pytest
+uv run pytest
 
 # Run with coverage
-poetry run pytest --cov=dbt2lookml
+uv run pytest --cov=dbt2lookml
 
 # Run specific test file
-poetry run pytest tests/unit/generators/test_dimension.py
+uv run pytest tests/unit/generators/test_dimension.py
 ```
 
 ## Code Style
@@ -44,22 +39,22 @@ We use several tools to maintain code quality:
 
 ### Black (Code Formatting)
 ```bash
-poetry run black dbt2lookml tests
+uv run black dbt2lookml tests
 ```
 
 ### isort (Import Sorting)
 ```bash
-poetry run isort dbt2lookml tests
+uv run isort dbt2lookml tests
 ```
 
 ### Flake8 (Linting)
 ```bash
-poetry run flake8 dbt2lookml tests
+uv run flake8 dbt2lookml tests --max-line-length=130
 ```
 
 ### Type Checking
 ```bash
-poetry run mypy dbt2lookml
+uv run mypy dbt2lookml
 ```
 
 ## Project Structure
@@ -97,12 +92,12 @@ git checkout -b feature/your-feature-name
 
 ```bash
 # Run tests
-poetry run pytest
+uv run pytest
 
 # Check code style
-poetry run black --check dbt2lookml tests
-poetry run isort --check-only dbt2lookml tests
-poetry run flake8 dbt2lookml tests
+uv run black --check dbt2lookml tests
+uv run isort --check-only dbt2lookml tests
+uv run flake8 dbt2lookml tests --max-line-length=130
 ```
 
 ### 4. Commit Changes

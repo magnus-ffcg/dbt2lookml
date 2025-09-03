@@ -90,9 +90,7 @@ class TestDimensionGroup:
         )
         # Test specific conflicts are detected
         expected_conflicts = {"date", "month"}
-        assert (
-            set(conflicts) == expected_conflicts
-        ), f"Expected conflicts {expected_conflicts}, got {set(conflicts)}"
+        assert set(conflicts) == expected_conflicts, f"Expected conflicts {expected_conflicts}, got {set(conflicts)}"
         # Test conflict resolution produces expected results
         processed_dimensions = generator._comment_conflicting_dimensions(dimensions, dimension_groups)
         # Verify conflicting dimensions are renamed with _conflict suffix
@@ -112,6 +110,4 @@ class TestDimensionGroup:
         # The actual implementation uses a simplified subset of timeframes
         expected_timeframes = ["raw", "date", "week", "month", "quarter", "year"]
         expected_names = [f"created_{tf}" for tf in expected_timeframes]
-        assert (
-            generated_names == expected_names
-        ), f"Expected {expected_names}, got {generated_names}"
+        assert generated_names == expected_names, f"Expected {expected_names}, got {generated_names}"

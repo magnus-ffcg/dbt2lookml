@@ -170,7 +170,7 @@ class DbtModelColumn(DbtBaseModel):
     @classmethod
     def set_nested_and_parent_name(cls, values):
         import re
-        
+
         name = values.get('name', '')
         # Preserve original name before any transformations, but don't override if already set
         if 'original_name' not in values or not values.get('original_name'):
@@ -184,10 +184,10 @@ class DbtModelColumn(DbtBaseModel):
             values['nested'] = True
         # Lowercase the name for processing, but preserve original case in original_name
         values['name'] = name.lower()
-        
+
         # Import centralized camel_to_snake function
         from dbt2lookml.utils import camel_to_snake
-        
+
         # Use realistic transformation logic for long name with double underscores
         # Use original_name to preserve CamelCase for proper conversion
         original_parts = values.get('original_name', name).split('.')
@@ -201,7 +201,7 @@ class DbtModelColumn(DbtBaseModel):
                 # CamelCase or snake_case - convert
                 snake_parts.append(camel_to_snake(part))
         values['lookml_long_name'] = '__'.join(snake_parts)
-        
+
         # Use snake_case for the last part as lookml_name, using original_name to preserve case
         original_name = values.get('original_name', name)
         values['lookml_name'] = camel_to_snake(original_name.split('.')[-1])
@@ -273,8 +273,7 @@ class DbtManifestMetadata(BaseModel):
         """Validate that the adapter type is supported."""
         if v not in SupportedDbtAdapters.values():
             raise UnsupportedDbtAdapterError(
-                f'Adapter type {v} is not supported. '
-                f'Supported adapters are: {SupportedDbtAdapters.values()}'
+                f'Adapter type {v} is not supported. ' f'Supported adapters are: {SupportedDbtAdapters.values()}'
             )
         return v
 

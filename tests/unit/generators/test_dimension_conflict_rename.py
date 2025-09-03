@@ -28,20 +28,15 @@ class TestDimensionConflictRename:
                 "name": "created_date",
                 "type": "string",
                 "sql": "${TABLE}.created_date",
-                "description": "Original created date field"
+                "description": "Original created date field",
             },
             {
                 "name": "created",  # Conflicts with dimension group base name
                 "type": "string",
                 "sql": "${TABLE}.created",
-                "description": "Conflicting field"
+                "description": "Conflicting field",
             },
-            {
-                "name": "normal_field",
-                "type": "string",
-                "sql": "${TABLE}.normal_field",
-                "description": "Non-conflicting field"
-            }
+            {"name": "normal_field", "type": "string", "sql": "${TABLE}.normal_field", "description": "Non-conflicting field"},
         ]
 
         # Dimension groups that cause conflicts
@@ -50,14 +45,12 @@ class TestDimensionConflictRename:
                 "name": "created",
                 "type": "time",
                 "sql": "${TABLE}.created_timestamp",
-                "timeframes": ["date", "week", "month", "year"]
+                "timeframes": ["date", "week", "month", "year"],
             }
         ]
 
         # Test the conflict resolution
-        processed_dims = generator._comment_conflicting_dimensions(
-            dimensions, dimension_groups, "test_model"
-        )
+        processed_dims = generator._comment_conflicting_dimensions(dimensions, dimension_groups, "test_model")
 
         # Verify results
         assert len(processed_dims) == 3, "All dimensions should be preserved (renamed, not removed)"
@@ -69,7 +62,10 @@ class TestDimensionConflictRename:
         # Verify specific renames
         created_date_conflict = next((dim for dim in processed_dims if dim['name'] == 'created_date_conflict'), None)
         assert created_date_conflict is not None, "created_date should be renamed to created_date_conflict"
-        assert created_date_conflict['hidden'] == "yes # Renamed from 'created_date' due to conflict with dimension group with same name"
+        assert (
+            created_date_conflict['hidden']
+            == "yes # Renamed from 'created_date' due to conflict with dimension group with same name"
+        )
 
         created_conflict = next((dim for dim in processed_dims if dim['name'] == 'created_conflict'), None)
         assert created_conflict is not None, "created should be renamed to created_conflict"
@@ -88,26 +84,21 @@ class TestDimensionConflictRename:
                 "name": "created_date",
                 "type": "string",
                 "sql": "${TABLE}.created_date",
-                "description": "Important business field for tracking creation"
+                "description": "Important business field for tracking creation",
             }
         ]
 
         dimension_groups = [
-            {
-                "name": "created",
-                "type": "time",
-                "sql": "${TABLE}.created_timestamp",
-                "timeframes": ["date", "week", "month"]
-            }
+            {"name": "created", "type": "time", "sql": "${TABLE}.created_timestamp", "timeframes": ["date", "week", "month"]}
         ]
 
-        processed_dims = generator._comment_conflicting_dimensions(
-            dimensions, dimension_groups, "test_model"
-        )
+        processed_dims = generator._comment_conflicting_dimensions(dimensions, dimension_groups, "test_model")
 
         renamed_dim = processed_dims[0]
         assert renamed_dim['name'] == 'created_date_conflict'
-        assert renamed_dim['description'] == "Important business field for tracking creation", "Original description should be preserved"
+        assert (
+            renamed_dim['description'] == "Important business field for tracking creation"
+        ), "Original description should be preserved"
         assert renamed_dim['hidden'] == "yes # Renamed from 'created_date' due to conflict with dimension group with same name"
 
     def test_comment_conflicting_dimensions_no_description(self, generator):
@@ -116,23 +107,16 @@ class TestDimensionConflictRename:
             {
                 "name": "created",
                 "type": "string",
-                "sql": "${TABLE}.created"
+                "sql": "${TABLE}.created",
                 # No description field
             }
         ]
 
         dimension_groups = [
-            {
-                "name": "created",
-                "type": "time",
-                "sql": "${TABLE}.created_timestamp",
-                "timeframes": ["date", "week"]
-            }
+            {"name": "created", "type": "time", "sql": "${TABLE}.created_timestamp", "timeframes": ["date", "week"]}
         ]
 
-        processed_dims = generator._comment_conflicting_dimensions(
-            dimensions, dimension_groups, "test_model"
-        )
+        processed_dims = generator._comment_conflicting_dimensions(dimensions, dimension_groups, "test_model")
 
         renamed_dim = processed_dims[0]
         assert renamed_dim['name'] == 'created_conflict'
@@ -146,28 +130,21 @@ class TestDimensionConflictRename:
                 "name": "created_date",  # Will conflict with created_date timeframe
                 "type": "string",
                 "sql": "${TABLE}.created_date",
-                "description": "Date field"
+                "description": "Date field",
             },
             {
                 "name": "created_week",  # Will conflict with created_week timeframe
                 "type": "string",
                 "sql": "${TABLE}.created_week",
-                "description": "Week field"
-            }
+                "description": "Week field",
+            },
         ]
 
         dimension_groups = [
-            {
-                "name": "created",
-                "type": "time",
-                "sql": "${TABLE}.created_timestamp",
-                "timeframes": ["date", "week", "month"]
-            }
+            {"name": "created", "type": "time", "sql": "${TABLE}.created_timestamp", "timeframes": ["date", "week", "month"]}
         ]
 
-        processed_dims = generator._comment_conflicting_dimensions(
-            dimensions, dimension_groups, "test_model"
-        )
+        processed_dims = generator._comment_conflicting_dimensions(dimensions, dimension_groups, "test_model")
 
         assert len(processed_dims) == 2
 
@@ -179,32 +156,15 @@ class TestDimensionConflictRename:
     def test_comment_conflicting_dimensions_no_conflicts(self, generator):
         """Test that non-conflicting dimensions are left unchanged."""
         dimensions = [
-            {
-                "name": "user_id",
-                "type": "string",
-                "sql": "${TABLE}.user_id",
-                "description": "User identifier"
-            },
-            {
-                "name": "status",
-                "type": "string",
-                "sql": "${TABLE}.status",
-                "description": "Status field"
-            }
+            {"name": "user_id", "type": "string", "sql": "${TABLE}.user_id", "description": "User identifier"},
+            {"name": "status", "type": "string", "sql": "${TABLE}.status", "description": "Status field"},
         ]
 
         dimension_groups = [
-            {
-                "name": "created",
-                "type": "time",
-                "sql": "${TABLE}.created_timestamp",
-                "timeframes": ["date", "week", "month"]
-            }
+            {"name": "created", "type": "time", "sql": "${TABLE}.created_timestamp", "timeframes": ["date", "week", "month"]}
         ]
 
-        processed_dims = generator._comment_conflicting_dimensions(
-            dimensions, dimension_groups, "test_model"
-        )
+        processed_dims = generator._comment_conflicting_dimensions(dimensions, dimension_groups, "test_model")
 
         assert len(processed_dims) == 2
 

@@ -81,13 +81,11 @@ class Cli:
             'include_iso_fields': False,
         }
 
-    def _merge_config_with_args(
-        self, args: argparse.Namespace, config_file: Dict[str, Any]
-    ) -> argparse.Namespace:
+    def _merge_config_with_args(self, args: argparse.Namespace, config_file: Dict[str, Any]) -> argparse.Namespace:
         """Merge configuration: defaults < config file < CLI args."""
         # Start with defaults
         config = self._get_config_with_defaults()
-        
+
         # Override with config file values
         for key, value in config_file.items():
             if key in config:
@@ -102,7 +100,7 @@ class Cli:
             # Always use CLI value if not in defaults (new args)
             elif key not in parser_defaults:
                 config[key] = value
-        
+
         # Convert back to namespace
         return argparse.Namespace(**config)
 
@@ -173,9 +171,7 @@ class Cli:
             help='add this flag to use table names on views and explore',
             action='store_true',
         )
-        parser.add_argument(
-            '--select', help='select a specific model to generate lookml for', type=str
-        )
+        parser.add_argument('--select', help='select a specific model to generate lookml for', type=str)
         parser.add_argument(
             '--include-iso-fields',
             help='include ISO year and week fields in date dimension groups',
@@ -243,30 +239,28 @@ class Cli:
             logging.error(f"Unexpected error writing file {file_path}: {str(e)}")
             raise CliError(f"Unexpected error writing file {file_path}: {str(e)}") from e
 
-    
-
     def generate(self, args, models):
         """Generate LookML views from dbt models using concurrent processing"""
         if not models:
             logging.warning("No models found to process")
             return []
         logging.info('Parsing dbt models (bigquery) and creating lookml views...')
-        
+
         views = []
         failed_count = 0
         validation_failed_count = 0
-        written_files = {}     # Track unique file paths in main thread
-        duplicate_files = []   # Track duplicates
-        failed_models = []     # Track which models failed
-        
+        written_files = {}  # Track unique file paths in main thread
+        duplicate_files = []  # Track duplicates
+        failed_models = []  # Track which models failed
+
         # Counter for table name duplicates (only used when --use-table-name is set)
         table_name_counter = {} if args.use_table_name else None
-        
+
         # Process models sequentially
         for i, model in enumerate(models):
             try:
                 result = self._generate_single_model(args, model, table_name_counter)
-                
+
                 if result and result != 'validation_failed':
                     # Debug: Log what we're adding to written_files
                     logging.debug(f"Model {model.name} returned result: {result}")
@@ -284,43 +278,45 @@ class Cli:
                 else:
                     failed_count += 1
                     failed_models.append(f"{model.name} (generation)")
-                    
+
             except Exception as e:
                 logging.error(f"Failed to generate view for model {model.name}: {str(e)}")
                 failed_count += 1
                 failed_models.append(f"{model.name} (exception: {str(e)[:50]}...)")
                 if not args.continue_on_error:
                     raise
-        
+
         total_attempted = len(models)
         files_written = len(views)
         unique_files_written = len(written_files)
         files_generated = files_written + validation_failed_count
-        
+
         # Report detailed results
         logging.info(f'Generation Results:')
         logging.info(f'  - Models to process: {total_attempted}')
         logging.info(f'  - Files written: {files_written}')
         logging.info(f'  - Unique file paths: {unique_files_written}')
-        
+
         if duplicate_files:
             logging.warning(f'  - Duplicate file paths detected: {len(duplicate_files)}')
             logging.warning(f'    First few duplicates: {duplicate_files[:3]}')
-        
+
         if validation_failed_count > 0:
             logging.warning(f'  - Files generated but failed validation: {validation_failed_count}')
             validation_failures = [m for m in failed_models if '(validation)' in m]
             if validation_failures:
-                logging.warning(f'    Validation failures: {validation_failures[:3]}{", ..." if len(validation_failures) > 3 else ""}')
+                logging.warning(
+                    f'    Validation failures: {validation_failures[:3]}{", ..." if len(validation_failures) > 3 else ""}'
+                )
         if failed_count > 0:
             logging.warning(f'  - Files failed to generate: {failed_count}')
             logging.warning(f'    Failed models: {failed_models[:5]}{", ..." if len(failed_models) > 5 else ""}')
-        
+
         # Calculate success rate based on unique files
         if total_attempted > 0:
             success_rate = (unique_files_written / total_attempted) * 100
             logging.info(f'  - Success rate: {success_rate:.1f}% ({unique_files_written}/{total_attempted})')
-        
+
         # Only report success if all files were written successfully and no duplicates
         if failed_count == 0 and validation_failed_count == 0 and not duplicate_files:
             logging.info('All files generated successfully')
@@ -329,21 +325,20 @@ class Cli:
         else:
             logging.error('Generation failed - no files were written')
         return views
-    
+
     def _generate_single_model(self, args, model, table_name_counter=None):
         """Generate and validate LookML for a single model."""
         try:
             lookml_generator = LookmlGenerator(args)
             file_path, lookml = lookml_generator.generate(model=model)
-            
 
             # Generate LookML content and prepend header comment
             lookml_content = lkml.dump(lookml)
-            
+
             # Generate header comment with model metadata
             header_comment = lookml_generator.view_generator._generate_model_header_comment(model)
             contents = header_comment + lookml_content
-            
+
             # Handle duplicate file paths when using table names
             if args.use_table_name and table_name_counter is not None:
                 original_path = file_path
@@ -353,17 +348,18 @@ class Cli:
                     base_path, ext = os.path.splitext(file_path)
                     file_path = f"{base_path}_{counter}{ext}"
                 table_name_counter[original_path] = counter + 1
-            
+
             # Validate the generated content before writing (only if --validate flag is set)
             if args.validate:
                 from dbt2lookml.validation import LookMLValidator
+
                 validator = LookMLValidator()
                 validation_result = validator.validate_lookml_string(contents, file_path)
-                
+
                 if not validation_result['valid']:
                     logging.error(f"Generated LookML for {model.name} failed validation: {validation_result['errors']}")
                     return 'validation_failed'
-            
+
             written_file_path = self._write_lookml_file(
                 output_dir=args.output_dir,
                 file_path=file_path,
@@ -376,7 +372,7 @@ class Cli:
             if hasattr(args, 'continue_on_error') and not args.continue_on_error:
                 raise
             return None
-    
+
     # Keep backward compatibility for tests
     def _generate_single_model_legacy(self, args, model):
         """Legacy method signature for backward compatibility with tests."""
@@ -388,17 +384,19 @@ class Cli:
             # Use custom paths if provided, otherwise fall back to target_dir
             manifest_path = args.manifest_path if args.manifest_path else os.path.join(args.target_dir, 'manifest.json')
             catalog_path = args.catalog_path if args.catalog_path else os.path.join(args.target_dir, 'catalog.json')
-            
+
             manifest: Dict = self._file_handler.read(manifest_path)
             catalog: Dict = self._file_handler.read(catalog_path)
             parser = DbtParser(args, manifest, catalog)
             models = parser.get_models()
-            
+
             # Log parsing results
             total_models_in_manifest = len(manifest.get('nodes', {})) if isinstance(manifest, dict) else 0
             models_after_filtering = len(models)
-            logging.info(f'Found {total_models_in_manifest} models in manifest, {models_after_filtering} models after filtering and processing')
-            
+            logging.info(
+                f'Found {total_models_in_manifest} models in manifest, {models_after_filtering} models after filtering and processing'
+            )
+
             return models
         except FileNotFoundError as e:
             raise CliError(f"Failed to read file: {str(e)}") from e
@@ -420,9 +418,9 @@ class Cli:
                 logging.error('No models found to process. Check your filtering criteria.')
                 return
             generated_views = self.generate(args, models)
-            
+
             # Validation is now done inline during generation
-                    
+
         except CliError as e:
             # Logs should already be printed by the handler
             logging.error(f'Error occurred during generation. {str(e)}')

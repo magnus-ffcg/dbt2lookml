@@ -1,10 +1,12 @@
 """Comprehensive unit tests for create_dimension method."""
 
-import pytest
 from argparse import Namespace
 from unittest.mock import Mock, patch
+
+import pytest
+
 from dbt2lookml.generators.dimension import LookmlDimensionGenerator
-from dbt2lookml.models.dbt import DbtModelColumn, DbtModel, DbtModelMeta, DbtResourceType
+from dbt2lookml.models.dbt import DbtModel, DbtModelColumn, DbtModelMeta, DbtResourceType
 
 
 class TestCreateDimensionComprehensive:
@@ -19,7 +21,7 @@ class TestCreateDimensionComprehensive:
             include_iso_fields=True,
         )
         self.generator = LookmlDimensionGenerator(args)
-        
+
         # Create a test model
         self.test_model = DbtModel(
             name="test_model",
@@ -44,7 +46,7 @@ class TestCreateDimensionComprehensive:
         """Test basic string dimension creation."""
         column = DbtModelColumn(name="name", data_type="STRING")
         result = self.generator.create_dimension(column, "${TABLE}.name")
-        
+
         assert result["name"] == "name"
         assert result["type"] == "string"
         assert result["sql"] == "${TABLE}.name"
@@ -53,7 +55,7 @@ class TestCreateDimensionComprehensive:
         """Test basic number dimension creation."""
         column = DbtModelColumn(name="count", data_type="INT64")
         result = self.generator.create_dimension(column, "${TABLE}.count")
-        
+
         assert result["name"] == "count"
         assert result["type"] == "number"
         assert result["sql"] == "${TABLE}.count"
@@ -64,7 +66,7 @@ class TestCreateDimensionComprehensive:
         column.nested = True
         column.lookml_long_name = "classification__item_group__code"
         column.lookml_name = "code"
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
         assert result["name"] == "classification__item_group__code"
 
@@ -73,7 +75,7 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="simple_field", data_type="STRING")
         column.nested = False
         column.lookml_name = "simple_field"
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.simple_field")
         assert result["name"] == "simple_field"
 
@@ -82,11 +84,9 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="items.item_name", data_type="STRING")
         column.nested = True
         column.lookml_long_name = "items__item_name"
-        
+
         include_names = ["items.dummy"]
-        result = self.generator.create_dimension(
-            column, "${TABLE}.item_name", include_names=include_names
-        )
+        result = self.generator.create_dimension(column, "${TABLE}.item_name", include_names=include_names)
         assert result["name"] == "item_name"
 
     def test_nested_view_multi_level_prefix_stripping(self):
@@ -94,11 +94,9 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="format.period.start_date", data_type="STRING")
         column.nested = True
         column.lookml_long_name = "format__period__start_date"
-        
+
         include_names = ["format.period.dummy"]
-        result = self.generator.create_dimension(
-            column, "${TABLE}.start_date", include_names=include_names
-        )
+        result = self.generator.create_dimension(column, "${TABLE}.start_date", include_names=include_names)
         assert result["name"] == "start_date"
 
     def test_nested_view_fallback_stripping(self):
@@ -106,11 +104,9 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="items.item_name", data_type="STRING")
         column.nested = True
         column.lookml_long_name = "items__item_name"
-        
+
         include_names = ["very.long.nested.path.dummy"]
-        result = self.generator.create_dimension(
-            column, "${TABLE}.item_name", include_names=include_names
-        )
+        result = self.generator.create_dimension(column, "${TABLE}.item_name", include_names=include_names)
         # Should fall back to regex stripping
         assert result["name"] == "item_name"
 
@@ -119,7 +115,7 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="Classification.ItemGroup.Code", data_type="STRING")
         column.original_name = "Classification.ItemGroup.Code"
         column.nested = False
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
         assert result["name"] == "classification__item_group__code"
 
@@ -128,7 +124,7 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="ItemName", data_type="STRING")
         column.original_name = "ItemName"
         column.nested = False
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.ItemName")
         assert result["name"] == "item_name"
 
@@ -137,9 +133,9 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="classification.item_group.code", data_type="STRING")
         column.nested = True
         column.original_name = "Classification.ItemGroup.Code"
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
-        
+
         assert result["group_label"] == "Classification Item Group"
         assert result["group_item_label"] == "Code"
 
@@ -148,9 +144,9 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="classification.item_group.code", data_type="STRING")
         column.nested = True
         column.original_name = "Classification.ItemGroup"  # Fewer parts
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
-        
+
         assert result["group_label"] == "Classification Item Group"
         assert result["group_item_label"] == "Code"  # Falls back to name parts
 
@@ -158,9 +154,9 @@ class TestCreateDimensionComprehensive:
         """Test primary key dimension attributes."""
         column = DbtModelColumn(name="id", data_type="STRING")
         column.is_primary_key = True
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.id")
-        
+
         assert result["primary_key"] == "yes"
         assert result["hidden"] == "yes"
         assert result["value_format_name"] == "id"
@@ -168,7 +164,7 @@ class TestCreateDimensionComprehensive:
     def test_hidden_dimension(self):
         """Test explicitly hidden dimension."""
         column = DbtModelColumn(name="internal_field", data_type="STRING")
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.internal_field", is_hidden=True)
         assert result["hidden"] == "yes"
 
@@ -176,16 +172,16 @@ class TestCreateDimensionComprehensive:
         """Test that deeply nested struct fields are hidden."""
         column = DbtModelColumn(name="level1.level2.level3.field", data_type="STRING")
         column.nested = True
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.level1.level2.level3.field")
         assert result["hidden"] == "yes"
 
     def test_array_type_attributes(self):
         """Test array type dimension attributes."""
         column = DbtModelColumn(name="tags", data_type="ARRAY<STRING>")
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.tags")
-        
+
         assert result["hidden"] == "yes"
         assert result["tags"] == ["array"]
         assert "type" not in result  # Type should be removed for arrays
@@ -193,9 +189,9 @@ class TestCreateDimensionComprehensive:
     def test_struct_type_attributes(self):
         """Test struct type dimension attributes."""
         column = DbtModelColumn(name="address", data_type="STRUCT<street STRING, city STRING>")
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.address")
-        
+
         assert result["hidden"] == "yes"
         assert result["tags"] == ["struct"]
 
@@ -203,25 +199,19 @@ class TestCreateDimensionComprehensive:
         """Test description from column description."""
         column = DbtModelColumn(name="name", data_type="STRING")
         column.description = "Customer name"
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.name", model=self.test_model)
         assert result["description"] == "Customer name"
 
     def test_description_from_catalog(self):
         """Test description from catalog comment when column description is empty."""
         column = DbtModelColumn(name="name", data_type="STRING")
-        
+
         # Mock catalog data
         self.test_model._catalog_data = {
-            'nodes': {
-                'model.test.test_model': {
-                    'columns': {
-                        'name': {'comment': 'Name from catalog'}
-                    }
-                }
-            }
+            'nodes': {'model.test.test_model': {'columns': {'name': {'comment': 'Name from catalog'}}}}
         }
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.name", model=self.test_model)
         # Current behavior: returns default description when catalog lookup doesn't work
         assert result["description"] == "Name from catalog" or "missing" in result["description"]
@@ -230,18 +220,12 @@ class TestCreateDimensionComprehensive:
         """Test description lookup with original_name fallback."""
         column = DbtModelColumn(name="customer_name", data_type="STRING")
         column.original_name = "CustomerName"
-        
+
         # Mock catalog data with original name
         self.test_model._catalog_data = {
-            'nodes': {
-                'model.test.test_model': {
-                    'columns': {
-                        'CustomerName': {'comment': 'Customer name from catalog'}
-                    }
-                }
-            }
+            'nodes': {'model.test.test_model': {'columns': {'CustomerName': {'comment': 'Customer name from catalog'}}}}
         }
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.CustomerName", model=self.test_model)
         # Current behavior: returns default description when catalog lookup doesn't work
         assert result["description"] == "Customer name from catalog" or "missing" in result["description"]
@@ -256,9 +240,9 @@ class TestCreateDimensionComprehensive:
         """Test that single-level nested fields don't get group labels."""
         column = DbtModelColumn(name="simple_field", data_type="STRING")
         column.nested = True
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.simple_field")
-        
+
         assert "group_label" not in result
         assert "group_item_label" not in result
 
@@ -266,7 +250,7 @@ class TestCreateDimensionComprehensive:
         """Test that safe_name is applied to dimension names."""
         column = DbtModelColumn(name="field-with-dashes", data_type="STRING")
         column.nested = False
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.field_with_dashes")
         # safe_name should handle the conversion
         assert "field" in result["name"]
@@ -276,7 +260,7 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="simple_field", data_type="STRING")
         # No original_name set
         column.nested = False
-        
+
         result = self.generator.create_dimension(column, "${TABLE}.simple_field")
         assert result["name"] == "simple_field"
 
@@ -286,12 +270,10 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="items.item_name", data_type="STRING")
         column.nested = True
         column.lookml_long_name = "items__item_name"
-        
+
         include_names = ["items.dummy"]
-        result = self.generator.create_dimension(
-            column, "${TABLE}.item_name", include_names=include_names
-        )
-        
+        result = self.generator.create_dimension(column, "${TABLE}.item_name", include_names=include_names)
+
         # Verify logging was called
         assert mock_debug.called
         assert result["name"] == "item_name"
@@ -301,10 +283,8 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="items.item_name", data_type="STRING")
         column.nested = True
         column.lookml_long_name = "items__item_name"
-        
-        result = self.generator.create_dimension(
-            column, "${TABLE}.items.item_name", include_names=[]
-        )
+
+        result = self.generator.create_dimension(column, "${TABLE}.items.item_name", include_names=[])
         # Should use CamelCase conversion path instead
         assert "items" in result["name"]
 
@@ -313,9 +293,7 @@ class TestCreateDimensionComprehensive:
         column = DbtModelColumn(name="items.item_name", data_type="STRING")
         column.nested = True
         column.lookml_long_name = "items__item_name"
-        
-        result = self.generator.create_dimension(
-            column, "${TABLE}.items.item_name", include_names=["simple_name"]
-        )
+
+        result = self.generator.create_dimension(column, "${TABLE}.items.item_name", include_names=["simple_name"])
         # Should use CamelCase conversion path instead
         assert "items" in result["name"]

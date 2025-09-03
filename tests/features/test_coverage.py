@@ -29,7 +29,7 @@ def test_model():
         description="Test model",
         tags=[],
         path="models/test_model.sql",
-        columns={}
+        columns={},
     )
 
 
@@ -72,7 +72,7 @@ def test_create_iso_field_year(generator):
     """Test _create_iso_field for year - lines 162-175."""
     column = DbtModelColumn(name="test_date", data_type="DATE")
     iso_field = generator._create_iso_field("year", column, "${TABLE}.test_date")
-    
+
     assert iso_field["name"] == "test_date_iso_year"
     assert iso_field["type"] == "number"
     assert "isoyear" in iso_field["sql"].lower()
@@ -82,7 +82,7 @@ def test_create_iso_field_week(generator):
     """Test _create_iso_field for week - lines 162-175."""
     column = DbtModelColumn(name="test_date", data_type="DATE")
     iso_field = generator._create_iso_field("week", column, "${TABLE}.test_date")
-    
+
     assert iso_field["name"] == "test_date_iso_week"
     assert iso_field["type"] == "number"
     assert "isoweek" in iso_field["sql"].lower()
@@ -103,9 +103,9 @@ def test_create_dimension_nested_fields(generator):
     """Test _create_dimension with nested fields - lines 234-236, 238, 242-243."""
     column = DbtModelColumn(name="classification.item_group.code", data_type="STRING")
     column.nested = True
-    
+
     dimension = generator.create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
-    
+
     assert dimension["name"] == "classification__item_group__code"
     assert dimension["group_label"] == "Classification Item Group"
     assert dimension["group_item_label"] == "Code"
@@ -115,7 +115,7 @@ def test_create_dimension_primary_key(generator):
     """Test _create_dimension with primary key."""
     column = DbtModelColumn(name="id", data_type="STRING")
     column.is_primary_key = True
-    
+
     dimension = generator.create_dimension(column, "${TABLE}.id")
     assert dimension["primary_key"] == "yes"
 
@@ -123,7 +123,7 @@ def test_create_dimension_primary_key(generator):
 def test_create_dimension_hidden(generator):
     """Test _create_dimension with hidden flag."""
     column = DbtModelColumn(name="hidden_field", data_type="STRING")
-    
+
     dimension = generator.create_dimension(column, "${TABLE}.hidden_field", is_hidden=True)
     assert dimension["hidden"] == "yes"
 
@@ -131,9 +131,9 @@ def test_create_dimension_hidden(generator):
 def test_lookml_dimension_group_custom_timeframes(generator, test_model):
     """Test lookml_dimension_group with custom timeframes - lines 250-251."""
     generator._custom_timeframes = {'date': ['date', 'month', 'year']}
-    
+
     column = DbtModelColumn(name="created_date", data_type="DATE")
-    
+
     dimension_group, _, _ = generator.lookml_dimension_group(column, "date", True, test_model)
     assert dimension_group["timeframes"] == ['date', 'month', 'year']
 
@@ -142,7 +142,7 @@ def test_lookml_dimension_group_no_description(generator, test_model):
     """Test lookml_dimension_group when description is None - line 273."""
     column = DbtModelColumn(name="test_date", data_type="DATE")
     column.description = None
-    
+
     dimension_group, _, _ = generator.lookml_dimension_group(column, "date", True, test_model)
     assert "description" not in dimension_group
 
@@ -150,9 +150,9 @@ def test_lookml_dimension_group_no_description(generator, test_model):
 def test_lookml_dimension_group_no_iso_fields(generator, test_model):
     """Test lookml_dimension_group without ISO fields - line 285."""
     generator._include_iso_fields = False
-    
+
     column = DbtModelColumn(name="test_date", data_type="DATE")
-    
+
     _, _, dimensions = generator.lookml_dimension_group(column, "date", True, test_model)
     assert dimensions == []
 
@@ -220,10 +220,10 @@ def test_add_dimension_to_dimension_group(generator, test_model):
     """Test _add_dimension_to_dimension_group - line 475."""
     date_column = DbtModelColumn(name="created_date", data_type="DATE")
     test_model.columns["created_date"] = date_column
-    
+
     dimensions = []
     generator._add_dimension_to_dimension_group(test_model, dimensions, True)
-    
+
     # Should add ISO dimensions if enabled
     if generator._include_iso_fields:
         assert len(dimensions) > 0
@@ -234,11 +234,11 @@ def test_lookml_dimensions_from_model_include_names(generator, test_model):
     column1 = DbtModelColumn(name="field1", data_type="STRING")
     column2 = DbtModelColumn(name="field2", data_type="STRING")
     test_model.columns = {"field1": column1, "field2": column2}
-    
+
     # Create subset with only field1
     columns_subset = {"field1": column1}
     dimensions, _ = generator.lookml_dimensions_from_model(test_model, columns_subset=columns_subset)
-    
+
     # Verify the method runs without error and returns some structure
     assert isinstance(dimensions, list)
     assert isinstance(_, list)
@@ -248,9 +248,9 @@ def test_lookml_dimensions_from_model_exclude_datetime(generator, test_model):
     """Test lookml_dimensions_from_model excludes DATETIME - line 537."""
     datetime_col = DbtModelColumn(name="updated_at", data_type="DATETIME")
     test_model.columns["updated_at"] = datetime_col
-    
+
     dimensions, _ = generator.lookml_dimensions_from_model(test_model, columns_subset=test_model.columns)
-    
+
     dimension_names = [d["name"] for d in dimensions]
     assert "updated_at" not in dimension_names
 
@@ -259,9 +259,9 @@ def test_lookml_dimensions_from_model_none_data_type(generator, test_model):
     """Test lookml_dimensions_from_model with None data_type - line 540."""
     null_col = DbtModelColumn(name="null_field", data_type=None)
     test_model.columns["null_field"] = null_col
-    
+
     dimensions, _ = generator.lookml_dimensions_from_model(test_model, columns_subset=test_model.columns)
-    
+
     dimension_names = [d["name"] for d in dimensions]
     assert "null_field" not in dimension_names
 
@@ -271,9 +271,9 @@ def test_lookml_dimensions_from_model_array_column(generator, test_model):
     array_col = DbtModelColumn(name="tags", data_type="ARRAY<STRING>")
     array_col.inner_types = ["STRING"]
     test_model.columns["tags"] = array_col
-    
+
     dimensions, _ = generator.lookml_dimensions_from_model(test_model, columns_subset=test_model.columns)
-    
+
     # Should handle array columns appropriately
     dimension_names = [d["name"] for d in dimensions]
     # The exact behavior depends on implementation

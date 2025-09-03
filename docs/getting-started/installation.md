@@ -16,14 +16,14 @@ Install the latest stable version from PyPI:
 pip install dbt2lookml
 ```
 
-### Via poetry
+### Via UV (Development)
 
-For development or if you prefer poetry:
+For development or if you prefer UV:
 
 ```bash
 git clone https://github.com/magnus-ffcg/dbt2lookml.git
 cd dbt2lookml
-poetry install
+uv sync --all-extras
 ```
 
 ### From Source

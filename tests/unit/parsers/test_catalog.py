@@ -52,9 +52,7 @@ class TestCatalogParser:
 
     def test_create_missing_array_column(self, parser):
         """Test creating a missing array column."""
-        column = parser._create_missing_array_column(
-            column_name="test_array", data_type="ARRAY<STRING>", inner_types=["STRING"]
-        )
+        column = parser._create_missing_array_column(column_name="test_array", data_type="ARRAY<STRING>", inner_types=["STRING"])
         assert column.name == "test_array"
         assert column.data_type == "ARRAY<STRING>"
         assert column.inner_types == ["STRING"]

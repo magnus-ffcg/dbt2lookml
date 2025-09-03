@@ -23,39 +23,44 @@ class LookmlGenerator:
     def _get_view_label(self, model: DbtModel) -> str:
         """Get the view label from the model metadata or name."""
         # Check looker meta view label first
-        if (hasattr(model.meta, 'looker') and model.meta.looker is not None and
-            hasattr(model.meta.looker, 'view') and model.meta.looker.view is not None and
-            hasattr(model.meta.looker.view, 'label') and model.meta.looker.view.label is not None):
+        if (
+            hasattr(model.meta, 'looker')
+            and model.meta.looker is not None
+            and hasattr(model.meta.looker, 'view')
+            and model.meta.looker.view is not None
+            and hasattr(model.meta.looker.view, 'label')
+            and model.meta.looker.view.label is not None
+        ):
             return model.meta.looker.view.label
         # Fall back to model name if available
         return model.name.replace("_", " ").title() if hasattr(model, 'name') else None
 
     def _extract_array_models(self, columns: list[DbtModelColumn]) -> list[DbtModelColumn]:
         """Extract array models from a list of columns.
-        
+
         Extracts all ARRAY types that need nested views:
         - ARRAY<STRUCT> types create nested views with multiple dimensions from struct fields
         - ARRAY<PRIMITIVE> types create nested views with a single dimension representing the array element
-        
+
         This includes both top-level arrays and nested arrays within other arrays.
         """
         from dbt2lookml.models.column_collections import ColumnCollections
-        
+
         # Use the same hierarchy-based logic as ColumnCollections to find all arrays
         columns_dict = {col.name: col for col in columns}
         hierarchy = ColumnCollections._build_hierarchy_map(columns_dict)
-        
+
         array_models = []
         for col_name, col_info in hierarchy.items():
             if col_info['is_array'] and col_info['column']:
                 array_models.append(col_info['column'])
-        
+
         return array_models
 
     def _get_excluded_array_names(self, model: DbtModel, array_models: list) -> list:
         """Get list of dimension names to exclude from main view."""
         exclude_names = []
-        
+
         # Exclude children of array models (they belong in nested views)
         # But DO NOT exclude the array parent dimensions - they should be present but hidden
         for array_model in array_models:
@@ -73,12 +78,9 @@ class LookmlGenerator:
                 data_type_str = str(col.data_type).upper()
                 if data_type_str.startswith('ARRAY'):
                     continue
-                    
+
                 # Check if this STRUCT has nested children
-                has_children = any(
-                    other_col.name.startswith(f"{col.name}.")
-                    for other_col in model.columns.values()
-                )
+                has_children = any(other_col.name.startswith(f"{col.name}.") for other_col in model.columns.values())
                 if has_children:
                     exclude_names.append(col.name.replace('.', '__'))  # Convert to dimension name format
 
@@ -86,7 +88,7 @@ class LookmlGenerator:
 
     def _get_unique_view_name(self, model: DbtModel) -> str:
         """Extract unique view name from model unique_id to handle versioned models.
-        
+
         Args:
             model: The dbt model
         Returns:
@@ -129,6 +131,7 @@ class LookmlGenerator:
             # When using table names, use the directory structure from the model path
             # but don't include the model name in the path
             from dbt2lookml.utils import camel_to_snake
+
             directory = os.path.dirname(model.path)
             # Apply same transformation as view names
             table_name = model.relation_name.split('.')[-1].strip('`')
@@ -154,6 +157,7 @@ class LookmlGenerator:
         # Get view name - use unique name to handle versioned models
         if self._cli_args.use_table_name:
             from dbt2lookml.utils import camel_to_snake
+
             table_name = model.relation_name.split('.')[-1].strip('`')
             view_name = camel_to_snake(table_name)
         else:

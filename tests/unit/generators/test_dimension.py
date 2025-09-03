@@ -1,13 +1,14 @@
 """Test LookML Dimension Generator implementations."""
 
 from argparse import Namespace
+from unittest.mock import Mock, patch
 
 import pytest
 
 from dbt2lookml.enums import (
-    LookerValueFormatName,
     LookerDateTimeframes,
     LookerTimeTimeframes,
+    LookerValueFormatName,
 )
 from dbt2lookml.generators.dimension import LookmlDimensionGenerator
 from dbt2lookml.generators.utils import map_bigquery_to_looker
@@ -21,9 +22,6 @@ from dbt2lookml.models.dbt import (
 from dbt2lookml.models.looker import (
     DbtMetaLooker,
     DbtMetaLookerDimension,
-)
-from unittest.mock import Mock, patch
-from dbt2lookml.models.looker import (
     DbtMetaLookerMeasure,
     DbtMetaLookerMeasureFilter,
 )
@@ -146,16 +144,10 @@ def test_dimension_group_date(cli_args):
         data_type="DATE",
         nested=False,
         meta=DbtModelColumnMeta(
-            looker=DbtMetaLooker(
-                dimension=DbtMetaLookerDimension(
-                    label="Custom Date Label", group_label="Custom Group"
-                )
-            )
+            looker=DbtMetaLooker(dimension=DbtMetaLookerDimension(label="Custom Date Label", group_label="Custom Group"))
         ),
     )
-    dimension_group, dimension_set, dimensions = dimension_generator.lookml_dimension_group(
-        column, "date", True, model
-    )
+    dimension_group, dimension_set, dimensions = dimension_generator.lookml_dimension_group(column, "date", True, model)
     assert dimension_group["type"] == "time"
     assert dimension_group["convert_tz"] == "no"
     # Current implementation returns simplified timeframes
@@ -165,10 +157,7 @@ def test_dimension_group_date(cli_args):
     assert dimension_group["group_label"] == "Custom Group"
     assert dimension_group["name"] == "created"  # Dynamic transformation removes _date suffix
     assert dimension_set["name"] == "s_created"
-    assert all(
-        tf in dimension_set["fields"]
-        for tf in [f"created_{t}" for t in expected_timeframes]
-    )
+    assert all(tf in dimension_set["fields"] for tf in [f"created_{t}" for t in expected_timeframes])
     # Dimensions should be empty list for dimension groups
     assert dimensions == []
 
@@ -218,6 +207,7 @@ def test_lookml_dimensions_with_metadata(cli_args):
 
 # Extended test methods for comprehensive coverage
 
+
 class TestLookmlDimensionGeneratorExtended:
     """Extended tests for LookmlDimensionGenerator to improve coverage."""
 
@@ -265,13 +255,13 @@ class TestLookmlDimensionGeneratorExtended:
     def test_create_iso_field_edge_cases(self):
         """Test _create_iso_field with edge cases."""
         column = DbtModelColumn(name="test_date", data_type="DATE")
-        
+
         # Test ISO year field creation
         iso_year = self.generator._create_iso_field("year", column, "${TABLE}.test_date")
         assert iso_year["name"] == "test_date_iso_year"
         assert iso_year["type"] == "number"
         assert "isoyear" in iso_year["sql"].lower()
-        
+
         # Test ISO week field creation
         iso_week = self.generator._create_iso_field("week", column, "${TABLE}.test_date")
         assert iso_week["name"] == "test_date_iso_week"
@@ -291,9 +281,9 @@ class TestLookmlDimensionGeneratorExtended:
         """Test _create_dimension with nested field handling."""
         column = DbtModelColumn(name="classification.item_group.code", data_type="STRING")
         column.nested = True
-        
+
         dimension = self.generator.create_dimension(column, "${TABLE}.Classification.ItemGroup.Code")
-        
+
         assert dimension["name"] == "classification__item_group__code"
         assert dimension["group_label"] == "Classification Item Group"
         assert dimension["group_item_label"] == "Code"
@@ -302,24 +292,21 @@ class TestLookmlDimensionGeneratorExtended:
         """Test _create_dimension with primary key."""
         column = DbtModelColumn(name="id", data_type="STRING")
         column.is_primary_key = True
-        
+
         dimension = self.generator.create_dimension(column, "${TABLE}.id")
         assert dimension["primary_key"] == "yes"
 
     def test_create_dimension_with_hidden_flag(self):
         """Test _create_dimension with hidden flag."""
         column = DbtModelColumn(name="hidden_field", data_type="STRING")
-        
+
         dimension = self.generator.create_dimension(column, "${TABLE}.hidden_field", is_hidden=True)
         assert dimension["hidden"] == "yes"
 
     def test_lookml_dimension_group_with_custom_timeframes(self):
         """Test lookml_dimension_group with custom timeframes."""
-        self.generator._custom_timeframes = {
-            'date': ['date', 'month', 'year'],
-            'time': ['time', 'hour', 'day']
-        }
-        
+        self.generator._custom_timeframes = {'date': ['date', 'month', 'year'], 'time': ['time', 'hour', 'day']}
+
         column = DbtModelColumn(name="created_at", data_type="TIMESTAMP")
         model = DbtModel(
             unique_id='model.test.test_model',
@@ -330,13 +317,11 @@ class TestLookmlDimensionGeneratorExtended:
             tags=[],
             path='models/test_model.sql',
             columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker())
+            meta=DbtModelMeta(looker=DbtMetaLooker()),
         )
-        
-        dimension_group, dimension_group_set, dimensions = self.generator.lookml_dimension_group(
-            column, "time", True, model
-        )
-        
+
+        dimension_group, dimension_group_set, dimensions = self.generator.lookml_dimension_group(column, "time", True, model)
+
         assert dimension_group["timeframes"] == ['time', 'hour', 'day']
 
     def test_lookml_dimension_group_with_description_none(self):
@@ -352,17 +337,17 @@ class TestLookmlDimensionGeneratorExtended:
             tags=[],
             path='models/test_model.sql',
             columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker())
+            meta=DbtModelMeta(looker=DbtMetaLooker()),
         )
-        
+
         dimension_group, _, _ = self.generator.lookml_dimension_group(column, "date", True, model)
-        
+
         assert "description" not in dimension_group
 
     def test_lookml_dimension_group_without_iso_fields(self):
         """Test lookml_dimension_group without ISO fields."""
         self.generator._include_iso_fields = False
-        
+
         column = DbtModelColumn(name="test_date", data_type="DATE")
         model = DbtModel(
             unique_id='model.test.test_model',
@@ -373,13 +358,11 @@ class TestLookmlDimensionGeneratorExtended:
             tags=[],
             path='models/test_model.sql',
             columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker())
+            meta=DbtModelMeta(looker=DbtMetaLooker()),
         )
-        
-        dimension_group, dimension_group_set, dimensions = self.generator.lookml_dimension_group(
-            column, "date", True, model
-        )
-        
+
+        dimension_group, dimension_group_set, dimensions = self.generator.lookml_dimension_group(column, "date", True, model)
+
         assert dimensions == []
 
     def test_transform_date_column_name_edge_cases(self):
@@ -388,7 +371,7 @@ class TestLookmlDimensionGeneratorExtended:
         column = DbtModelColumn(name="test_date", data_type="DATE")
         result = self.generator.transform_date_column_name(column)
         assert result == "test"
-        
+
         # Test nested field transformation
         column = DbtModelColumn(name="delivery.start.date", data_type="DATE")
         column.original_name = "Delivery.Start.Date"
@@ -399,9 +382,9 @@ class TestLookmlDimensionGeneratorExtended:
         """Test dimension name transformation logic."""
         column = DbtModelColumn(name="DeliveryStartDate", data_type="DATE")
         dimension = self.generator.create_dimension(column, "${TABLE}.DeliveryStartDate")
-        
+
         assert "delivery" in dimension["name"].lower()
-        
+
         column2 = DbtModelColumn(name="delivery_start_date", data_type="DATE")
         dimension2 = self.generator.create_dimension(column2, "${TABLE}.delivery_start_date")
         assert dimension2["name"] == "delivery_start_date"
@@ -425,11 +408,11 @@ class TestLookmlDimensionGeneratorExtended:
             tags=[],
             path='models/test_model.sql',
             columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker())
+            meta=DbtModelMeta(looker=DbtMetaLooker()),
         )
-        
+
         dimension_group, _, _ = self.generator.lookml_dimension_group(column, "time", True, model)
-        
+
         assert "timeframes" in dimension_group
         assert isinstance(dimension_group["timeframes"], list)
 
@@ -439,7 +422,7 @@ class TestLookmlDimensionGeneratorExtended:
         assert "created_date" in date_names
         assert "created_month" in date_names
         assert "created_year" in date_names
-        
+
         time_names = self.generator._get_dimension_group_generated_names("updated", "time")
         assert "updated_time" in time_names
 
@@ -461,11 +444,11 @@ class TestLookmlDimensionGeneratorExtended:
         column = DbtModelColumn(name="tags", data_type="ARRAY")
         column.inner_types = ["STRING"]
         assert self.generator._is_single_type_array(column) is True
-        
+
         # Test complex array
         column.inner_types = ["STRUCT<name STRING>"]
         assert self.generator._is_single_type_array(column) is False
-        
+
         # Test non-array
         column.data_type = "STRING"
         assert self.generator._is_single_type_array(column) is False
@@ -481,14 +464,14 @@ class TestLookmlDimensionGeneratorExtended:
             tags=[],
             path='models/test_model.sql',
             columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker())
+            meta=DbtModelMeta(looker=DbtMetaLooker()),
         )
         date_column = DbtModelColumn(name="created_date", data_type="DATE")
         model.columns["created_date"] = date_column
-        
+
         dimensions = []
         self.generator._add_dimension_to_dimension_group(model, dimensions, True)
-        
+
         if self.generator._include_iso_fields:
             assert len(dimensions) > 0
 
@@ -503,18 +486,16 @@ class TestLookmlDimensionGeneratorExtended:
             tags=[],
             path='models/test_model.sql',
             columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker())
+            meta=DbtModelMeta(looker=DbtMetaLooker()),
         )
         column1 = DbtModelColumn(name="field1", data_type="STRING")
         column2 = DbtModelColumn(name="field2", data_type="STRING")
         model.columns = {"field1": column1, "field2": column2}
-        
+
         # Create a subset with only field1
         columns_subset = {"field1": model.columns["field1"]}
-        dimensions, nested_dims = self.generator.lookml_dimensions_from_model(
-            model, columns_subset=columns_subset
-        )
-        
+        dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model, columns_subset=columns_subset)
+
         if dimensions:
             dimension_names = [d["name"] for d in dimensions]
             assert "field1" in dimension_names
@@ -533,18 +514,18 @@ class TestLookmlDimensionGeneratorExtended:
             tags=[],
             path='models/test_model.sql',
             columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker())
+            meta=DbtModelMeta(looker=DbtMetaLooker()),
         )
-        
+
         classification_col = DbtModelColumn(name="classification", data_type="STRUCT<code STRING>")
         model.columns["classification"] = classification_col
-        
+
         nested_col = DbtModelColumn(name="classification.item_group.code", data_type="STRING")
         nested_col.nested = True
         model.columns["classification.item_group.code"] = nested_col
-        
+
         dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model, columns_subset=model.columns)
-        
+
         dimension_names = [d["name"] for d in dimensions]
         assert any("classification" in name for name in dimension_names)
 
@@ -559,29 +540,31 @@ class TestLookmlDimensionGeneratorExtended:
             tags=[],
             path='models/test_model.sql',
             columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker())
+            meta=DbtModelMeta(looker=DbtMetaLooker()),
         )
         datetime_col = DbtModelColumn(name="updated_at", data_type="DATETIME")
         model.columns["updated_at"] = datetime_col
-        
+
         dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model, columns_subset=model.columns)
-        
+
         dimension_names = [d["name"] for d in dimensions]
         assert "updated_at" not in dimension_names
 
     def test_lookml_dimensions_from_model_with_nested_arrays(self, cli_args, sample_model):
         """Test lookml_dimensions_from_model with nested array detection."""
         generator = LookmlDimensionGenerator(cli_args)
-        
+
         # Add columns that represent nested array structure
         sample_model.columns = {
             "packaging_material": DbtModelColumn(name="packaging_material", data_type="STRUCT"),
             "packaging_material.composition": DbtModelColumn(name="packaging_material.composition", data_type="ARRAY"),
-            "packaging_material.composition.quantity": DbtModelColumn(name="packaging_material.composition.quantity", data_type="FLOAT64"),
+            "packaging_material.composition.quantity": DbtModelColumn(
+                name="packaging_material.composition.quantity", data_type="FLOAT64"
+            ),
         }
-        
+
         dimensions, nested_dims = generator.lookml_dimensions_from_model(sample_model, columns_subset=sample_model.columns)
-        
+
         # Should detect and add nested array dimensions
         assert nested_dims is not None or dimensions is not None
 
@@ -593,13 +576,13 @@ class TestLookmlDimensionGeneratorExtended:
         column1.nested = True
         dimension1 = self.generator.create_dimension(column1, "${TABLE}.supplier_information.gtin.gtin_id")
         assert "gtin" in dimension1["name"]
-        
+
         # Test markings prefix stripping - actual behavior converts __ to _
         column2 = DbtModelColumn(name="markings__marking__code", data_type="STRING")
         column2.nested = True
         dimension2 = self.generator.create_dimension(column2, "${TABLE}.markings.marking.code")
         assert dimension2["name"] == "markings_marking_code"
-        
+
         # Test soi_quantity naming convention
         column3 = DbtModelColumn(name="format__soi_quantity", data_type="NUMERIC")
         column3.nested = True
@@ -610,9 +593,9 @@ class TestLookmlDimensionGeneratorExtended:
         """Test _create_dimension nested field group label creation."""
         column = DbtModelColumn(name="classification.item_group.sub_group.code", data_type="STRING")
         column.nested = True
-        
+
         dimension = self.generator.create_dimension(column, "${TABLE}.classification.item_group.sub_group.code")
-        
+
         assert "group_label" in dimension
         assert "group_item_label" in dimension
 
@@ -620,9 +603,9 @@ class TestLookmlDimensionGeneratorExtended:
         """Test _create_dimension with single part nested field."""
         column = DbtModelColumn(name="code", data_type="STRING")
         column.nested = True
-        
+
         dimension = self.generator.create_dimension(column, "${TABLE}.code")
-        
+
         assert "group_label" not in dimension
         assert "group_item_label" not in dimension
 
@@ -644,14 +627,12 @@ class TestLookmlDimensionGeneratorExtended:
             tags=[],
             path='models/test_model.sql',
             columns={},
-            meta=DbtModelMeta(looker=DbtMetaLooker())
+            meta=DbtModelMeta(looker=DbtMetaLooker()),
         )
         array_col = DbtModelColumn(name="tags", data_type="ARRAY<STRING>")
         array_col.inner_types = ["STRING"]
         model.columns["tags"] = array_col
-        
+
         dimensions, nested_dims = self.generator.lookml_dimensions_from_model(model, columns_subset=model.columns)
-        
+
         dimension_names = [d["name"] for d in dimensions]
-
-

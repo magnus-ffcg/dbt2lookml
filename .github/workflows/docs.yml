@@ -12,6 +12,8 @@ on:
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -29,18 +31,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         
-      - name: Setup Python
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.11'
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
           
       - name: Install dependencies
         run: |
-          pip install mkdocs-material
-          pip install mkdocstrings[python]
+          uv sync --group dev
           
       - name: Build documentation
-        run: mkdocs build --clean
+        run: uv run mkdocs build --clean
         
       - name: Setup Pages
         uses: actions/configure-pages@v3
@@ -51,7 +57,7 @@ jobs:
           path: ./site
 
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'release'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

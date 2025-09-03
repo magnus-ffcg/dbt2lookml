@@ -1,0 +1,85 @@
+name: Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install UV
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+
+    - name: Run linting with flake8
+      run: |
+        uv run flake8 dbt2lookml tests --count --select=E9,F63,F7,F82 --show-source --statistics --max-line-length=130
+        uv run flake8 dbt2lookml tests --count --exit-zero --max-complexity=10 --max-line-length=130 --statistics
+
+    - name: Run type checking with mypy
+      run: |
+        uv run mypy dbt2lookml --ignore-missing-imports
+
+    - name: Run tests with pytest
+      run: |
+        uv run pytest tests/ -v --cov=dbt2lookml --cov-report=xml --cov-report=term-missing
+
+    - name: Run dead code detection with vulture
+      run: |
+        uv run vulture dbt2lookml tests --min-confidence=80
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install UV
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+
+    - name: Run integration tests
+      run: |
+        uv run pytest tests/integration/ -v --tb=short
+
+    - name: Run end-to-end tests
+      run: |
+        uv run pytest tests/features/ -v --tb=short

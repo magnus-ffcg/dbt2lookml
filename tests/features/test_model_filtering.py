@@ -126,9 +126,7 @@ class TestModelFiltering:
             self.create_mock_model('model3'),
         ]
         # Act - select_model should take precedence over include_models
-        result = parser.filter_models(
-            models, select_model='model2', include_models=['model1', 'model3']
-        )
+        result = parser.filter_models(models, select_model='model2', include_models=['model1', 'model3'])
         # Assert - only model2 should be returned due to select_model precedence
         assert len(result) == 1
         assert result[0].name == 'model2'
@@ -144,9 +142,7 @@ class TestModelFiltering:
             self.create_mock_model('model4', ['tag2']),
         ]
         # Act - filter by tag first, then include/exclude
-        result = parser.filter_models(
-            models, tag='tag1', include_models=['model1', 'model3'], exclude_models=['model3']
-        )
+        result = parser.filter_models(models, tag='tag1', include_models=['model1', 'model3'], exclude_models=['model3'])
         # Assert - should have model1 (tag1 + included but not excluded)
         assert len(result) == 1
         assert result[0].name == 'model1'
@@ -173,9 +169,7 @@ class TestModelFiltering:
             self.create_mock_model('model2'),
         ]
         # Act
-        result = parser.filter_models(
-            models, include_models=['nonexistent'], exclude_models=['also_nonexistent']
-        )
+        result = parser.filter_models(models, include_models=['nonexistent'], exclude_models=['also_nonexistent'])
         # Assert - include should return empty, exclude should return all
         assert len(result) == 0
 

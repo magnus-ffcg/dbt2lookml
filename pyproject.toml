@@ -1,48 +1,25 @@
-[tool.poetry]
-name = "dbt2lookml"
-version = "0.2.5"
-description = "Generate lookml views from bigquery via dbt models"
-authors = []
-readme = "README.md"
-homepage = "https://github.com/magnus-ffcg/dbt2lookml"
-repository = "https://github.com/magnus-ffcg/dbt2lookml"
-
-[tool.poetry.dependencies]
-lkml = ">=1.1"
-pydantic = ">=2.9"
-PyYAML = ">=5.0"
-python = ">=3.10.0,<4.0"
-typing-extensions = ">=4.0"
-importlib-metadata = ">=4"
-rich = ">=13.9.4"
-pytest-mock = "^3.14.0"
-datamodel-code-generator = "^0.26.3"
-unidecode = ">=1.3.0"
-parsimonious = "^0.10.0"
-
-
-[tool.poetry.group.dev.dependencies]
-debugpy = "^1.8.8"
-pytest = "^8.3.3"
-pytest-mock = "^3.14.0"
-pytest-cov = "^6.0.0"
-datamodel-code-generator = "^0.26.3"
-twine = "^6.1.0"
-vulture = "^2.14"
-mkdocs-material = "^9.6.18"
-mkdocstrings = {extras = ["python"], version = "^0.30.0"}
-mypy = "^1.17.1"
-types-pyyaml = "^6.0.12.20250822"
-
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "dbt2lookml"
-version = "0.2.2"
-description = "Convert dbt models to LookML"
-requires-python = ">=3.10.0,<4.0"
+version = "0.2.5"
+description = "Generate lookml views from bigquery via dbt models"
+authors = [
+    {name = "Magnus Eriksson", email = "magnus@ffcg.se"}
+]
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 dependencies = [
     "lkml>=1.1",
     "pydantic>=2.9",
@@ -51,19 +28,41 @@ dependencies = [
     "importlib-metadata>=4",
     "rich>=13.9.4",
     "unidecode>=1.3.0",
+    "parsimonious>=0.10.0",
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
+dev = [
+    "debugpy>=1.8.8",
+    "pytest>=8.3.3",
+    "pytest-mock>=3.14.0",
+    "pytest-cov>=6.0.0",
+    "datamodel-code-generator>=0.26.3",
+    "twine>=6.1.0",
+    "vulture>=2.14",
+    "mkdocs-material>=9.6.18",
+    "mkdocstrings[python]>=0.30.0",
+    "mypy>=1.17.1",
+    "types-pyyaml>=6.0.12.20250822",
     "black>=23.0",
     "isort>=5.0",
     "flake8>=6.0",
-    "mypy>=1.0",
-    "types-PyYAML>=6.0",
     "tox>=4.0",
 ]
+test = [
+    "pytest>=8.3.3",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/magnus-ffcg/dbt2lookml"
+Repository = "https://github.com/magnus-ffcg/dbt2lookml"
+Documentation = "https://magnus-ffcg.github.io/dbt2lookml"
+Changelog = "https://github.com/magnus-ffcg/dbt2lookml/blob/main/CHANGELOG.md"
+
+[project.scripts]
+dbt2lookml = "dbt2lookml.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -138,9 +137,20 @@ ignore_decorators = ["@pytest.fixture", "@property", "@staticmethod", "@classmet
 ignore_names = ["_*", "test_*", "*_test", "setUp", "tearDown"]
 
 [tool.uv]
-
-[tool.uv.workspace]
-members = ["dist"]
-
-[tool.poetry.scripts]
-dbt2lookml = "dbt2lookml.cli:main"
+dev-dependencies = [
+    "debugpy>=1.8.8",
+    "pytest>=8.3.3",
+    "pytest-mock>=3.14.0",
+    "pytest-cov>=6.0.0",
+    "datamodel-code-generator>=0.26.3",
+    "twine>=6.1.0",
+    "vulture>=2.14",
+    "mkdocs-material>=9.6.18",
+    "mkdocstrings[python]>=0.30.0",
+    "mypy>=1.17.1",
+    "types-pyyaml>=6.0.12.20250822",
+    "black>=23.0",
+    "isort>=5.0",
+    "flake8>=6.0",
+    "tox>=4.0",
+]

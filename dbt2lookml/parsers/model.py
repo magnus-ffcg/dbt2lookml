@@ -18,9 +18,7 @@ class ModelParser:
         all_models = self._filter_nodes_by_type(self._manifest.nodes, 'model')
         for model in all_models:
             if not hasattr(model, 'name'):
-                logging.error(
-                    'Cannot parse model with id: "%s" - is the model file empty?', model.unique_id
-                )
+                logging.error('Cannot parse model with id: "%s" - is the model file empty?', model.unique_id)
                 continue
         return all_models
 
@@ -49,11 +47,7 @@ class ModelParser:
 
     def _filter_nodes_by_type(self, nodes: Dict, resource_type: str) -> List[DbtModel]:
         """Filter nodes by resource type and ensure they have names."""
-        return [
-            node
-            for node in nodes.values()
-            if isinstance(node, DbtModel) and node.resource_type == resource_type
-        ]
+        return [node for node in nodes.values() if isinstance(node, DbtModel) and node.resource_type == resource_type]
 
     def _tags_match(self, tag: str, model: DbtModel) -> bool:
         """Check if model has the specified tag."""

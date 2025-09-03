@@ -1,4 +1,5 @@
 """LookML view generator module."""
+
 import logging
 from typing import Any, Dict
 
@@ -29,50 +30,46 @@ class LookmlViewGenerator:
         # Use provided array models or empty list if none provided
         if array_models is None:
             array_models = []
-        
+
         # Cache column collections to avoid repeated expensive processing
         array_model_names = [getattr(am, 'name', str(am)) for am in array_models]
         cache_key = (model.unique_id, tuple(sorted(array_model_names)))
         if cache_key not in self._column_collections_cache:
             self._column_collections_cache[cache_key] = ColumnCollections.from_model(model, array_models)
-        
+
         # Generate dimensions
         dimension_kwargs = {'model': model, 'columns_subset': columns_subset}
         if is_nested_view:
             dimension_kwargs.update({'is_nested_view': True, 'array_model_name': array_model_name})
-        
+
         dimensions, nested_dimensions = dimension_generator.lookml_dimensions_from_model(**dimension_kwargs)
-        
+
         # Get dimension groups
         dimension_groups_result = dimension_generator.lookml_dimension_groups_from_model(**dimension_kwargs)
         dimension_groups = dimension_groups_result.get('dimension_groups', [])
-        
+
         # Apply conflict detection
         conflicting_dimensions = []
         if dimensions and dimension_groups:
-            dimensions = dimension_generator._comment_conflicting_dimensions(
-                dimensions, dimension_groups, model.name
-            )
-        
+            dimensions = dimension_generator._comment_conflicting_dimensions(dimensions, dimension_groups, model.name)
+
         # Clean dimension groups for output
         if dimension_groups:
             dimension_groups = dimension_generator._clean_dimension_groups_for_output(dimension_groups)
-        
+
         # Generate measures
-        measures = measure_generator.lookml_measures_from_model(
-            model, columns_subset=columns_subset
-        )
-        
+        measures = measure_generator.lookml_measures_from_model(model, columns_subset=columns_subset)
+
         # Build base view structure
         view = {'name': view_name}
-        
+
         if dimensions:
             view['dimensions'] = dimensions
         if dimension_groups:
             view['dimension_groups'] = dimension_groups
         if measures:
             view['measures'] = measures
-        
+
         return view, nested_dimensions, measures
 
     def _create_main_view(
@@ -88,81 +85,86 @@ class LookmlViewGenerator:
         """Create the main view definition."""
         # Get main view columns
         collections = self._get_column_collections(model, array_models)
-        
+
         # Use shared base method
         view, nested_dimensions, measures = self._create_view_base(
-            model, view_name.lower(), collections.main_view_columns, array_models,
-            dimension_generator, measure_generator
+            model, view_name.lower(), collections.main_view_columns, array_models, dimension_generator, measure_generator
         )
-        
+
         # Main view specific properties
         view['sql_table_name'] = model.relation_name
-        
+
         # Add nested array dimensions to main view
         if nested_dimensions:
             if 'dimensions' not in view:
                 view['dimensions'] = []
             view['dimensions'].extend(nested_dimensions)
-        
+
         # Add default count measure if no measures exist
         if not measures:
             view['measures'] = [{'name': 'count', 'type': 'count'}]
-        
+
         # Add hidden flag if specified in meta
         if hidden := model._get_meta_looker('view', 'hidden'):
             view['hidden'] = 'yes' if hidden else 'no'
-        
+
         return view
 
     def _generate_model_header_comment(self, model: DbtModel) -> str:
         """Generate header comment with dbt model metadata.
-        
+
         Args:
             model: DbtModel to extract metadata from
-            
+
         Returns:
             Multi-line comment string with model metadata
         """
         lines = []
-        
+
         # Check if model has name attribute before accessing
         if hasattr(model, 'name'):
             lines.append(f"# Model: {getattr(model, 'name', '')}")
-        
+
         # Check if model has description before accessing
         if hasattr(model, 'description'):
-            lines.append(f"# Description: {getattr(model, 'description', '')}")
-        
+            description = getattr(model, 'description', '')
+            if description:
+                # Handle multiline descriptions - only first line gets "Description:" prefix
+                description_lines = description.strip().split('\n')
+                for i, line in enumerate(description_lines):
+                    if line.strip():  # Only add non-empty lines
+                        if i == 0:
+                            lines.append(f"# Description: {line.strip()}")
+                        else:
+                            lines.append(f"# {line.strip()}")
+
         if hasattr(model, 'tags'):
-            lines.append(f"# Description: {','.join(getattr(model, 'tags', []))}")
-        
+            lines.append(f"# Tags: {','.join(getattr(model, 'tags', []))}")
+
         # Check for metadata stored in various possible locations
         # Try to get metadata from model attributes or stored manifest data
         manifest_data = getattr(model, '_manifest_data', None)
         if manifest_data:
             # Extract meta fields from stored manifest data
             meta = manifest_data.get('meta', {})
-            
-            #owner = meta.get('owner')
-            if hasattr(meta, 'owner'):
-                lines.append(f"# Owner: {getattr(model, 'owner', '')}")
-            
-            #maturity = meta.get('model_maturity')  
-            if hasattr(meta, 'maturity'):
-                lines.append(f"# Maturity: {getattr(model, 'maturity', '')}")
-            
-            #contains_pii = meta.get('contains_pii')
-            if hasattr(meta, 'contains_pii'):
-                pii_value = "Yes" if getattr(model, 'maturity', '') else "No"
+
+            # Extract metadata from manifest
+            if owner := meta.get('owner'):
+                lines.append(f"# Owner: {owner}")
+
+            if maturity := meta.get('model_maturity'):
+                lines.append(f"# Maturity: {maturity}")
+
+            if contains_pii := meta.get('contains_pii'):
+                pii_value = "Yes" if contains_pii else "No"
                 lines.append(f"# PII: {pii_value}")
-            
+
             # Get group from manifest data
-            #group = manifest_data.get('group')
-            if hasattr(meta, 'group'):
-                lines.append(f"# Group: {getattr(model, 'group', '')}")
-             
+            if group := manifest_data.get('group'):
+                lines.append(f"# Group: {group}")
+
         if len(lines) > 1:
-            return '\n'.join(lines) + "\n\n"    
+            return '\n'.join(lines) + "\n\n"
         else:
             # No content at all, return empty string
             return ""
@@ -171,7 +173,7 @@ class LookmlViewGenerator:
         """Get column collections with caching."""
         if array_models is None:
             array_models = []
-        
+
         array_model_names = [getattr(am, 'name', str(am)) for am in array_models]
         cache_key = (model.unique_id, tuple(sorted(array_model_names)))
         if cache_key not in self._column_collections_cache:
@@ -191,27 +193,33 @@ class LookmlViewGenerator:
         """Create a nested view definition for an array field."""
         # Generate nested view name
         nested_view_name = self._generate_nested_view_name(model, base_name, array_model)
-        
+
         # Get column collections for this nested view
         nested_columns = self._get_nested_view_columns(model, array_model, array_models)
-        
+
         # Use shared base method
         view, _, measures = self._create_view_base(
-            model, nested_view_name, nested_columns, array_models,
-            dimension_generator, measure_generator,
-            is_nested_view=True, array_model_name=array_model.name
+            model,
+            nested_view_name,
+            nested_columns,
+            array_models,
+            dimension_generator,
+            measure_generator,
+            is_nested_view=True,
+            array_model_name=array_model.name,
         )
-        
+
         # Check if view has content, return None if empty
         if self._is_empty_view(view, measures):
             return None
-        
+
         return view
 
     def _generate_nested_view_name(self, model: DbtModel, base_name: str, array_model: DbtModelColumn) -> str:
         """Generate the nested view name based on CLI arguments."""
         if self._cli_args.use_table_name:
             from dbt2lookml.utils import camel_to_snake
+
             array_model_name = array_model.lookml_long_name
             table_name = model.relation_name.split('.')[-1].strip('`')
             base_name = camel_to_snake(table_name)
@@ -229,7 +237,7 @@ class LookmlViewGenerator:
         has_dimensions = bool(view.get('dimensions'))
         has_dimension_groups = bool(view.get('dimension_groups'))
         has_measures = bool(measures)
-        
+
         return not (has_dimensions or has_dimension_groups or has_measures)
 
     def generate(
@@ -247,13 +255,13 @@ class LookmlViewGenerator:
             model, view_name, view_label, exclude_names, dimension_generator, measure_generator, array_models
         )
         views = [main_view]
-        
+
         # Create nested views recursively for all array models
         self._create_nested_views_recursive(
             views, model, view_name, view_label, array_models, dimension_generator, measure_generator
         )
         return views
-    
+
     def _create_nested_views_recursive(
         self,
         views: list,
@@ -269,12 +277,12 @@ class LookmlViewGenerator:
         # Use hierarchy-based logic to find ALL arrays (including deeply nested ones)
         columns_dict = {col.name: col for col in model.columns.values()}
         hierarchy = ColumnCollections._build_hierarchy_map(columns_dict)
-        
+
         all_array_models = []
         for col_name, col_info in hierarchy.items():
             if col_info['is_array'] and col_info['column']:
                 all_array_models.append(col_info['column'])
-        
+
         # Create nested views for ALL detected array models
         for array_model in all_array_models:
             nested_view = self._create_nested_view(

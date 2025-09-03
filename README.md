@@ -12,59 +12,9 @@ Generate Looker view files automatically from dbt models in BigQuery. Tested wit
 
 For usage instructions, configuration, and examples, see the comprehensive documentation.
 
-## Development Setup
+## Development
 
-### Prerequisites
-
-- Python 3.9+
-- Poetry (recommended for development)
-
-### Clone and Install
-
-```bash
-git clone https://github.com/magnus-ffcg/dbt2lookml.git
-cd dbt2lookml
-poetry install
-```
-
-### Run Tests
-
-```bash
-# Run all tests
-poetry run pytest
-
-# Run with coverage
-poetry run pytest --cov=dbt2lookml
-
-# Run specific test
-poetry run pytest tests/unit/generators/test_dimension.py
-```
-
-### Code Quality
-
-```bash
-# Format code
-poetry run black dbt2lookml tests
-
-# Sort imports
-poetry run isort dbt2lookml tests
-
-# Lint code
-poetry run flake8 dbt2lookml tests
-
-# Type checking
-poetry run mypy dbt2lookml
-```
-
-### Documentation
-
-```bash
-# Serve docs locally
-poetry run mkdocs serve
-
-# Build docs
-poetry run mkdocs build
-```
+For development setup, testing, and contribution guidelines, see the **[Development Documentation](https://magnus-ffcg.github.io/dbt2lookml/development/contributing/)**.
 
 ## Project Structure
 

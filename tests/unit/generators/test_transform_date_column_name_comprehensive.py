@@ -1,8 +1,10 @@
 """Comprehensive unit tests for _transform_date_column_name method."""
 
-import pytest
 from argparse import Namespace
 from unittest.mock import Mock, patch
+
+import pytest
+
 from dbt2lookml.generators.dimension import LookmlDimensionGenerator
 from dbt2lookml.models.dbt import DbtModelColumn
 
@@ -27,7 +29,7 @@ class TestTransformDateColumnNameComprehensive:
         column.original_name = "Date"
         result = self.generator.transform_date_column_name(column)
         assert result == "date"
-        
+
         # Test 'date'
         column = DbtModelColumn(name="date", data_type="DATE")
         column.original_name = "date"
@@ -41,7 +43,7 @@ class TestTransformDateColumnNameComprehensive:
         column.original_name = "DeliveryStartDate"
         result = self.generator.transform_date_column_name(column)
         assert result == "delivery_start"
-        
+
         # Single word
         column = DbtModelColumn(name="CreatedDate", data_type="DATE")
         column.original_name = "CreatedDate"
@@ -97,7 +99,7 @@ class TestTransformDateColumnNameComprehensive:
         column.original_name = "Delivery.Start.Date"
         result = self.generator.transform_date_column_name(column)
         assert result == "delivery__start"
-        
+
         # Mixed case nested
         column = DbtModelColumn(name="format.period.EndDate", data_type="DATE")
         column.original_name = "Format.Period.EndDate"
@@ -151,9 +153,7 @@ class TestTransformDateColumnNameComprehensive:
         """Test nested view prefix stripping with single level array model."""
         column = DbtModelColumn(name="items__item_date", data_type="DATE")
         column.original_name = "items__item_date"
-        result = self.generator.transform_date_column_name(
-            column, is_nested_view=True, array_model_name="items"
-        )
+        result = self.generator.transform_date_column_name(column, is_nested_view=True, array_model_name="items")
         assert result == "items_item"  # Current behavior: doesn't strip prefix correctly
 
     def test_nested_view_prefix_stripping_multi_level(self):
@@ -169,18 +169,14 @@ class TestTransformDateColumnNameComprehensive:
         """Test nested view prefix stripping when not enough parts to strip."""
         column = DbtModelColumn(name="item_date", data_type="DATE")
         column.original_name = "item_date"
-        result = self.generator.transform_date_column_name(
-            column, is_nested_view=True, array_model_name="items.sub.nested"
-        )
+        result = self.generator.transform_date_column_name(column, is_nested_view=True, array_model_name="items.sub.nested")
         assert result == "item"  # Should keep original when not enough parts
 
     def test_nested_view_no_array_model_name(self):
         """Test nested view flag without array_model_name."""
         column = DbtModelColumn(name="item_date", data_type="DATE")
         column.original_name = "item_date"
-        result = self.generator.transform_date_column_name(
-            column, is_nested_view=True, array_model_name=None
-        )
+        result = self.generator.transform_date_column_name(column, is_nested_view=True, array_model_name=None)
         assert result == "item"  # Should work normally without prefix stripping
 
     def test_complex_nested_with_date_variations(self):
@@ -190,7 +186,7 @@ class TestTransformDateColumnNameComprehensive:
         column.original_name = "Format.Period.start_date"
         result = self.generator.transform_date_column_name(column)
         assert result == "format__period__start"
-        
+
         # Test lowercase date in nested
         column = DbtModelColumn(name="format.period.startdate", data_type="DATE")
         column.original_name = "Format.Period.startdate"
@@ -217,10 +213,8 @@ class TestTransformDateColumnNameComprehensive:
         """Test that logging works correctly in nested view mode."""
         column = DbtModelColumn(name="items__item_date", data_type="DATE")
         column.original_name = "items__item_date"
-        result = self.generator.transform_date_column_name(
-            column, is_nested_view=True, array_model_name="items"
-        )
-        
+        result = self.generator.transform_date_column_name(column, is_nested_view=True, array_model_name="items")
+
         # Verify logging was called
         assert mock_debug.called
         assert result == "items_item"  # Current behavior: doesn't strip prefix correctly
@@ -229,11 +223,11 @@ class TestTransformDateColumnNameComprehensive:
         """Test integration with camel_to_snake utility function."""
         with patch('dbt2lookml.generators.dimension.camel_to_snake') as mock_camel_to_snake:
             mock_camel_to_snake.return_value = "mocked_result"
-            
+
             column = DbtModelColumn(name="TestCamelCaseDate", data_type="DATE")
             column.original_name = "TestCamelCaseDate"
             result = self.generator.transform_date_column_name(column)
-            
+
             # Should call camel_to_snake with "TestCamelCase" (Date suffix removed)
             mock_camel_to_snake.assert_called_with("TestCamelCase")
             assert result == "mocked_result"

@@ -79,15 +79,11 @@ class DbtMetaLookerMeasure(DbtMetaLookerBase):
         measure_type = self.type
         # Validate type-specific attributes
         if (
-            any(
-                v is not None
-                for v in [self.approximate, self.approximate_threshold, self.sql_distinct_key]
-            )
+            any(v is not None for v in [self.approximate, self.approximate_threshold, self.sql_distinct_key])
             and measure_type != LookerMeasureType.COUNT_DISTINCT
         ):
             raise ValueError(
-                "approximate, approximate_threshold, and sql_distinct_key can only be used with "
-                "count_distinct measures"
+                "approximate, approximate_threshold, and sql_distinct_key can only be used with " "count_distinct measures"
             )
         if self.percentile is not None and not measure_type.value.startswith("percentile"):
             raise ValueError("percentile can only be used with percentile measures")

@@ -1,0 +1,109 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install UV
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+
+    - name: Build package
+      run: |
+        uv build
+
+    - name: Check package metadata
+      run: |
+        uv run python -m twine check dist/*
+
+    - name: Test package installation
+      run: |
+        # Create a clean virtual environment to test installation
+        python -m venv test_env
+        source test_env/bin/activate
+        pip install dist/*.whl
+        # Test that the CLI works
+        dbt2lookml --help
+        deactivate
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: dist-${{ github.sha }}
+        path: dist/
+        retention-days: 30
+
+  validate-package:
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: dist-${{ github.sha }}
+        path: dist/
+
+    - name: Install UV
+      uses: astral-sh/setup-uv@v3
+      with:
+        version: "latest"
+
+    - name: Validate package structure
+      run: |
+        # Check that both wheel and source distribution were created
+        ls -la dist/
+        test -f dist/*.whl
+        test -f dist/*.tar.gz
+        
+        # Extract and validate wheel contents
+        python -m zipfile -l dist/*.whl
+        
+        # Validate that required files are present
+        python -c "
+        import zipfile
+        import sys
+        
+        whl_file = next(f for f in sys.argv[1:] if f.endswith('.whl'))
+        with zipfile.ZipFile(whl_file, 'r') as z:
+            files = z.namelist()
+            required_files = ['dbt2lookml/__init__.py', 'dbt2lookml/cli.py']
+            missing = [f for f in required_files if not any(f in file for file in files)]
+            if missing:
+                print(f'Missing required files: {missing}')
+                sys.exit(1)
+            print('Package structure validation passed')
+        " dist/*.whl
+
+    - name: Security scan with safety
+      run: |
+        uv add safety
+        uv run safety check --json || true  # Don't fail build on security issues, just warn
