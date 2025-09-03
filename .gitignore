@@ -141,6 +141,7 @@ cython_debug/
 /.idea/
 /example/logs/
 
+tmp/
 output/
 real_samples/
 local.config

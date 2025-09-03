@@ -1,0 +1,94 @@
+site_name: dbt2lookml Documentation
+site_description: Generate Looker view files automatically from dbt models in BigQuery
+site_author: Magnus Eriksson
+site_url: https://magnus-ffcg.github.io/dbt2lookml/
+
+repo_name: magnus-ffcg/dbt2lookml
+repo_url: https://github.com/magnus-ffcg/dbt2lookml
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: false
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+    - Configuration: getting-started/configuration.md
+  - User Guide:
+    - Basic Usage: user-guide/basic-usage.md
+    - Advanced Features: user-guide/advanced-features.md
+    - Model Filtering: user-guide/model-filtering.md
+    - Looker Metadata: user-guide/looker-metadata.md
+    - Troubleshooting: user-guide/troubleshooting.md
+  - API Reference:
+    - CLI: api/cli.md
+    - Generators: api/generators.md
+    - Models: api/models.md
+    - Parsers: api/parsers.md
+  - Development:
+    - Contributing: development/contributing.md
+    - Architecture: development/architecture.md
+    - Testing: development/testing.md
+  - Examples:
+    - Basic Examples: examples/basic.md
+    - Advanced Examples: examples/advanced.md
+    - Integration: examples/integration.md
+  - Changelog: changelog.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/magnus-ffcg/dbt2lookml
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/dbt2lookml/

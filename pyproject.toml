@@ -29,6 +29,10 @@ pytest-cov = "^6.0.0"
 datamodel-code-generator = "^0.26.3"
 twine = "^6.1.0"
 vulture = "^2.14"
+mkdocs-material = "^9.6.18"
+mkdocstrings = {extras = ["python"], version = "^0.30.0"}
+mypy = "^1.17.1"
+types-pyyaml = "^6.0.12.20250822"
 
 [build-system]
 requires = ["poetry-core"]
